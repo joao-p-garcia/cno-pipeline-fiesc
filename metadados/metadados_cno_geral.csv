@@ -1,0 +1,27 @@
+﻿Atributo,Formato,Tamanho,Descrição
+CNO,Número,12,Número do CNO
+Código do país,Número,3,Código do país
+Nome do País,Texto,49,Nome do País
+Data de início,Data,8,Data de início da obra (formato AAAA-MM-DD)
+Data de início da responsabilidade,Data,8,Data de início do período de responsabilidade da obra (formato AAAA-MM-DD)
+Data de registro,Data,8,Data de registro (formato AAAA-MM-DD)
+CNO vinculado,Número,12,Número da inscrição vinculada da obra
+CEP,Número,8,Número do CEP (somente Brasil)
+NI do responsável,Número,14,NI do responsável pela obra (Se for CPF o campo virá em branco)
+Qualificação do responsável,Número,4,"Qualificação do responsável pela obra (0070 - Proprietário do Imóvel, 0057 - Dono da Obra, 0064 - Incorporador de Construção Civil, 0053 - Pessoa Jurídica Construtora, 0111 - Sociedade Líder de Consórcio, 0109 - Consórcio, 0110 - Construção em nome coletivo)"
+Nome,Texto,100,Nome da obra
+Código do município,Número,4,Código do município (TOM)
+Nome do município,Texto,50,Nome do município
+Tipo de logradouro,Texto,11,Tipo de logradouro
+Logradouro,Texto,60,Logradouro
+Número do logradouro,Texto,6,Número do logradouro
+Bairro,Texto,50,Bairro
+Estado,Texto,50,Estado
+Caixa Postal,Texto,8,Caixa postal no exterior
+Complemento,Texto,156,Complemento do endereço
+Unidade de medida,Texto,20,Unidade de medida da obra
+Área total,Número,11,Valor da área total da obra
+Situação,Número,2,"Situação da obra (01 - NULA, 02 - ATIVA, 03 - SUSPENSA, 14 - PARALISADA, 15 - ENCERRADA)"
+Data da situação,Data,8,Data da situação da obra (formato AAAA-MM-DD)
+Nome empresarial,Texto,150,"Nome empresarial do responsável pela obra (Se responsável pessoa física, o campo virá em branco)"
+Localização,Texto,11,Código da localização
