@@ -210,9 +210,12 @@ tempCodeRunnerFile.py
 .pypirc
 
 # Marimo
-marimo/_static/
+mar imo/_static/
 marimo/_lsp/
 __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dados / metadados
+dados_raw/
