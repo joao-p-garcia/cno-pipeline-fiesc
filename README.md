@@ -40,6 +40,23 @@ Testes (não tocam a rede, rodam em segundos):
 pytest
 ```
 
+Há também um `Makefile` com os mesmos comandos (`make setup`, `make info`,
+`make extract`, `make test`, `make lint`).
+
+### Configuração local opcional
+
+Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
+mudar, copie `.env.exemplo` para `.env` — ele não é versionado. A variável mais
+útil é `CNO_DATA_DIR`, que move as camadas de dados para fora do repositório:
+
+```bash
+CNO_DATA_DIR=/caminho/para/dados
+```
+
+Isso importa quando o repositório está numa pasta montada — em WSL, com o código
+em `/mnt/c`, apontar os dados para um caminho nativo do Linux acelera bastante o
+processamento dos 1,4 GB de CSV.
+
 ## Estrutura
 
 ```

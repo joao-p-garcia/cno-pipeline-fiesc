@@ -1,4 +1,12 @@
 .DEFAULT_GOAL := help
+
+# Configuração local opcional, não versionada. Serve para apontar CNO_DATA_DIR
+# para fora do repositório — útil quando o código está numa pasta montada
+# (/mnt/c no WSL) e os dados devem ficar num disco nativo, bem mais rápido.
+# Veja .env.exemplo.
+-include .env
+export
+
 VENV := .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
@@ -12,10 +20,18 @@ help:  ## Lista os alvos disponíveis
 $(VENV):
 	python3 -m venv $(VENV)
 
-setup: $(VENV)  ## Cria o venv e instala o projeto em modo editável
+# Sentinela: o pip só roda de novo quando o pyproject.toml muda. Sem isto, todo
+# alvo pagaria um `pip install` — caro quando o repositório está montado em
+# /mnt/c, onde operações com muitos arquivos pequenos são lentas.
+STAMP := $(VENV)/.instalado
+
+$(STAMP): pyproject.toml | $(VENV)
 	$(PIP) install --upgrade pip --quiet
 	$(PIP) install -e ".[dev]" --quiet
-	@echo "pronto: use 'make info' ou 'make extract'"
+	@touch $(STAMP)
+	@echo "dependências instaladas"
+
+setup: $(STAMP)  ## Cria o venv e instala o projeto em modo editável
 
 info: setup  ## Compara a fonte com o estado local, sem baixar nada
 	$(VENV)/bin/cno info
