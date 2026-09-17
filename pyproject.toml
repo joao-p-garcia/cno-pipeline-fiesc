@@ -9,6 +9,10 @@ description = "Pipeline de extração e tratamento da base do CNO (Cadastro Naci
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.32",
+    # Engine do tratamento. Escolhido em vez de pandas porque os 3,6 M de linhas
+    # cabem em memória com folga no DuckDB e estourariam vários GB no pandas, e
+    # porque ele escreve parquet particionado nativamente.
+    "duckdb>=1.1",
 ]
 
 [project.optional-dependencies]
