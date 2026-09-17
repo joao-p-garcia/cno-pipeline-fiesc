@@ -172,4 +172,7 @@ def settings(tmp_path: Path, servidor: str) -> Settings:
         chunk_size=64,
         user_agent="cno-pipeline-test",
         manter_zip=True,
+        manter_intermediarios=True,
+        duckdb_memory_limit="1GB",
+        duckdb_threads=2,
     )

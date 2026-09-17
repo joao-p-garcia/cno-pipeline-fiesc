@@ -15,6 +15,7 @@ from .config import get_settings
 from .extract import ErroDeExtracao, ErroDeFonte, HttpSource, carregar_ultimo
 from .extract.cno import executar_extracao
 from .logging_conf import configurar_logging
+from .transform import ErroDeStaging, executar_staging
 from .utils import formatar_bytes
 
 log = logging.getLogger("cno_pipeline.cli")
@@ -45,6 +46,27 @@ def _cmd_extract(args: argparse.Namespace) -> int:
         print("totais de controle publicados pela fonte:")
         for tabela, total in sorted(m.totais_controle.items()):
             print(f"  {tabela:22} {total:>12,}".replace(",", "."))
+    return 0
+
+
+def _cmd_transform(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    log.info("camada staging em %s", settings.staging_dir)
+
+    resultado = executar_staging(settings, snapshot_id=args.snapshot, forcar=args.force)
+
+    print()
+    print(f"snapshot        : {resultado.snapshot_id}")
+    print(f"tempo total     : {resultado.segundos_total:.1f}s")
+    print(f"diretório       : {resultado.staging_dir}")
+    print()
+    print(f"{'tabela':10} {'origem':>12} {'tratada':>12} {'duplicatas':>12} {'parquet':>10}")
+    print("-" * 60)
+    for m in resultado.tabelas:
+        print(
+            f"{m.nome:10} {m.linhas_origem:>12,} {m.linhas_destino:>12,} "
+            f"{m.duplicatas_removidas:>12,} {formatar_bytes(m.bytes_parquet):>10}".replace(",", ".")
+        )
     return 0
 
 
@@ -116,6 +138,20 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     p_extract.set_defaults(func=_cmd_extract)
 
+    p_transform = sub.add_parser(
+        "transform", help="trata a camada raw e materializa parquet em staging"
+    )
+    p_transform.add_argument(
+        "--snapshot",
+        help="snapshot a tratar (AAAA-MM-DD). Padrão: o mais recente extraído",
+    )
+    p_transform.add_argument(
+        "--force",
+        action="store_true",
+        help="refaz a transcodificação intermediária mesmo se estiver válida",
+    )
+    p_transform.set_defaults(func=_cmd_transform)
+
     p_info = sub.add_parser("info", help="compara a fonte com o estado local, sem baixar nada")
     p_info.add_argument("--json", action="store_true", help="saída em JSON")
     p_info.set_defaults(func=_cmd_info)
@@ -128,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     configurar_logging(args.verbose)
     try:
         return args.func(args)
-    except (ErroDeFonte, ErroDeExtracao) as exc:
+    except (ErroDeFonte, ErroDeExtracao, ErroDeStaging) as exc:
         # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
         # orquestrador marcar a task como falha sem um traceback inútil.
         log.error("%s", exc)

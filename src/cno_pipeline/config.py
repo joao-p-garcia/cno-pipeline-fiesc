@@ -41,6 +41,35 @@ ENCODING_ORIGEM = "cp1252"
 ENCODING_DESTINO = "utf-8"
 
 
+def _carregar_dotenv() -> None:
+    """Carrega um `.env` do diretório do projeto para o ambiente do processo.
+
+    Feito aqui, e não só no Makefile, porque o orquestrador e os testes chamam
+    a aplicação diretamente — depender do `make` para a configuração valer
+    significaria comportamento diferente conforme quem invoca.
+
+    Variáveis já definidas no ambiente têm precedência sobre o arquivo: o `.env`
+    é o default local, não uma imposição.
+    """
+    caminho = Path(__file__).resolve().parents[2] / ".env"
+    if not caminho.is_file():
+        return
+    try:
+        conteudo = caminho.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    for linha in conteudo.splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith("#") or "=" not in linha:
+            continue
+        chave, _, valor = linha.partition("=")
+        chave = chave.strip()
+        valor = valor.strip().strip("'\"")
+        if chave and chave not in os.environ:
+            os.environ[chave] = valor
+
+
 def _env_str(nome: str, padrao: str) -> str:
     valor = os.environ.get(nome, "").strip()
     return valor or padrao
@@ -80,6 +109,11 @@ class Settings:
 
     # Comportamento
     manter_zip: bool
+    manter_intermediarios: bool
+
+    # Tratamento
+    duckdb_memory_limit: str
+    duckdb_threads: int
 
     @property
     def raw_dir(self) -> Path:
@@ -112,6 +146,7 @@ class Settings:
 
 def get_settings() -> Settings:
     """Monta as configurações a partir do ambiente, com defaults sensatos."""
+    _carregar_dotenv()
     raiz_padrao = Path(__file__).resolve().parents[2] / "data"
     return Settings(
         source_url=_env_str("CNO_SOURCE_URL", DEFAULT_SOURCE_URL),
@@ -126,4 +161,13 @@ def get_settings() -> Settings:
             "cno-pipeline/0.1 (+https://github.com/joao-p-garcia/cno-pipeline-fiesc)",
         ),
         manter_zip=_env_bool("CNO_MANTER_ZIP", True),
+        # O intermediário UTF-8 custa ~1,4 GB e leva 18s para refazer. Manter é
+        # o default porque acelera o reprocessamento; num container efêmero
+        # convém desligar.
+        manter_intermediarios=_env_bool("CNO_MANTER_INTERMEDIARIOS", True),
+        # Teto de memória do DuckDB. O volume cabe com folga, mas um limite
+        # explícito evita que o processo cresça sem controle numa máquina
+        # compartilhada ou num container com cgroup apertado.
+        duckdb_memory_limit=_env_str("CNO_DUCKDB_MEMORY", "4GB"),
+        duckdb_threads=_env_int("CNO_DUCKDB_THREADS", 4),
     )
