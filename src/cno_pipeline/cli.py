@@ -15,7 +15,9 @@ from .config import get_settings
 from .extract import ErroDeExtracao, ErroDeFonte, HttpSource, carregar_ultimo
 from .extract.cno import executar_extracao
 from .logging_conf import configurar_logging
+from .transform import ErroDeStaging, executar_staging
 from .utils import formatar_bytes
+from .validate import ErroDeValidacao, executar_validacao
 
 log = logging.getLogger("cno_pipeline.cli")
 
@@ -46,6 +48,76 @@ def _cmd_extract(args: argparse.Namespace) -> int:
         for tabela, total in sorted(m.totais_controle.items()):
             print(f"  {tabela:22} {total:>12,}".replace(",", "."))
     return 0
+
+
+def _cmd_transform(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    log.info("camada staging em %s", settings.staging_dir)
+
+    resultado = executar_staging(settings, snapshot_id=args.snapshot, forcar=args.force)
+
+    print()
+    print(f"snapshot        : {resultado.snapshot_id}")
+    print(f"tempo total     : {resultado.segundos_total:.1f}s")
+    print(f"diretório       : {resultado.staging_dir}")
+    print()
+    print(f"{'tabela':10} {'origem':>12} {'tratada':>12} {'duplicatas':>12} {'parquet':>10}")
+    print("-" * 60)
+    for m in resultado.tabelas:
+        print(
+            f"{m.nome:10} {m.linhas_origem:>12,} {m.linhas_destino:>12,} "
+            f"{m.duplicatas_removidas:>12,} {formatar_bytes(m.bytes_parquet):>10}".replace(",", ".")
+        )
+    return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    relatorio = executar_validacao(settings, snapshot_id=args.snapshot)
+
+    print()
+    print(f"snapshot        : {relatorio.snapshot_id}")
+    print(f"tempo           : {relatorio.segundos:.1f}s")
+    print()
+
+    print("RECONCILIAÇÃO COM OS TOTAIS PUBLICADOS PELA RECEITA")
+    print(f"  {'tabela':10} {'lidas':>12} {'oficial':>12} {'dif':>8}  {'dedup':>10}  status")
+    for r in relatorio.reconciliacoes:
+        oficial = f"{r.total_oficial:,}".replace(",", ".") if r.total_oficial else "—"
+        status = "OK" if r.confere else "DIVERGE"
+        print(
+            f"  {r.tabela:10} {r.linhas_origem:>12,} {oficial:>12} "
+            f"{r.diferenca:>8,}  {r.duplicatas_removidas:>10,}  {status}".replace(",", ".")
+        )
+
+    print()
+    print("REGRAS")
+    for r in relatorio.regras:
+        marca = "ok  " if r.passou else ("ERRO" if r.severidade == "erro" else "aviso")
+        n = "" if r.passou else f"{r.violacoes:,}".replace(",", ".")
+        print(f"  [{marca:>5}] {r.nome:34} {n:>12}  {r.descricao}")
+
+    problemas = relatorio.erros + relatorio.avisos
+    if problemas:
+        print()
+        print("EXEMPLOS")
+        for r in problemas:
+            if not r.exemplos:
+                continue
+            print(f"  {r.nome}:")
+            for exemplo in r.exemplos[:3]:
+                campos = "  ".join(f"{k}={v}" for k, v in exemplo.items())
+                print(f"    {campos}")
+
+    print()
+    if relatorio.passou:
+        print(f"RESULTADO: aprovado ({len(relatorio.avisos)} avisos)")
+        return 0
+    print(
+        f"RESULTADO: reprovado — {len(relatorio.erros)} regras com erro, "
+        f"{len(relatorio.reconciliacoes_divergentes)} divergências de reconciliação"
+    )
+    return 1
 
 
 def _cmd_info(args: argparse.Namespace) -> int:
@@ -116,6 +188,29 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     p_extract.set_defaults(func=_cmd_extract)
 
+    p_transform = sub.add_parser(
+        "transform", help="trata a camada raw e materializa parquet em staging"
+    )
+    p_transform.add_argument(
+        "--snapshot",
+        help="snapshot a tratar (AAAA-MM-DD). Padrão: o mais recente extraído",
+    )
+    p_transform.add_argument(
+        "--force",
+        action="store_true",
+        help="refaz a transcodificação intermediária mesmo se estiver válida",
+    )
+    p_transform.set_defaults(func=_cmd_transform)
+
+    p_validate = sub.add_parser(
+        "validate", help="valida a camada tratada e reconcilia com os totais oficiais"
+    )
+    p_validate.add_argument(
+        "--snapshot",
+        help="snapshot a validar (AAAA-MM-DD). Padrão: o mais recente tratado",
+    )
+    p_validate.set_defaults(func=_cmd_validate)
+
     p_info = sub.add_parser("info", help="compara a fonte com o estado local, sem baixar nada")
     p_info.add_argument("--json", action="store_true", help="saída em JSON")
     p_info.set_defaults(func=_cmd_info)
@@ -128,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     configurar_logging(args.verbose)
     try:
         return args.func(args)
-    except (ErroDeFonte, ErroDeExtracao) as exc:
+    except (ErroDeFonte, ErroDeExtracao, ErroDeStaging, ErroDeValidacao) as exc:
         # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
         # orquestrador marcar a task como falha sem um traceback inútil.
         log.error("%s", exc)

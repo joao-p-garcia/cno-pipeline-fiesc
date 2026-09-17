@@ -25,6 +25,29 @@ log = logging.getLogger(__name__)
 
 CHUNK = 8 * 1024 * 1024
 
+# cp1252 e ISO-8859-1 são idênticos em 0x00-0x7F e em 0xA0-0xFF. Divergem
+# *somente* na faixa 0x80-0x9F, onde cp1252 põe tipografia e ISO-8859-1 deixa
+# controles indefinidos. Logo, um arquivo sem nenhum byte nessa faixa decodifica
+# exatamente igual nos dois encodings — e pode ser lido direto como latin-1,
+# sem transcodificar, sem risco nenhum.
+_FAIXA_C1 = range(0x80, 0xA0)
+_FORA_DA_FAIXA_C1 = bytes(b for b in range(256) if b not in _FAIXA_C1)
+
+
+def contem_bytes_c1(caminho: Path, chunk_size: int = CHUNK) -> bool:
+    """Diz se o arquivo tem algum byte em 0x80-0x9F.
+
+    É a pergunta exata que decide se dá para pular a transcodificação: sem esses
+    bytes, latin-1 e cp1252 produzem o mesmo texto. A varredura é feita com
+    `bytes.translate`, que roda em C — custa uma leitura sequencial, bem menos
+    do que decodificar e reescrever o arquivo.
+    """
+    with caminho.open("rb") as fh:
+        while bloco := fh.read(chunk_size):
+            if bloco.translate(None, _FORA_DA_FAIXA_C1):
+                return True
+    return False
+
 
 class ErroDeTranscodificacao(RuntimeError):
     """O arquivo não pôde ser decodificado no encoding declarado."""

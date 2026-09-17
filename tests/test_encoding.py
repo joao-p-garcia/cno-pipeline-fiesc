@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from cno_pipeline.transform.encoding import ErroDeTranscodificacao, transcodificar
+from cno_pipeline.transform.encoding import (
+    ErroDeTranscodificacao,
+    contem_bytes_c1,
+    transcodificar,
+)
 
 # Bytes da faixa C1: tipografia em cp1252, indefinidos em ISO-8859-1.
 TRAVESSAO = b"\x96"
@@ -107,3 +111,37 @@ def test_sobrescreve_destino_anterior(tmp_path: Path):
     transcodificar(origem, destino)
 
     assert destino.read_text("utf-8") == "novo\n"
+
+
+# -- detecção de necessidade de transcodificação -------------------------
+
+
+def test_detecta_bytes_c1(tmp_path: Path):
+    """A pergunta que decide se dá para pular a transcodificação."""
+    com_c1 = tmp_path / "com.csv"
+    com_c1.write_bytes(b"obra " + TRAVESSAO + b" fase 2\n")
+    assert contem_bytes_c1(com_c1) is True
+
+
+def test_acentuacao_comum_nao_e_c1(tmp_path: Path):
+    """Acento fica em 0xA0-0xFF, onde latin-1 e cp1252 concordam."""
+    sem_c1 = tmp_path / "sem.csv"
+    sem_c1.write_bytes("Demolição, Acréscimo, Galpão industrial\n".encode("cp1252"))
+    assert contem_bytes_c1(sem_c1) is False
+
+
+def test_arquivo_ascii_puro_nao_precisa_transcodificar(tmp_path: Path):
+    ascii_puro = tmp_path / "a.csv"
+    ascii_puro.write_bytes(b"CNO,CNAE\n010010092278,4120400\n")
+    assert contem_bytes_c1(ascii_puro) is False
+
+
+def test_detecta_c1_alem_do_primeiro_bloco(tmp_path: Path):
+    """O byte C1 pode estar no fim de um arquivo de 900 MB.
+
+    Uma verificação que olhasse só o começo daria falso negativo e levaria o
+    pipeline a ler como latin-1 um arquivo que não é — corrompendo em silêncio.
+    """
+    grande = tmp_path / "g.csv"
+    grande.write_bytes(b"x" * 5_000_000 + TRAVESSAO + b"\n")
+    assert contem_bytes_c1(grande, chunk_size=64 * 1024) is True
