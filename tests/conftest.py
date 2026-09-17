@@ -19,6 +19,9 @@ from pathlib import Path
 import pytest
 
 from cno_pipeline.config import Settings
+from cno_pipeline.extract.manifest import ArquivoExtraido, Manifest, sha256_arquivo
+
+from .dados_sinteticos import ARQUIVOS, SNAPSHOT
 
 LAST_MODIFIED = "Sat, 12 Sep 2026 04:59:45 GMT"
 
@@ -176,3 +179,66 @@ def settings(tmp_path: Path, servidor: str) -> Settings:
         duckdb_memory_limit="1GB",
         duckdb_threads=2,
     )
+
+
+# ---------------------------------------------------------------------------
+# Camada raw sintética, usada pelos testes de tratamento e de validação
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def settings_staging(tmp_path: Path) -> Settings:
+    """Settings sem rede: as etapas a jusante não falam com a Receita."""
+    return Settings(
+        source_url="http://exemplo/cno.zip",
+        data_dir=tmp_path / "data",
+        connect_timeout=5.0,
+        read_timeout=5.0,
+        max_tentativas=2,
+        backoff_base=0.0,
+        chunk_size=1024,
+        user_agent="cno-pipeline-test",
+        manter_zip=True,
+        manter_intermediarios=True,
+        duckdb_memory_limit="1GB",
+        duckdb_threads=2,
+    )
+
+
+@pytest.fixture
+def camada_raw(settings_staging: Settings) -> Settings:
+    """Materializa uma camada raw como `cno extract` deixaria, com manifesto."""
+    csv_dir = settings_staging.snapshot_dir(SNAPSHOT) / "csv"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+
+    arquivos = []
+    for nome, conteudo in ARQUIVOS.items():
+        caminho = csv_dir / nome
+        caminho.write_bytes(conteudo.encode("cp1252"))
+        arquivos.append(
+            ArquivoExtraido(
+                nome=nome,
+                bytes=caminho.stat().st_size,
+                sha256=sha256_arquivo(caminho),
+            )
+        )
+
+    Manifest(
+        snapshot_id=SNAPSHOT,
+        source_url=settings_staging.source_url,
+        etag="etag-teste",
+        last_modified="Sat, 12 Sep 2026 04:59:45 GMT",
+        content_length=1234,
+        sha256_zip="deadbeef",
+        baixado_em="2026-09-16T00:00:00+00:00",
+        extraido_em="2026-09-16T00:00:00+00:00",
+        arquivos=tuple(arquivos),
+        totais_controle={
+            "cno": 12,
+            "cno_cnaes": 2,
+            "cno_areas": 4,
+            "cno_vinculos": 3,
+        },
+    ).salvar(settings_staging.manifests_dir)
+
+    return settings_staging

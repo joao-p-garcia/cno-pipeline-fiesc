@@ -38,6 +38,15 @@ de linhas das quatro tabelas):
 cno transform
 ```
 
+Validar a camada tratada e reconciliar com os totais da Receita (~6s):
+
+```bash
+cno validate
+```
+
+Sai com código 1 se houver divergência de reconciliação ou violação de regra com
+severidade de erro — é o que faz a task falhar no orquestrador.
+
 Testes (não tocam a rede, rodam em segundos):
 
 ```bash
@@ -72,11 +81,14 @@ src/cno_pipeline/
 │   ├── source.py        HTTP: HEAD, sonda de Range, download resumível com retry
 │   ├── cno.py           orquestração, descompactação validada, totais de controle
 │   └── manifest.py      proveniência e controle de idempotência
-└── transform/
-    ├── schema.py        contrato de dados: domínios, tipos e regras de limpeza
-    ├── sql.py           o SQL do tratamento, montado a partir do contrato
-    ├── encoding.py      transcodificação cp1252 → UTF-8
-    └── staging.py       carga no DuckDB e escrita em parquet particionado
+├── transform/
+│   ├── schema.py        contrato de dados: domínios, tipos e regras de limpeza
+│   ├── sql.py           o SQL do tratamento, montado a partir do contrato
+│   ├── encoding.py      transcodificação cp1252 → UTF-8, só onde é preciso
+│   └── staging.py       carga no DuckDB e escrita em parquet particionado
+└── validate/
+    ├── regras.py        19 regras, cada uma um SELECT do que está errado
+    └── executor.py      avalia, reconcilia com a fonte e emite o relatório
 
 data/                    gerado, nunca versionado
 ├── raw/
@@ -86,6 +98,7 @@ data/                    gerado, nunca versionado
 │       └── csv/         os cinco CSVs extraídos
 └── staging/
     ├── _manifests/      métricas de cada execução do tratamento
+    ├── _validacao/      relatório de validação por snapshot
     ├── obras/snapshot_date=.../uf=SC/*.parquet
     ├── areas/snapshot_date=.../*.parquet
     ├── cnaes/snapshot_date=.../*.parquet
@@ -188,6 +201,35 @@ física. Imputar destruiria a informação.
 **O particionamento é por `snapshot_date` e `uf`.** Uma consulta restrita a Santa
 Catarina lê só 239 mil linhas em vez de 3,6 milhões.
 
+### Validação
+
+**Reconciliação contra a fonte.** O `cno_totais.csv` publica as contagens
+oficiais de cada tabela, e a validação as confronta com o que foi carregado.
+É a única checagem que olha para fora do pipeline: todas as outras comparam o
+dado com regras que nós mesmos escrevemos e, por isso, não detectariam uma
+extração que perdeu metade do arquivo.
+
+A comparação usa a contagem **antes** da deduplicação, porque é isso que a
+Receita conta — confrontar o número pós-dedup acusaria divergência justamente
+onde o pipeline funcionou.
+
+**Cada regra é um SELECT do que está errado.** Conjunto vazio significa regra
+cumprida; o executor conta, amostra exemplos e decide o código de saída.
+Acrescentar uma regra é escrever uma consulta, sem tocar em mecânica nenhuma.
+
+**Erro reprova, aviso não.** `ERRO` é violação de contrato — chave duplicada,
+órfão, valor fora de domínio — e derruba a execução. `AVISO` é sujeira conhecida
+da fonte que queremos medir e acompanhar. Marcar tudo como erro tornaria a
+validação inútil, já que um cadastro público de 3,6 milhões de registros sempre
+tem sujeira; marcar tudo como aviso a tornaria decorativa.
+
+**Regra que não roda falha alto.** Se o SQL de uma regra quebrar, a validação
+levanta erro em vez de contabilizar zero violações — o modo de falha mais
+perigoso seria uma regra silenciosamente não avaliada passando por aprovada.
+
+Resultado no snapshot atual: reconciliação exata nas quatro tabelas, 17 das 19
+regras cumpridas, 2 avisos (323 áreas implausíveis e 2 obras sem UF).
+
 ## Sobre os dados
 
 Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
@@ -218,7 +260,7 @@ tratamento:
 - [x] Camada raw versionada por snapshot, com manifesto de proveniência
 - [x] Testes automatizados da extração (offline)
 - [x] Tratamento: CSV → parquet tipado e particionado
-- [ ] Funções de validação, com reconciliação contra os totais oficiais
+- [x] Funções de validação, com reconciliação contra os totais oficiais
 - [ ] Orquestração em DAG
 - [ ] Containerização
 - [ ] Análise descritiva

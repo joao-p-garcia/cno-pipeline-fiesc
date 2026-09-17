@@ -17,6 +17,7 @@ from .extract.cno import executar_extracao
 from .logging_conf import configurar_logging
 from .transform import ErroDeStaging, executar_staging
 from .utils import formatar_bytes
+from .validate import ErroDeValidacao, executar_validacao
 
 log = logging.getLogger("cno_pipeline.cli")
 
@@ -68,6 +69,55 @@ def _cmd_transform(args: argparse.Namespace) -> int:
             f"{m.duplicatas_removidas:>12,} {formatar_bytes(m.bytes_parquet):>10}".replace(",", ".")
         )
     return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    relatorio = executar_validacao(settings, snapshot_id=args.snapshot)
+
+    print()
+    print(f"snapshot        : {relatorio.snapshot_id}")
+    print(f"tempo           : {relatorio.segundos:.1f}s")
+    print()
+
+    print("RECONCILIAÇÃO COM OS TOTAIS PUBLICADOS PELA RECEITA")
+    print(f"  {'tabela':10} {'lidas':>12} {'oficial':>12} {'dif':>8}  {'dedup':>10}  status")
+    for r in relatorio.reconciliacoes:
+        oficial = f"{r.total_oficial:,}".replace(",", ".") if r.total_oficial else "—"
+        status = "OK" if r.confere else "DIVERGE"
+        print(
+            f"  {r.tabela:10} {r.linhas_origem:>12,} {oficial:>12} "
+            f"{r.diferenca:>8,}  {r.duplicatas_removidas:>10,}  {status}".replace(",", ".")
+        )
+
+    print()
+    print("REGRAS")
+    for r in relatorio.regras:
+        marca = "ok  " if r.passou else ("ERRO" if r.severidade == "erro" else "aviso")
+        n = "" if r.passou else f"{r.violacoes:,}".replace(",", ".")
+        print(f"  [{marca:>5}] {r.nome:34} {n:>12}  {r.descricao}")
+
+    problemas = relatorio.erros + relatorio.avisos
+    if problemas:
+        print()
+        print("EXEMPLOS")
+        for r in problemas:
+            if not r.exemplos:
+                continue
+            print(f"  {r.nome}:")
+            for exemplo in r.exemplos[:3]:
+                campos = "  ".join(f"{k}={v}" for k, v in exemplo.items())
+                print(f"    {campos}")
+
+    print()
+    if relatorio.passou:
+        print(f"RESULTADO: aprovado ({len(relatorio.avisos)} avisos)")
+        return 0
+    print(
+        f"RESULTADO: reprovado — {len(relatorio.erros)} regras com erro, "
+        f"{len(relatorio.reconciliacoes_divergentes)} divergências de reconciliação"
+    )
+    return 1
 
 
 def _cmd_info(args: argparse.Namespace) -> int:
@@ -152,6 +202,15 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     p_transform.set_defaults(func=_cmd_transform)
 
+    p_validate = sub.add_parser(
+        "validate", help="valida a camada tratada e reconcilia com os totais oficiais"
+    )
+    p_validate.add_argument(
+        "--snapshot",
+        help="snapshot a validar (AAAA-MM-DD). Padrão: o mais recente tratado",
+    )
+    p_validate.set_defaults(func=_cmd_validate)
+
     p_info = sub.add_parser("info", help="compara a fonte com o estado local, sem baixar nada")
     p_info.add_argument("--json", action="store_true", help="saída em JSON")
     p_info.set_defaults(func=_cmd_info)
@@ -164,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     configurar_logging(args.verbose)
     try:
         return args.func(args)
-    except (ErroDeFonte, ErroDeExtracao, ErroDeStaging) as exc:
+    except (ErroDeFonte, ErroDeExtracao, ErroDeStaging, ErroDeValidacao) as exc:
         # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
         # orquestrador marcar a task como falha sem um traceback inútil.
         log.error("%s", exc)
