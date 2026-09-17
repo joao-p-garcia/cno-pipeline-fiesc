@@ -96,7 +96,11 @@ apenas contra si mesmo.
 Características apuradas por perfilamento completo da base, que orientam o
 tratamento:
 
-- Os CSVs são **latin-1**, não UTF-8.
+- Os CSVs são **cp1252** (Windows-1252), não UTF-8 e **não ISO-8859-1**. O
+  `cno.csv` tem 4.881 bytes na faixa `0x80-0x9F`, que em cp1252 são tipografia
+  (travessão, aspas curvas, bullet) e em ISO-8859-1 são controles indefinidos.
+  Ler como `latin-1` não dá erro — produz caracteres de controle no lugar do
+  texto, corrompendo em silêncio.
 - `CNO` é chave primária limpa na tabela principal (zero duplicatas em 3,6 M).
   As tabelas filhas têm duplicatas exatas reais: 21.449 em áreas, 10.873 em
   vínculos.

@@ -26,8 +26,19 @@ ARQUIVOS_ESPERADOS = (
     "cno_totais.csv",
 )
 
-# Os CSVs da Receita são latin-1, não UTF-8.
-ENCODING_ORIGEM = "latin-1"
+# Os CSVs da Receita são **cp1252** (Windows-1252), não UTF-8 e não ISO-8859-1.
+#
+# A distinção importa: o `cno.csv` contém 4.881 bytes na faixa 0x80-0x9F, que
+# em cp1252 são tipografia legítima (travessão, aspas curvas, bullet) e em
+# ISO-8859-1 são caracteres de controle indefinidos. Lido como "latin-1", o
+# Python decodifica sem erro e produz caracteres de controle no lugar do texto —
+# corrupção silenciosa. Verificado: cp1252 decodifica os cinco arquivos
+# integralmente, sem nenhum byte indefinido.
+ENCODING_ORIGEM = "cp1252"
+
+# DuckDB não lê cp1252 (aceita utf-8, utf-16 e latin-1), por isso o tratamento
+# transcodifica para UTF-8 antes de carregar.
+ENCODING_DESTINO = "utf-8"
 
 
 def _env_str(nome: str, padrao: str) -> str:

@@ -21,9 +21,9 @@ def _zip_com(nomes: list[str], extra: dict[str, str] | None = None) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zf:
         for nome in nomes:
-            zf.writestr(nome, CSVS[nome].encode("latin-1"))
+            zf.writestr(nome, CSVS[nome].encode("cp1252"))
         for nome, conteudo in (extra or {}).items():
-            zf.writestr(nome, conteudo.encode("latin-1"))
+            zf.writestr(nome, conteudo.encode("cp1252"))
     return buffer.getvalue()
 
 
@@ -75,7 +75,7 @@ def test_extracao_completa(settings: Settings):
 
 
 def test_totais_de_controle_sao_lidos(settings: Settings):
-    """Os rótulos têm acento e o arquivo é latin-1: os dois têm que funcionar."""
+    """Os rótulos têm acento e o arquivo é cp1252: os dois têm que funcionar."""
     m = executar_extracao(settings).manifest
     assert m.totais_controle == {
         "cno": 2,
@@ -87,9 +87,27 @@ def test_totais_de_controle_sao_lidos(settings: Settings):
 
 def test_acentos_preservados_na_extracao(settings: Settings):
     resultado = executar_extracao(settings)
-    conteudo = (resultado.snapshot_dir / "csv" / "cno.csv").read_text("latin-1")
+    conteudo = (resultado.snapshot_dir / "csv" / "cno.csv").read_text("cp1252")
     assert "BRASÍLIA" in conteudo
     assert "SÃO PAULO" in conteudo
+
+
+def test_tipografia_cp1252_nao_vira_caractere_de_controle(settings: Settings):
+    """Regressão de encoding.
+
+    O travessão (byte 0x96) existe em cp1252 e é indefinido em ISO-8859-1. Lido
+    como latin-1 ele vira U+0096, um caractere de controle, **sem levantar
+    erro** — exatamente a corrupção silenciosa que a base real sofreria em 4.881
+    posições se usássemos o encoding errado.
+    """
+    resultado = executar_extracao(settings)
+    bruto = (resultado.snapshot_dir / "csv" / "cno.csv").read_bytes()
+
+    assert b"\x96" in bruto, "o fixture precisa conter o byte da faixa C1"
+    assert "–" in bruto.decode("cp1252"), "cp1252 deve produzir travessão"
+    assert "" in bruto.decode("latin-1"), (
+        "latin-1 produz caractere de controle — é o que estamos evitando"
+    )
 
 
 def test_manifest_persistido_e_recuperavel(settings: Settings):

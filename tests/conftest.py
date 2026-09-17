@@ -23,12 +23,16 @@ from cno_pipeline.config import Settings
 LAST_MODIFIED = "Sat, 12 Sep 2026 04:59:45 GMT"
 
 # Conteúdo mínimo que respeita o contrato real: mesmos nomes de arquivo,
-# mesmo encoding latin-1 e o cno_totais.csv com os rótulos originais.
+# mesmo encoding cp1252 e o cno_totais.csv com os rótulos originais.
+#
+# O travessão em "OBRA – FASE 2" é deliberado: o byte 0x96 existe em cp1252 mas
+# é indefinido em ISO-8859-1. Se alguém trocar o encoding para latin-1, o
+# caractere vira um controle e o teste de acentos pega a regressão.
 CSVS = {
     "cno.csv": (
         '"CNO","Nome do município","Estado","Área total"\n'
         '010010092278,"BRASÍLIA","DF",412.00\n'
-        '010010119379,"SÃO PAULO","SP",5258.21\n'
+        '010010119379,"SÃO PAULO – FASE 2","SP",5258.21\n'
     ),
     "cno_areas.csv": (
         '"CNO","Categoria","Metragem"\n'
@@ -50,9 +54,9 @@ def construir_zip(extra: dict[str, str] | None = None) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for nome, conteudo in CSVS.items():
-            zf.writestr(nome, conteudo.encode("latin-1"))
+            zf.writestr(nome, conteudo.encode("cp1252"))
         for nome, conteudo in (extra or {}).items():
-            zf.writestr(nome, conteudo.encode("latin-1"))
+            zf.writestr(nome, conteudo.encode("cp1252"))
     return buffer.getvalue()
 
 
