@@ -53,8 +53,33 @@ Testes (não tocam a rede, rodam em segundos):
 pytest
 ```
 
-Deixei uma MAKEFILE para facilitar rodar o código. (`make setup`, `make info`,
-`make extract`, `make test`, `make lint`).
+O pipeline inteiro de uma vez:
+
+```bash
+make pipeline      # extract -> transform -> validate
+```
+
+Deixei uma MAKEFILE para facilitar rodar o código. `make help` lista tudo
+(`setup`, `info`, `extract`, `transform`, `validate`, `pipeline`, `test`,
+`test-dag`, `lint`, `fmt`, `clean`).
+
+### Orquestração
+
+A DAG vive em `dags/cno_pipeline_dag.py` e encadeia as três etapas. Para rodar
+localmente é preciso um venv separado com o Airflow:
+
+```bash
+python3 -m venv ~/.venvs/airflow
+~/.venvs/airflow/bin/pip install "apache-airflow==3.3.2"   --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
+
+export AIRFLOW_HOME=~/airflow
+export AIRFLOW__CORE__DAGS_FOLDER=$PWD/dags
+export CNO_BIN=$PWD/.venv/bin/cno
+~/.venvs/airflow/bin/airflow db migrate
+~/.venvs/airflow/bin/airflow dags test cno_pipeline
+```
+
+Os testes da DAG rodam com `make test-dag`.
 
 ### Configuração local opcional
 
@@ -89,6 +114,9 @@ src/cno_pipeline/
 └── validate/
     ├── regras.py        19 regras, cada uma um SELECT do que está errado
     └── executor.py      avalia, reconcilia com a fonte e emite o relatório
+
+dags/
+└── cno_pipeline_dag.py  encadeia extract -> transform -> validate
 
 data/                    gerado, nunca versionado
 ├── raw/
@@ -230,6 +258,36 @@ perigoso seria uma regra silenciosamente não avaliada passando por aprovada.
 Resultado no snapshot atual: reconciliação exata nas quatro tabelas, 17 das 19
 regras cumpridas, 2 avisos (323 áreas implausíveis e 2 obras sem UF).
 
+### Orquestração
+
+**A DAG é fina de propósito.** Ela encadeia os mesmos comandos que se roda na
+mão e não contém regra de negócio nenhuma. Isso mantém a lógica testável fora do
+Airflow — os 65 testes das etapas rodam sem subir scheduler — e faz com que
+reproduzir uma falha de produção seja copiar e colar um comando do log.
+
+**O pipeline é invocado como subprocesso, não importado.** Os dois pacotes até
+convivem no mesmo ambiente (`pip check` passa limpo), mas a fronteira de
+processo dá o que a de import não dá: o pipeline pode ser atualizado sem
+reinstalar o Airflow, e a etapa que falha devolve um código de saída em vez de
+uma exceção que a DAG teria de saber interpretar. O contrato entre os dois é a
+linha de comando e um JSON.
+
+**Não há sensor de novidade, e é deliberado.** A tentação seria um
+`ShortCircuitOperator` checando o ETag antes de baixar — mas o `cno extract` já
+faz exatamente isso e responde em menos de um segundo quando não há publicação
+nova. Um gate na DAG duplicaria a regra em dois lugares e criaria o risco de
+pular etapas a jusante que ainda não rodaram. A idempotência vive nas etapas.
+
+**Retry só onde ele ajuda.** `extract` tem 3 tentativas com backoff exponencial,
+porque depende de rede e o download é resumível — a retentativa continua de onde
+parou. `transform` e `validate` são determinísticos: se falharam, falharão de
+novo, e retentar só multiplicaria o mesmo erro no log.
+
+**O `snapshot_id` viaja entre as etapas.** A extração devolve qual snapshot
+processou e as etapas seguintes o recebem, em vez de cada uma resolver "o mais
+recente" sozinha — assim uma publicação da Receita no meio da execução não faz a
+DAG misturar dois snapshots.
+
 ## Sobre os dados
 
 Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
@@ -261,6 +319,6 @@ tratamento:
 - [x] Testes automatizados da extração (offline)
 - [x] Tratamento: CSV → parquet tipado e particionado
 - [x] Funções de validação, com reconciliação contra os totais oficiais
-- [ ] Orquestração em DAG
+- [x] Orquestração em DAG
 - [ ] Containerização
 - [ ] Análise descritiva

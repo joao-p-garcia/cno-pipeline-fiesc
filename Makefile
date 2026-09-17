@@ -8,13 +8,20 @@
 export
 
 VENV := .venv
-PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
+CNO := $(VENV)/bin/cno
 
-.PHONY: help setup info extract extract-force test lint fmt clean clean-data
+# Os testes da DAG precisam do Airflow, que vive no seu próprio venv.
+# Sobrescrevível para o CI e o container apontarem o deles.
+AIRFLOW_VENV ?= $(HOME)/.venvs/airflow
 
+.PHONY: help setup info extract extract-force transform validate pipeline \
+        test test-dag lint fmt clean clean-data
+
+# O -h é necessário porque o `-include .env` acrescenta um segundo arquivo ao
+# MAKEFILE_LIST, e sem ele o grep prefixaria cada linha com o nome do arquivo.
 help:  ## Lista os alvos disponíveis
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 $(VENV):
@@ -34,24 +41,39 @@ $(STAMP): pyproject.toml | $(VENV)
 setup: $(STAMP)  ## Cria o venv e instala o projeto em modo editável
 
 info: setup  ## Compara a fonte com o estado local, sem baixar nada
-	$(VENV)/bin/cno info
+	$(CNO) info
 
 extract: setup  ## Baixa e materializa a camada raw (pula se já estiver atualizado)
-	$(VENV)/bin/cno extract
+	$(CNO) extract
 
 extract-force: setup  ## Rebaixa mesmo que o snapshot local esteja atualizado
-	$(VENV)/bin/cno extract --force
+	$(CNO) extract --force
+
+transform: setup  ## Trata a camada raw e materializa parquet em staging
+	$(CNO) transform
+
+validate: setup  ## Valida a camada tratada e reconcilia com os totais oficiais
+	$(CNO) validate
+
+pipeline: extract transform validate  ## Roda o pipeline inteiro, na ordem
 
 test: setup  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
 
+test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
+	@test -x "$(AIRFLOW_VENV)/bin/pytest" \
+		|| { echo "venv do Airflow não encontrado em $(AIRFLOW_VENV)"; \
+		     echo "defina AIRFLOW_VENV=<caminho> — veja o README"; exit 1; }
+	AIRFLOW_HOME=$(HOME)/airflow AIRFLOW__CORE__LOAD_EXAMPLES=False \
+		$(AIRFLOW_VENV)/bin/pytest tests/test_dag.py
+
 lint: setup  ## Verifica estilo e erros estáticos
-	$(VENV)/bin/ruff check src tests
-	$(VENV)/bin/ruff format --check src tests
+	$(VENV)/bin/ruff check src tests dags
+	$(VENV)/bin/ruff format --check src tests dags
 
 fmt: setup  ## Formata o código
-	$(VENV)/bin/ruff format src tests
-	$(VENV)/bin/ruff check --fix src tests
+	$(VENV)/bin/ruff format src tests dags
+	$(VENV)/bin/ruff check --fix src tests dags
 
 clean:  ## Remove artefatos de build e cache
 	rm -rf .pytest_cache .ruff_cache build dist *.egg-info
