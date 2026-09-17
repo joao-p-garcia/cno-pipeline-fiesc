@@ -22,12 +22,36 @@ from .validate import ErroDeValidacao, executar_validacao
 log = logging.getLogger("cno_pipeline.cli")
 
 
+def _emitir_json(dados: dict) -> None:
+    """Imprime o resumo da etapa em JSON, para o orquestrador consumir.
+
+    Vai no stdout enquanto os logs vão no stderr, de modo que a saída possa ser
+    lida por um `json.loads` sem filtragem — é assim que a DAG recebe o
+    `snapshot_id` de uma etapa e o repassa para a seguinte.
+    """
+    print(json.dumps(dados, ensure_ascii=False, default=str))
+
+
 def _cmd_extract(args: argparse.Namespace) -> int:
     settings = get_settings()
     log.info("camada raw em %s", settings.raw_dir)
 
     resultado = executar_extracao(settings, forcar=args.force)
     m = resultado.manifest
+
+    if args.json:
+        _emitir_json(
+            {
+                "etapa": "extract",
+                "snapshot_id": m.snapshot_id,
+                "etag": m.etag,
+                "reaproveitado": resultado.reaproveitado,
+                "sha256_zip": m.sha256_zip,
+                "arquivos": [a.nome for a in m.arquivos],
+                "totais_controle": m.totais_controle,
+            }
+        )
+        return 0
 
     print()
     print(f"snapshot        : {m.snapshot_id}")
@@ -56,6 +80,25 @@ def _cmd_transform(args: argparse.Namespace) -> int:
 
     resultado = executar_staging(settings, snapshot_id=args.snapshot, forcar=args.force)
 
+    if args.json:
+        _emitir_json(
+            {
+                "etapa": "transform",
+                "snapshot_id": resultado.snapshot_id,
+                "segundos": round(resultado.segundos_total, 1),
+                "tabelas": [
+                    {
+                        "nome": m.nome,
+                        "linhas_origem": m.linhas_origem,
+                        "linhas_destino": m.linhas_destino,
+                        "duplicatas_removidas": m.duplicatas_removidas,
+                    }
+                    for m in resultado.tabelas
+                ],
+            }
+        )
+        return 0
+
     print()
     print(f"snapshot        : {resultado.snapshot_id}")
     print(f"tempo total     : {resultado.segundos_total:.1f}s")
@@ -74,6 +117,22 @@ def _cmd_transform(args: argparse.Namespace) -> int:
 def _cmd_validate(args: argparse.Namespace) -> int:
     settings = get_settings()
     relatorio = executar_validacao(settings, snapshot_id=args.snapshot)
+
+    if args.json:
+        _emitir_json(
+            {
+                "etapa": "validate",
+                "snapshot_id": relatorio.snapshot_id,
+                "passou": relatorio.passou,
+                "erros": [{"regra": e.nome, "violacoes": e.violacoes} for e in relatorio.erros],
+                "avisos": [{"regra": a.nome, "violacoes": a.violacoes} for a in relatorio.avisos],
+                "reconciliacao_divergente": [
+                    {"tabela": r.tabela, "diferenca": r.diferenca}
+                    for r in relatorio.reconciliacoes_divergentes
+                ],
+            }
+        )
+        return 0 if relatorio.passou else 1
 
     print()
     print(f"snapshot        : {relatorio.snapshot_id}")
@@ -186,6 +245,7 @@ def construir_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="rebaixa mesmo que o snapshot local já esteja atualizado",
     )
+    p_extract.add_argument("--json", action="store_true", help="resumo em JSON no stdout")
     p_extract.set_defaults(func=_cmd_extract)
 
     p_transform = sub.add_parser(
@@ -200,6 +260,7 @@ def construir_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="refaz a transcodificação intermediária mesmo se estiver válida",
     )
+    p_transform.add_argument("--json", action="store_true", help="resumo em JSON no stdout")
     p_transform.set_defaults(func=_cmd_transform)
 
     p_validate = sub.add_parser(
@@ -209,6 +270,7 @@ def construir_parser() -> argparse.ArgumentParser:
         "--snapshot",
         help="snapshot a validar (AAAA-MM-DD). Padrão: o mais recente tratado",
     )
+    p_validate.add_argument("--json", action="store_true", help="resumo em JSON no stdout")
     p_validate.set_defaults(func=_cmd_validate)
 
     p_info = sub.add_parser("info", help="compara a fonte com o estado local, sem baixar nada")
