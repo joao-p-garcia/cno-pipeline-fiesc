@@ -3,14 +3,11 @@
 Pipeline de extração e tratamento da base do **CNO — Cadastro Nacional de Obras**
 da Receita Federal.
 
-> **Status:** etapa de extração concluída e testada. Tratamento, orquestração e
-> análise descritiva em construção — veja [Roadmap](#roadmap).
+> **Status:** etapa de extração concluída e testada. Aqui, a ideia é realizar uma análise inicial dos dados para entender como transformar eles pra algo mais útil, ao mesmo tempo em que já estou construindo uma solução escalável quando colocarmos o deploy. Tratamento, orquestração e análise descritiva em construção — veja [Roadmap](#roadmap).
 
 ## Requisitos
 
-Python 3.11+ e nada mais. **Ainda não é preciso Docker** — a etapa de extração é
-Python puro, rodável localmente. A containerização vem junto com o orquestrador.
-
+Python 3.11+  (por enquanto, em construção). Utilizar o pyproject.toml para baixar as libs necessárias.
 ## Como executar
 
 ```bash
@@ -31,7 +28,7 @@ Baixar e materializar a camada raw (~315 MB comprimidos, ~1,4 GB extraídos):
 cno extract
 ```
 
-Rodar de novo não baixa nada: se o ETag da fonte bate com o do manifesto local e
+Rodar de novo não baixa nada: se o ETag da fonte bate com o do manifesto local (ou seja, comparamos os metadados para saber se houve dados novos ou não) e
 os arquivos conferem, a etapa é pulada. Para forçar, `cno extract --force`.
 
 Testes (não tocam a rede, rodam em segundos):
@@ -40,7 +37,7 @@ Testes (não tocam a rede, rodam em segundos):
 pytest
 ```
 
-Há também um `Makefile` com os mesmos comandos (`make setup`, `make info`,
+Deixei uma MAKEFILE para facilitar rodar o código. (`make setup`, `make info`,
 `make extract`, `make test`, `make lint`).
 
 ### Configuração local opcional
@@ -83,10 +80,9 @@ data/                    gerado, nunca versionado
 `Last-Modified`, não pela data em que o pipeline rodou. Reprocessar amanhã não
 cria um snapshot novo para os mesmos dados.
 
-**A idempotência é controlada por ETag no manifesto local.** O share da Receita
+**A idempotência é controlada por ETag local.** O share da Receita
 **não respeita `If-None-Match`** — responde `200` e reenvia os 315 MB inteiros.
-Por isso a comparação de versão é feita por nós: um `HEAD` barato revela o ETag,
-que é confrontado com o do último snapshot.
+Um `HEAD` retorna o ETag, que é comparado com o último snapshot para saber se precisa baixar hoje.
 
 **O suporte a `Range` é detectado por sondagem, não pelo cabeçalho.** O `HEAD`
 desta fonte não devolve `Accept-Ranges`, embora o servidor responda `206` a um
@@ -110,6 +106,7 @@ apenas contra si mesmo.
 
 ## Sobre os dados
 
+Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
 Características apuradas por perfilamento completo da base, que orientam o
 tratamento:
 
