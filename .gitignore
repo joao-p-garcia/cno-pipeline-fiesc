@@ -219,3 +219,9 @@ __marimo__/
 
 # Dados / metadados
 dados_raw/
+
+# --- Camadas de dados do pipeline -------------------------------------------
+# Os dados são integralmente reproduzíveis a partir da fonte (`cno extract`),
+# então o repositório versiona só a estrutura de diretórios, nunca o conteúdo.
+/data/*
+!/data/.gitkeep
