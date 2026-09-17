@@ -393,3 +393,68 @@ def test_manifesto_de_staging_registra_metricas(camada_raw: Settings):
     nomes = {t["nome"] for t in dados["tabelas"]}
     assert nomes == {"obras", "areas", "cnaes", "vinculos"}
     assert resultado.segundos_total > 0
+
+
+# -- transcodificação sob demanda ----------------------------------------
+
+
+def test_so_transcodifica_arquivos_com_bytes_c1(camada_raw: Settings):
+    """Dos cinco arquivos, só o cno.csv tem tipografia cp1252.
+
+    Transcodificar os outros seria trabalho e disco jogados fora: neles latin-1
+    e cp1252 produzem exatamente o mesmo texto.
+    """
+    executar_staging(camada_raw)
+
+    utf8_dir = camada_raw.staging_dir / "_utf8" / f"snapshot_date={SNAPSHOT}"
+    transcodificados = {p.name for p in utf8_dir.glob("*.csv")}
+
+    assert transcodificados == {"cno.csv"}
+
+
+def test_acentos_sobrevivem_na_leitura_direta_em_latin1(camada_raw: Settings):
+    """As tabelas lidas sem transcodificar não podem perder acentuação.
+
+    `ã` é 0xE3, que fica na faixa em que latin-1 e cp1252 concordam — é
+    justamente por isso que esses arquivos podem ser lidos direto.
+    """
+    executar_staging(camada_raw)
+
+    destinacoes = {
+        d for (d,) in _consultar(camada_raw, "areas", "SELECT DISTINCT destinacao FROM {t}")
+    }
+    assert "Galpão industrial" in destinacoes
+
+    municipios = {
+        m for (m,) in _consultar(camada_raw, "obras", "SELECT DISTINCT nome_municipio FROM {t}")
+    }
+    assert "FLORIANÓPOLIS" in municipios
+
+
+def test_arquivo_sem_c1_nao_gera_intermediario(camada_raw: Settings):
+    """Se nenhum arquivo precisar, não deve sobrar diretório intermediário."""
+    # troca o cno.csv por uma versão sem tipografia cp1252
+    csv_dir = camada_raw.snapshot_dir(SNAPSHOT) / "csv"
+    sem_c1 = OBRAS_CSV.replace("OBRA – FASE 2", "OBRA FASE 2")
+    (csv_dir / "cno.csv").write_bytes(sem_c1.encode("cp1252"))
+
+    # o manifesto precisa refletir o novo sha256
+    from cno_pipeline.extract.manifest import carregar_manifest
+
+    manifesto = carregar_manifest(camada_raw.manifests_dir, SNAPSHOT)
+    atualizados = tuple(
+        ArquivoExtraido(
+            nome=a.nome,
+            bytes=(csv_dir / a.nome).stat().st_size,
+            sha256=sha256_arquivo(csv_dir / a.nome),
+        )
+        for a in manifesto.arquivos
+    )
+    from dataclasses import replace
+
+    replace(manifesto, arquivos=atualizados).salvar(camada_raw.manifests_dir)
+
+    executar_staging(camada_raw)
+
+    utf8_dir = camada_raw.staging_dir / "_utf8" / f"snapshot_date={SNAPSHOT}"
+    assert not list(utf8_dir.glob("*.csv")) if utf8_dir.exists() else True

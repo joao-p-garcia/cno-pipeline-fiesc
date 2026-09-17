@@ -76,7 +76,7 @@ def flag(expressao: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def sql_obras(csv: str, snapshot_id: str) -> str:
+def sql_obras(fonte: str, snapshot_id: str) -> str:
     ufs_validas = ", ".join(_literal(uf) for uf in sorted(UFS_BRASIL))
     correcoes_uf = _mapa_para_case('upper(trim("Estado"))', UF_CORRECOES)
 
@@ -115,7 +115,7 @@ WITH limpo AS (
             ELSE {correcoes_uf}
         END                                             AS uf,
         {texto("Estado")}                               AS uf_origem
-    FROM read_csv({_literal(csv)}, header = true, all_varchar = true)
+    FROM {fonte}
 ),
 derivado AS (
     SELECT
@@ -168,7 +168,7 @@ QUALIFY row_number() OVER (PARTITION BY cno ORDER BY data_registro DESC NULLS LA
 # ---------------------------------------------------------------------------
 
 
-def sql_areas(csv: str, snapshot_id: str) -> str:
+def sql_areas(fonte: str, snapshot_id: str) -> str:
     return f"""
 SELECT DISTINCT
     {texto("CNO")}                          AS cno,
@@ -180,22 +180,22 @@ SELECT DISTINCT
     {numero("Metragem")}                    AS metragem,
     {flag(texto("Tipo de Área") + " = 'Principal'")} AS area_principal,
     {_literal(snapshot_id)}                 AS snapshot_date
-FROM read_csv({_literal(csv)}, header = true, all_varchar = true)
+FROM {fonte}
 """
 
 
-def sql_cnaes(csv: str, snapshot_id: str) -> str:
+def sql_cnaes(fonte: str, snapshot_id: str) -> str:
     return f"""
 SELECT DISTINCT
     {texto("CNO")}                  AS cno,
     {texto("CNAE")}                 AS cnae,
     {data("Data de registro")}      AS data_registro,
     {_literal(snapshot_id)}         AS snapshot_date
-FROM read_csv({_literal(csv)}, header = true, all_varchar = true)
+FROM {fonte}
 """
 
 
-def sql_vinculos(csv: str, snapshot_id: str) -> str:
+def sql_vinculos(fonte: str, snapshot_id: str) -> str:
     return f"""
 SELECT DISTINCT
     {texto("CNO")}                                  AS cno,
@@ -208,7 +208,7 @@ SELECT DISTINCT
     {texto("NI do responsável")}                    AS ni_responsavel,
     ({data("Data de fim")} IS NULL)                 AS vinculo_vigente,
     {_literal(snapshot_id)}                         AS snapshot_date
-FROM read_csv({_literal(csv)}, header = true, all_varchar = true)
+FROM {fonte}
 """
 
 
@@ -220,9 +220,22 @@ CONSTRUTORES = {
 }
 
 
-def construir(spec: TabelaSpec, csv: str, snapshot_id: str) -> str:
+def fonte_read_csv(caminho: str, encoding: str) -> str:
+    """Monta a expressão `read_csv` usada como origem do tratamento.
+
+    Fica aqui, e não em `staging.py`, para que a única forma de ler um CSV do
+    pipeline seja esta — com `all_varchar` sempre ligado, que é o que garante a
+    conversão explícita de tipos.
+    """
+    return (
+        f"read_csv({_literal(caminho)}, header = true, all_varchar = true"
+        f", encoding = {_literal(encoding)})"
+    )
+
+
+def construir(spec: TabelaSpec, fonte: str, snapshot_id: str) -> str:
     """Devolve o SELECT de tratamento da tabela."""
     try:
-        return CONSTRUTORES[spec.nome](csv, snapshot_id)
+        return CONSTRUTORES[spec.nome](fonte, snapshot_id)
     except KeyError as exc:
         raise KeyError(f"sem SQL definido para a tabela {spec.nome!r}") from exc

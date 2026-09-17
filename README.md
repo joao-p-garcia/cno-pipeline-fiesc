@@ -124,11 +124,45 @@ apenas contra si mesmo.
 
 ### Tratamento
 
-**Os CSVs são transcodificados para UTF-8 antes da carga.** O DuckDB lê `utf-8`,
-`utf-16` e `latin-1`, mas não cp1252. A alternativa — carregar como `latin-1` e
-corrigir os caracteres em SQL — exigiria aplicar a correção coluna a coluna, e
-esquecer uma seria corrupção invisível. O intermediário é reaproveitado entre
-execuções e invalidado automaticamente pelo sha256 dos arquivos de origem.
+**Só o arquivo que precisa é transcodificado para UTF-8.**
+
+cp1252 e ISO-8859-1 são idênticos em `0x00-0x7F` e `0xA0-0xFF`. Divergem
+*somente* em `0x80-0x9F` — onde cp1252 põe tipografia e ISO-8859-1 deixa
+controles indefinidos. Um arquivo sem nenhum byte nessa faixa, portanto,
+decodifica exatamente igual nos dois, e o DuckDB pode lê-lo direto como
+`latin-1`, sem intermediário. Na base atual isso vale para 4 dos 5 arquivos; só
+o `cno.csv` tem os tais bytes, e só ele é convertido. A decisão é tomada por
+varredura de conteúdo, não por lista de nomes, então uma publicação futura que
+introduza tipografia em outra tabela se resolve sozinha.
+
+A conversão em si é trabalho inevitável: bytes cp1252 precisam virar texto
+Unicode em algum momento, e todo engine faz isso. A diferença é só *onde*.
+pandas e polars convertem em memória a cada leitura; aqui convertemos uma vez em
+disco e reaproveitamos, invalidando pelo sha256 da origem.
+
+A alternativa de carregar tudo como `latin-1` e corrigir os caracteres em SQL foi
+descartada: exigiria aplicar a correção coluna a coluna, e esquecer uma seria
+corrupção invisível.
+
+**Por que DuckDB e não pandas ou polars.** Medido na leitura completa do
+`cno.csv` (884 MB, 3,6 M linhas), cada abordagem em processo isolado:
+
+| | tempo | pico de RAM |
+|---|---|---|
+| DuckDB no UTF-8 | **0,8s** | **457 MB** |
+| Polars `windows-1252` | 4,3s | 2.641 MB |
+| pandas `cp1252` | 19,6s | 4.031 MB |
+
+Polars lê cp1252 nativamente, o que eliminaria o passo de conversão — mas só na
+API eager: `scan_csv` aceita apenas `utf8`, então a execução lazy fica
+indisponível e a tabela inteira precisa caber na memória. Como o pipeline vai
+rodar em worker de orquestrador com memória limitada, 457 MB contra 2,6 GB
+decide a escolha.
+
+Vale registrar que o DuckDB é também o mais rigoroso dos três: ele **recusa** um
+arquivo declarado como `latin-1` que contenha bytes da faixa C1. pandas e polars
+aceitariam calados e produziriam caracteres de controle. Foi essa recusa que
+revelou o encoding real da base.
 
 **Tudo é lido como texto e convertido com `TRY_CAST`.** Deixar o `read_csv`
 inferir tipos faria a carga inteira falhar num único valor ruim. Assim, um valor

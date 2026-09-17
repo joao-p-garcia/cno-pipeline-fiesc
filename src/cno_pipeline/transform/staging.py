@@ -3,10 +3,15 @@
 A etapa é idempotente e não destrutiva: a camada raw nunca é tocada, e rodar de
 novo sobre o mesmo snapshot reproduz exatamente o mesmo resultado.
 
-A transcodificação para UTF-8 é feita uma vez por snapshot e reaproveitada nas
-execuções seguintes, comparando o sha256 dos arquivos de origem registrado no
-manifesto da extração — assim uma re-extração que mude os dados invalida o
-intermediário automaticamente.
+A transcodificação para UTF-8 só acontece nos arquivos que realmente precisam —
+os que têm bytes na faixa 0x80-0x9F, onde cp1252 e latin-1 divergem. Os demais o
+DuckDB lê direto do original, sem intermediário. Na base atual isso significa
+transcodificar 1 arquivo em vez de 5.
+
+Quando há transcodificação, o resultado é reaproveitado entre execuções e
+invalidado pelo sha256 dos arquivos de origem registrado no manifesto da
+extração, de modo que uma re-extração que mude os dados refaz o intermediário
+automaticamente.
 """
 
 from __future__ import annotations
@@ -24,16 +29,29 @@ from ..config import Settings
 from ..extract.manifest import Manifest, agora_iso, carregar_manifest, carregar_ultimo
 from ..utils import formatar_bytes
 from . import sql as sql_mod
-from .encoding import transcodificar
+from .encoding import contem_bytes_c1, transcodificar
 from .schema import TABELAS, TabelaSpec
 
 log = logging.getLogger(__name__)
 
 MARCADOR_UTF8 = "_transcodificado.json"
 
+# Como o DuckDB nomeia os encodings que aceita.
+ENCODING_LATIN1 = "latin-1"
+ENCODING_UTF8 = "utf-8"
+
 
 class ErroDeStaging(RuntimeError):
     """Falha durante o tratamento."""
+
+
+@dataclass(frozen=True)
+class FonteCsv:
+    """De onde uma tabela é lida e com que encoding."""
+
+    caminho: Path
+    encoding: str
+    transcodificado: bool
 
 
 @dataclass(frozen=True)
@@ -84,13 +102,11 @@ def executar_staging(
         )
 
     utf8_dir = settings.staging_dir / "_utf8" / f"snapshot_date={snapshot}"
-    _preparar_utf8(manifest, csv_dir, utf8_dir, forcar=forcar)
+    fontes = _preparar_fontes(manifest, csv_dir, utf8_dir, forcar=forcar)
 
     con = _conectar(settings)
     try:
-        metricas = tuple(
-            _tratar_tabela(con, spec, utf8_dir, settings, snapshot) for spec in TABELAS
-        )
+        metricas = tuple(_tratar_tabela(con, spec, fontes, settings, snapshot) for spec in TABELAS)
     finally:
         con.close()
 
@@ -102,7 +118,7 @@ def executar_staging(
     )
     _salvar_manifesto_staging(settings, manifest, resultado)
 
-    if not settings.manter_intermediarios:
+    if not settings.manter_intermediarios and utf8_dir.exists():
         shutil.rmtree(utf8_dir, ignore_errors=True)
         log.info("intermediário UTF-8 removido (CNO_MANTER_INTERMEDIARIOS=0)")
 
@@ -131,30 +147,61 @@ def _resolver_manifest(settings: Settings, snapshot_id: str | None) -> Manifest:
     return manifest
 
 
-def _preparar_utf8(manifest: Manifest, csv_dir: Path, utf8_dir: Path, *, forcar: bool) -> None:
-    """Transcodifica os CSVs para UTF-8, reaproveitando o que já estiver válido."""
-    esperado = {a.nome: a.sha256 for a in manifest.arquivos}
-    marcador = utf8_dir / MARCADOR_UTF8
+def _preparar_fontes(
+    manifest: Manifest, csv_dir: Path, utf8_dir: Path, *, forcar: bool
+) -> dict[str, FonteCsv]:
+    """Decide, por arquivo, se dá para ler direto ou se precisa transcodificar.
 
-    if not forcar and _utf8_valido(marcador, utf8_dir, esperado):
-        log.info("intermediário UTF-8 já válido para %s", manifest.snapshot_id)
-        return
+    Transcodificar tudo seria desperdício: na prática só o `cno.csv` tem bytes
+    na faixa C1. Nos demais, latin-1 e cp1252 produzem exatamente o mesmo texto,
+    e o DuckDB lê o arquivo original sem intermediário nenhum.
 
-    utf8_dir.mkdir(parents=True, exist_ok=True)
-    for nome in sorted(esperado):
-        origem = csv_dir / nome
+    A decisão é por conteúdo, não por lista fixa de nomes — se uma publicação
+    futura introduzir tipografia em outra tabela, o pipeline se ajusta sozinho.
+    """
+    fontes: dict[str, FonteCsv] = {}
+    a_transcodificar: dict[str, str] = {}
+
+    for arquivo in manifest.arquivos:
+        origem = csv_dir / arquivo.nome
         if not origem.is_file():
             raise ErroDeStaging(f"arquivo ausente na camada raw: {origem}")
-        transcodificar(origem, utf8_dir / nome)
+        if contem_bytes_c1(origem):
+            a_transcodificar[arquivo.nome] = arquivo.sha256
+        else:
+            fontes[arquivo.nome] = FonteCsv(origem, ENCODING_LATIN1, False)
 
-    marcador.write_text(
-        json.dumps(
-            {"sha256_origem": esperado, "gerado_em": agora_iso()},
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    if not a_transcodificar:
+        log.info("nenhum arquivo precisa de transcodificação")
+        return fontes
+
+    log.info(
+        "%d de %d arquivos têm bytes C1 e serão transcodificados: %s",
+        len(a_transcodificar),
+        len(manifest.arquivos),
+        ", ".join(sorted(a_transcodificar)),
     )
+
+    marcador = utf8_dir / MARCADOR_UTF8
+    reaproveitar = not forcar and _utf8_valido(marcador, utf8_dir, a_transcodificar)
+    if reaproveitar:
+        log.info("intermediário UTF-8 já válido para %s", manifest.snapshot_id)
+    else:
+        utf8_dir.mkdir(parents=True, exist_ok=True)
+        for nome in sorted(a_transcodificar):
+            transcodificar(csv_dir / nome, utf8_dir / nome)
+        marcador.write_text(
+            json.dumps(
+                {"sha256_origem": a_transcodificar, "gerado_em": agora_iso()},
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    for nome in a_transcodificar:
+        fontes[nome] = FonteCsv(utf8_dir / nome, ENCODING_UTF8, True)
+    return fontes
 
 
 def _utf8_valido(marcador: Path, utf8_dir: Path, esperado: dict[str, str]) -> bool:
@@ -186,19 +233,18 @@ def _conectar(settings: Settings) -> duckdb.DuckDBPyConnection:
 def _tratar_tabela(
     con: duckdb.DuckDBPyConnection,
     spec: TabelaSpec,
-    utf8_dir: Path,
+    fontes: dict[str, FonteCsv],
     settings: Settings,
     snapshot_id: str,
 ) -> MetricasTabela:
     inicio = time.monotonic()
-    csv = utf8_dir / spec.arquivo_origem
+    fonte = fontes[spec.arquivo_origem]
     destino = settings.staging_dir / spec.nome
 
-    select = sql_mod.construir(spec, str(csv), snapshot_id)
+    leitura = sql_mod.fonte_read_csv(str(fonte.caminho), fonte.encoding)
+    select = sql_mod.construir(spec, leitura, snapshot_id)
 
-    linhas_origem = con.execute(
-        f"SELECT count(*) FROM read_csv('{csv}', header = true, all_varchar = true)"
-    ).fetchone()[0]
+    linhas_origem = con.execute(f"SELECT count(*) FROM {leitura}").fetchone()[0]
 
     # Remove só a partição deste snapshot: reprocessar um snapshot não pode
     # apagar os outros já materializados.
