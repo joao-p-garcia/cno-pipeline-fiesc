@@ -225,3 +225,6 @@ dados_raw/
 # então o repositório versiona só a estrutura de diretórios, nunca o conteúdo.
 /data/*
 !/data/.gitkeep
+
+# Notas locais de trabalho (estado da sessão), não fazem parte da entrega.
+/ESTADO.md
