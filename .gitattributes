@@ -1,0 +1,12 @@
+# O repositório é canônico em LF. Sem isto, arquivos escritos a partir do
+# Windows entram com CRLF e quebram scripts dentro dos containers Linux.
+* text=auto eol=lf
+
+# Arquivos que precisam de LF mesmo em checkout no Windows
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Binários: nunca converter
+*.zip binary
+*.parquet binary
+*.png binary
