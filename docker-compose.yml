@@ -1,0 +1,160 @@
+# Stack de entrega: Airflow 3.3.2 com LocalExecutor sobre Postgres.
+#
+# É o compose oficial do Airflow reduzido ao necessário. Saíram o Redis, o
+# worker Celery e o Flower (o LocalExecutor roda as tasks como subprocessos do
+# próprio scheduler, e três tasks encadeadas não justificam uma fila
+# distribuída) e saiu o triggerer (nenhuma task desta DAG é deferrable — se
+# alguma vier a ser, ele volta). Sobraram cinco serviços, todos com motivo.
+#
+# Para desenvolvimento continua valendo rodar direto no host, sem container:
+# `make pipeline` é mais rápido e não paga build. O Docker aqui é o
+# empacotamento da entrega — quem clona o repositório sobe tudo com `make up`.
+
+x-cno-comum: &cno-comum
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: cno-pipeline:0.1.0
+  environment: &cno-ambiente
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    # Vazia por padrão, como no compose oficial. Esta stack não guarda Connection
+    # nem Variable, então não há nada a criptografar; para uso sério, gere uma
+    # com `python -c "from cryptography.fernet import Fernet;
+    # print(Fernet.generate_key().decode())"` e ponha em AIRFLOW_FERNET_KEY.
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    # Segredo com que o api-server assina os tokens que as tasks usam para
+    # falar com ele. Precisa ser o mesmo em todos os contêineres — daí estar no
+    # bloco comum. O default é de desenvolvimento e está aqui declarado como tal.
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-cno-desenvolvimento-jwt}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # Despausada, e isso significa que uma execução começa sozinha logo após o
+    # `make up`: com catchup=False o Airflow não reprocessa o passado, mas ainda
+    # agenda o intervalo corrente assim que a DAG é despausada. É o
+    # comportamento desejado aqui — quem clona o repositório roda um comando e
+    # encontra a camada tratada pronta —, ao custo de ~315 MB baixados da
+    # Receita sem pedir licença. Para que nada rode até alguém mandar, troque
+    # para 'true' e dispare pela UI ou com `make dag-run`.
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # CNO_BIN e CNO_DATA_DIR não aparecem aqui de propósito: já vêm do ENV da
+    # imagem, e repeti-los seria manter o mesmo caminho em dois arquivos. Também
+    # não são interpolados do .env do host — lá o CNO_DATA_DIR aponta para um
+    # diretório da máquina de quem desenvolve, que dentro do container não existe.
+    CNO_LOG_JSON: '1'
+    # Num volume de container o zip e o intermediário UTF-8 custam ~1,7 GB para
+    # acelerar um reprocessamento que raramente acontece. A idempotência não
+    # depende deles: a extração confere os CSVs contra o manifesto, não o zip.
+    CNO_MANTER_ZIP: '0'
+    CNO_MANTER_INTERMEDIARIOS: '0'
+    CNO_DUCKDB_MEMORY: ${CNO_DUCKDB_MEMORY:-4GB}
+    CNO_DUCKDB_THREADS: ${CNO_DUCKDB_THREADS:-4}
+  volumes:
+    - cno-dados:/opt/cno/data
+    - airflow-logs:/opt/airflow/logs
+  depends_on: &cno-depende-de
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # Roda uma vez e sai: o entrypoint da imagem oficial aplica as migrações e
+  # cria o usuário da UI quando vê estas duas variáveis, e só então executa o
+  # comando — `version`, escolhido por ser barato e deixar a versão no log.
+  airflow-init:
+    <<: *cno-comum
+    command: version
+    environment:
+      <<: *cno-ambiente
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USUARIO:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_SENHA:-airflow}
+    restart: "no"
+
+  airflow-apiserver:
+    <<: *cno-comum
+    command: api-server
+    ports:
+      - "${AIRFLOW_PORTA:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *cno-depende-de
+      airflow-init:
+        condition: service_completed_successfully
+
+  # É aqui que o pipeline roda de fato: com LocalExecutor as tasks são
+  # subprocessos do scheduler, então é este contêiner que precisa do venv do
+  # pipeline e do volume de dados montados — e os tem, pela âncora comum.
+  airflow-scheduler:
+    <<: *cno-comum
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *cno-depende-de
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *cno-comum
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *cno-depende-de
+      airflow-init:
+        condition: service_completed_successfully
+
+  # O pipeline sem Airflow nenhum, para quem quer ver os dados saindo sem subir
+  # orquestrador: `docker compose run --rm cno extract`. Fica atrás de um
+  # profile para não subir junto com `docker compose up`, e escreve no mesmo
+  # volume que a DAG usa — o que uma via materializa, a outra reaproveita.
+  cno:
+    <<: *cno-comum
+    profiles: ["cli"]
+    entrypoint: ["/opt/cno/.venv/bin/cno"]
+    command: ["info"]
+    environment:
+      <<: *cno-ambiente
+      # Em execução manual o log legível vale mais que o JSON, que existe para
+      # o orquestrador consumir.
+      CNO_LOG_JSON: '0'
+    depends_on: []
+
+volumes:
+  postgres-dados:
+  cno-dados:
+  airflow-logs:
