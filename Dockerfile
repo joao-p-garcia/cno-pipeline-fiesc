@@ -31,13 +31,13 @@ RUN /opt/cno/.venv/bin/pip install --no-cache-dir /opt/cno/pacote
 
 # Fumaça em tempo de build, não em tempo de DAG.
 #
-# Existe porque uma dependência só declarada implicitamente passa em toda a
-# suíte de testes da máquina de quem desenvolve e quebra no primeiro venv limpo.
-# Aconteceu: o `create_function` do DuckDB exige numpy, o venv local tinha numpy
-# de carona e o do container não, e o erro só apareceu quando a task `curar`
-# falhou dentro do Airflow. Registrar as UDFs aqui custa um segundo e move essa
-# classe de falha para onde ela é barata de ver.
-RUN /opt/cno/.venv/bin/python -c "import duckdb; from cno_pipeline.curate.geocodificacao import registrar_udfs; registrar_udfs(duckdb.connect()); print('UDFs de geocodificação registram sem erro')"
+# Existe porque dependência declarada só implicitamente passa em toda a suíte de
+# testes da máquina de quem desenvolve e quebra no primeiro venv limpo. Já
+# aconteceu neste projeto: o `create_function` do DuckDB exigia numpy, o venv
+# local tinha numpy de carona e o do container não, e o erro só apareceu quando a
+# task falhou dentro do Airflow. A UDF saiu, mas a lição fica — um segundo de
+# build move essa classe de falha para onde ela é barata de ver.
+RUN /opt/cno/.venv/bin/python -c "from cno_pipeline.curate.geocodificacao import decodificar; lat, lon = decodificar('584FPC38+X8'); assert -27.4 < lat < -27.2 and -50.7 < lon < -50.5, (lat, lon); print('geocodificação responde no ambiente da imagem')"
 
 # A DAG vai embutida na imagem em vez de montada do host. Assim `docker compose
 # up` funciona a partir de um clone recém-feito, sem bind mount, sem ajuste de

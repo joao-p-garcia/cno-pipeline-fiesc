@@ -17,13 +17,6 @@ dependencies = [
     # sem dependências transitivas. É o que permite geocodificar os Plus Codes do
     # `Código de localização` sem chamar nenhum serviço externo pago.
     "openlocationcode>=1.0",
-    # Exigido pelo DuckDB para registrar função Python (`create_function`), que é
-    # como a decodificação do Plus Code entra no SQL. Não é usado diretamente por
-    # nenhuma linha deste projeto, e por isso precisa estar declarado aqui: o
-    # DuckDB não o declara como dependência própria, e sem esta linha o pipeline
-    # funciona em qualquer ambiente onde numpy tenha entrado de carona e quebra
-    # num venv limpo — foi exatamente o que aconteceu no container.
-    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

@@ -12,6 +12,7 @@ que impede o dashboard e o notebook de divergirem com o tempo.
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import shutil
@@ -24,8 +25,8 @@ import duckdb
 from ..config import Settings
 from ..extract.manifest import agora_iso
 from ..utils import formatar_bytes
+from . import geocodificacao as geo
 from . import sql as sql_mod
-from .geocodificacao import registrar_udfs
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +109,6 @@ def executar_curadoria(settings: Settings, *, snapshot_id: str | None = None) ->
 
     con = _conectar(settings)
     try:
-        registrar_udfs(con)
         con.execute(f"CREATE OR REPLACE TEMP VIEW base AS {sql_mod.sql_base(staging, snapshot)}")
 
         geo = _geocodificar(con, settings)
@@ -209,27 +209,37 @@ def _conectar(settings: Settings) -> duckdb.DuckDBPyConnection:
 def _geocodificar(con: duckdb.DuckDBPyConnection, settings: Settings) -> MetricasGeo:
     """Decodifica os Plus Codes completos e recupera os curtos pela âncora municipal.
 
-    A aplicação da UDF roda com **uma thread só**. Função Python chamada por linha
-    segura o GIL, então threads adicionais não somam trabalho: disputam. O efeito
-    é invisível na máquina de quem desenvolve e brutal no container — 0,2 µs por
-    chamada contra 220 µs, o que transformou 36 segundos em mais de dez minutos.
-    O resto da etapa continua paralelo.
+    O DuckDB escolhe os códigos distintos, o Python decodifica e devolve o
+    resultado como tabela. A fronteira entre os dois é atravessada duas vezes por
+    conjunto, não uma vez por linha — ver o cabeçalho de `geocodificacao.py` para
+    a medição que motivou esse desenho.
     """
     inicio = time.monotonic()
 
-    def _decodificar_serialmente(*comandos: str) -> None:
-        con.execute("SET threads = 1")
-        try:
-            for comando in comandos:
-                con.execute(comando)
-        finally:
-            con.execute(f"SET threads = {settings.duckdb_threads}")
-
     con.execute(sql_mod.SQL_DISTINTOS_COMPLETOS)
-    _decodificar_serialmente(sql_mod.SQL_GEO_COMPLETO)
+    codigos = [
+        linha[0] for linha in con.execute("SELECT codigo_norm FROM codigos_completos").fetchall()
+    ]
+    _carregar_tabela(
+        con,
+        settings,
+        "geo_completo",
+        sql_mod.COLUNAS_GEO_COMPLETO,
+        geo.decodificar_lote(codigos),
+    )
+
     con.execute(sql_mod.SQL_ANCORAS)
     con.execute(sql_mod.SQL_DISTINTOS_CURTOS)
-    _decodificar_serialmente(sql_mod.SQL_GEO_CURTO)
+    pendentes = con.execute(
+        "SELECT codigo_norm, codigo_municipio, lat_ancora, lon_ancora FROM codigos_curtos"
+    ).fetchall()
+    _carregar_tabela(
+        con,
+        settings,
+        "geo_curto",
+        sql_mod.COLUNAS_GEO_CURTO,
+        geo.recuperar_lote(pendentes),
+    )
 
     obras, completos = con.execute("""
         SELECT count(*),
@@ -269,6 +279,54 @@ def _geocodificar(con: duckdb.DuckDBPyConnection, settings: Settings) -> Metrica
         f"{metricas.curtos_sem_ancora:,}",
     )
     return metricas
+
+
+def _carregar_tabela(
+    con: duckdb.DuckDBPyConnection,
+    settings: Settings,
+    nome: str,
+    colunas: dict[str, str],
+    linhas,
+) -> int:
+    """Materializa no DuckDB as linhas que o Python produziu, via CSV temporário.
+
+    CSV e não `executemany`: com 1 M de linhas o `executemany` do DuckDB não
+    terminou em dez minutos, enquanto gravar o CSV e lê-lo de volta leva menos de
+    um segundo. É o mesmo princípio que tirou a UDF daqui — o custo está em
+    atravessar a fronteira, não no trabalho.
+
+    O arquivo vai no diretório temporário que a própria etapa já usa para o spill
+    do DuckDB, e é removido em seguida mesmo se a carga falhar.
+    """
+    temp = settings.curated_dir / "_tmp"
+    temp.mkdir(parents=True, exist_ok=True)
+    caminho = temp / f"{nome}.csv"
+
+    total = 0
+    try:
+        with caminho.open("w", encoding="utf-8", newline="") as arquivo:
+            escritor = csv.writer(arquivo)
+            for linha in linhas:
+                escritor.writerow(linha)
+                total += 1
+
+        if total == 0:
+            # `read_csv` num arquivo vazio é erro. Uma base sem nenhum código
+            # válido é improvável, mas a tabela precisa existir de qualquer forma
+            # para os LEFT JOIN a jusante não quebrarem.
+            definicao = ", ".join(f"{col} {tipo}" for col, tipo in colunas.items())
+            con.execute(f"CREATE OR REPLACE TEMP TABLE {nome} ({definicao})")
+        else:
+            spec = ", ".join(f"'{col}': '{tipo}'" for col, tipo in colunas.items())
+            con.execute(f"""
+                CREATE OR REPLACE TEMP TABLE {nome} AS
+                SELECT * FROM read_csv('{str(caminho).replace(chr(92), "/")}',
+                                       header=false, columns={{{spec}}})
+            """)
+    finally:
+        caminho.unlink(missing_ok=True)
+
+    return total
 
 
 def _read_parquet(destino: Path, snapshot_id: str) -> str:

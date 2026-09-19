@@ -57,8 +57,7 @@ def test_secao_cnae_devolve_none_para_codigo_invalido(codigo):
 
 
 def test_decodifica_plus_code_completo():
-    lat = geo.latitude_de("584FPC38+X8")
-    lon = geo.longitude_de("584FPC38+X8")
+    lat, lon = geo.decodificar("584FPC38+X8")
     # Curitibanos, SC. Tolerância de um décimo de grau basta para provar que o
     # ponto caiu no lugar certo sem prender o teste à precisão da célula.
     assert lat == pytest.approx(-27.30, abs=0.1)
@@ -79,26 +78,43 @@ def test_decodifica_plus_code_completo():
 )
 def test_lixo_nao_vira_coordenada(lixo):
     """Nada disso é recuperável, e nada disso pode virar um ponto no mapa."""
-    assert geo.latitude_de(lixo) is None
-    assert geo.longitude_de(lixo) is None
+    assert geo.decodificar(lixo) is None
 
 
 def test_codigo_curto_e_recuperado_pela_ancora():
     """`RF8J+VH` só vira coordenada com uma referência a menos de ~0,5°."""
-    lat = geo.latitude_recuperada("RF8J+VH", -27.17, -51.50)
-    lon = geo.longitude_recuperada("RF8J+VH", -27.17, -51.50)
+    lat, lon = geo.recuperar("RF8J+VH", -27.17, -51.50)
     assert lat == pytest.approx(-27.18, abs=0.1)
     assert lon == pytest.approx(-51.52, abs=0.1)
 
 
 def test_codigo_curto_sem_ancora_nao_e_chutado():
-    assert geo.latitude_recuperada("RF8J+VH", None, None) is None
+    assert geo.recuperar("RF8J+VH", None, None) is None
 
 
 def test_codigo_completo_nao_e_tratado_como_curto():
     """As duas funções são excludentes: cada forma tem seu caminho."""
-    assert geo.latitude_recuperada("584FPC38+X8", -27.17, -51.50) is None
-    assert geo.latitude_de("RF8J+VH") is None
+    assert geo.recuperar("584FPC38+X8", -27.17, -51.50) is None
+    assert geo.decodificar("RF8J+VH") is None
+
+
+def test_lote_descarta_o_que_nao_decodifica():
+    """O gerador devolve só o que virou coordenada, na forma que o CSV espera."""
+    entrada = ["584FPC38+X8", "00000000+00", "httpsplu+sc", "58PJ64Q5+JP"]
+    saida = list(geo.decodificar_lote(entrada))
+    assert [linha[0] for linha in saida] == ["584FPC38+X8", "58PJ64Q5+JP"]
+    assert all(len(linha) == 3 for linha in saida)
+
+
+def test_lote_de_curtos_devolve_a_ancora_junto():
+    """A curada precisa da âncora para medir a distância e julgar plausibilidade."""
+    ((codigo, municipio, lat, lon, lat_ancora, lon_ancora),) = list(
+        geo.recuperar_lote([("RF8J+VH", "4204", -27.17, -51.50)])
+    )
+    assert (codigo, municipio) == ("RF8J+VH", "4204")
+    assert (lat_ancora, lon_ancora) == (-27.17, -51.50)
+    assert lat == pytest.approx(-27.18, abs=0.1)
+    assert lon == pytest.approx(-51.52, abs=0.1)
 
 
 # ---------------------------------------------------------------------------

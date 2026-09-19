@@ -19,20 +19,38 @@ a manter aqui.
 omite os 4 caracteres iniciais, que identificam a célula de 1°×1°; para
 reconstruí-lo basta uma coordenada de referência a menos de ~0,5° do lugar certo.
 Em vez de importar centroides do IBGE, a âncora sai da própria base: a mediana
-dos pontos já decodificados do **mesmo município**. Medido, isso cobre 227.043 dos
-227.074 códigos curtos (99,99%) — os 31 restantes estão em 18 municípios que não
-têm nenhum código completo, o maior deles com 7 obras. Em SC a cobertura é total.
+dos pontos já decodificados do **mesmo município**. Medido, isso cobre 226.854
+dos 227.074 códigos curtos — os que sobram estão em municípios sem nenhum código
+completo. Em SC a cobertura é total.
 
 A ressalva honesta: município brasileiro mediano cabe folgado em 0,5°, mas alguns
 do Amazonas e do Pará não cabem, e lá um ponto pode cair na célula vizinha. Por
 isso a curada grava `geo_origem` e a distância até a âncora — quem analisa filtra
 ou declara, mas não é enganado em silêncio.
+
+---
+
+**A decodificação roda em Python puro, fora do SQL, e isso é deliberado.**
+
+A primeira versão registrava estas funções como UDF no DuckDB e deixava o SQL
+chamá-las por linha. Lia-se melhor e custava caro: cada uma do milhão de linhas
+atravessava a fronteira C++↔Python. Medido sobre 1 M de códigos:
+
+    caminho                        local     container
+    UDF (SQL chama Python)          17 s        221 s
+    Python + CSV + read_csv        5,9 s        6,4 s
+
+O trabalho é idêntico — `olc.decode` custa ~5 µs nos dois ambientes. O que muda
+é atravessar a fronteira duas vezes em vez de um milhão. De quebra somem duas
+dependências acidentais: `numpy`, que o `create_function` do DuckDB exige, e o
+malabarismo de baixar o DuckDB para uma thread só durante a decodificação, que
+era preciso para as threads não disputarem o GIL.
 """
 
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
+from collections.abc import Iterable, Iterator
 
 from openlocationcode import openlocationcode as olc
 
@@ -43,31 +61,25 @@ log = logging.getLogger(__name__)
 # que faz `00000000+00` ser inválido sem precisar de regra especial.
 ALFABETO = "23456789CFGHJMPQRVWX"
 
-# Pré-filtros em SQL. Servem só para não chamar a UDF em 563 mil linhas de lixo;
-# a validação de verdade é o `isValid` da biblioteca, dentro da função.
+# Pré-filtros em SQL. Servem para não trazer ao Python as 563 mil linhas de lixo;
+# a validação de verdade é o `isValid` da biblioteca, dentro das funções.
 REGEX_COMPLETO = rf"^[{ALFABETO}]{{8}}\+[{ALFABETO}]{{2,3}}$"
+
 # Exatamente 4 caracteres antes do '+', que é a forma curta padrão e 226.887 dos
-# 227.074 casos. Aceitar 5 ou 6 seria aceitar códigos a que faltam só um ou dois
-# caracteres do bloco de 20°, e aí o `recoverNearest` escolhe o bloco mais
-# próximo da referência — medido, isso pôs uma obra de Sete Lagoas/MG a 1.206 km
-# da âncora. Os 187 códigos de 5 e 6 caracteres ficam sem geocodificação, que é
-# melhor do que um ponto plausível e errado.
+# 227.074 casos. Aceitar 5 ou 6 seria aceitar códigos a que falta parte do bloco
+# de 20°, e aí o `recoverNearest` escolhe o bloco mais próximo da referência —
+# medido, isso pôs uma obra de Sete Lagoas/MG a 1.206 km da âncora. Os 187
+# códigos de 5 e 6 caracteres ficam sem geocodificação, que é melhor do que um
+# ponto plausível e errado.
 REGEX_CURTO = rf"^[{ALFABETO}]{{4}}\+[{ALFABETO}]{{2,3}}$"
 
 # O campo vem com aspas simples e espaços grudados em 11.746 registros, que
 # passam a ser válidos depois da limpeza. Barato de recuperar.
 SQL_NORMALIZAR = "upper(trim({coluna}, ' ''\"'))"
 
-# Cache pequeno e limitado. O DuckDB avalia uma projeção de cada vez sobre o
-# vetor inteiro, então ao pedir latitude e longitude em duas colunas ele chama a
-# função duas vezes para as mesmas linhas, em blocos. Um LRU do tamanho de alguns
-# vetores transforma a segunda passada em acerto de cache, sem o custo de memória
-# de memorizar 1,4 M de códigos distintos.
-TAMANHO_CACHE = 8192
 
-
-@lru_cache(maxsize=TAMANHO_CACHE)
-def _decodificar(codigo: str | None) -> tuple[float, float] | None:
+def decodificar(codigo: str | None) -> tuple[float, float] | None:
+    """Coordenada de um Plus Code completo, ou None se o código não for válido."""
     if not codigo:
         return None
     try:
@@ -81,66 +93,44 @@ def _decodificar(codigo: str | None) -> tuple[float, float] | None:
     return area.latitudeCenter, area.longitudeCenter
 
 
-@lru_cache(maxsize=TAMANHO_CACHE)
-def _recuperar(
-    codigo: str | None, lat_ref: float | None, lon_ref: float | None
+def recuperar(
+    codigo: str | None, lat_ancora: float | None, lon_ancora: float | None
 ) -> tuple[float, float] | None:
-    if not codigo or lat_ref is None or lon_ref is None:
+    """Coordenada de um Plus Code curto, reconstruído a partir da âncora."""
+    if not codigo or lat_ancora is None or lon_ancora is None:
         return None
     try:
         if not olc.isValid(codigo) or not olc.isShort(codigo):
             return None
-        completo = olc.recoverNearest(codigo, lat_ref, lon_ref)
+        completo = olc.recoverNearest(codigo, lat_ancora, lon_ancora)
         area = olc.decode(completo)
     except (ValueError, KeyError, IndexError):
         return None
     return area.latitudeCenter, area.longitudeCenter
 
 
-def latitude_de(codigo: str | None) -> float | None:
-    par = _decodificar(codigo)
-    return par[0] if par else None
+def decodificar_lote(codigos: Iterable[str]) -> Iterator[tuple[str, float, float]]:
+    """Decodifica uma sequência de códigos, omitindo os que não valem.
 
-
-def longitude_de(codigo: str | None) -> float | None:
-    par = _decodificar(codigo)
-    return par[1] if par else None
-
-
-def latitude_recuperada(codigo: str | None, lat: float | None, lon: float | None) -> float | None:
-    par = _recuperar(codigo, lat, lon)
-    return par[0] if par else None
-
-
-def longitude_recuperada(codigo: str | None, lat: float | None, lon: float | None) -> float | None:
-    par = _recuperar(codigo, lat, lon)
-    return par[1] if par else None
-
-
-def registrar_udfs(con) -> None:
-    """Registra as funções de decodificação na conexão DuckDB.
-
-    Funções separadas para latitude e longitude, em vez de uma que devolva um
-    STRUCT, porque o tipo de retorno escalar é trivialmente portável entre versões
-    do DuckDB. O custo de chamar duas vezes é absorvido pelo cache.
-
-    `null_handling="special"` é obrigatório aqui. No modo padrão o DuckDB assume
-    que a função nunca devolve NULL e aborta a consulta quando devolve — mas
-    "este código não é um Plus Code válido" é exatamente um NULL legítimo, e é o
-    resultado de 15,6% das linhas. No modo especial a função também passa a
-    receber os NULLs de entrada, que ela já trata.
+    Gerador, e não lista, para que a gravação do CSV consuma o resultado à medida
+    que ele sai: com 1 M de códigos, materializar tudo antes custaria mais de
+    150 MB sem necessidade nenhuma.
     """
-    assinaturas = (
-        ("olc_lat", latitude_de, ["VARCHAR"]),
-        ("olc_lon", longitude_de, ["VARCHAR"]),
-        ("olc_lat_curto", latitude_recuperada, ["VARCHAR", "DOUBLE", "DOUBLE"]),
-        ("olc_lon_curto", longitude_recuperada, ["VARCHAR", "DOUBLE", "DOUBLE"]),
-    )
-    for nome, funcao, parametros in assinaturas:
-        con.create_function(nome, funcao, parametros, "DOUBLE", null_handling="special")
+    for codigo in codigos:
+        par = decodificar(codigo)
+        if par is not None:
+            yield codigo, par[0], par[1]
 
 
-def limpar_cache() -> None:
-    """Zera os caches. Usado pelos testes, para medir sem interferência."""
-    _decodificar.cache_clear()
-    _recuperar.cache_clear()
+def recuperar_lote(
+    pendentes: Iterable[tuple[str, str, float, float]],
+) -> Iterator[tuple[str, str, float, float, float, float]]:
+    """Recupera códigos curtos a partir de `(código, município, lat, lon da âncora)`.
+
+    Devolve a âncora junto com o ponto recuperado porque a camada curada precisa
+    dela para medir a distância e decidir se o ponto é plausível.
+    """
+    for codigo, municipio, lat_ancora, lon_ancora in pendentes:
+        par = recuperar(codigo, lat_ancora, lon_ancora)
+        if par is not None:
+            yield codigo, municipio, par[0], par[1], lat_ancora, lon_ancora

@@ -88,8 +88,8 @@ def sql_base(staging_dir: str, snapshot_id: str) -> str:
     """Obras da staging, com o Plus Code normalizado e classificado por forma.
 
     A classificação por regex é pré-filtro de desempenho, não validação: evita
-    chamar a UDF de decodificação nas 563 mil linhas de lixo. Quem decide se o
-    código vale é o `isValid` da biblioteca, dentro da função.
+    trazer para o Python as 563 mil linhas de lixo. Quem decide se o código vale
+    é o `isValid` da biblioteca, em `geocodificacao.py`.
     """
     obras = ler_staging(staging_dir, "obras", snapshot_id)
     norm = SQL_NORMALIZAR.format(coluna="codigo_localizacao")
@@ -119,31 +119,13 @@ FROM {obras}
 # Geocodificação, em três passos
 # ---------------------------------------------------------------------------
 
-# A seleção dos códigos distintos e a decodificação são passos separados de
-# propósito. O primeiro é trabalho puro de DuckDB sobre 3,6 M de linhas e quer
-# todas as threads; o segundo chama Python por linha, segura o GIL e só piora com
-# paralelismo. Medido nos dois ambientes, com a UDF:
-#
-#     threads    local      container
-#         1     35,8 us       52,2 us
-#         2      0,2 us      204,8 us
-#         4      0,2 us      220,0 us
-#
-# No container, cada thread a mais multiplica a disputa pelo GIL em vez de somar
-# trabalho — foi o que fez a etapa passar de 36 segundos para mais de dez minutos
-# lá dentro. Por isso `curated._geocodificar` baixa para uma thread só ao aplicar
-# a UDF e devolve o paralelismo em seguida.
+# A decodificação não está mais no SQL. O DuckDB seleciona os códigos distintos
+# — trabalho paralelo sobre 3,6 M de linhas —, o Python decodifica e devolve o
+# resultado como tabela. Ver o cabeçalho de `geocodificacao.py` para a medição
+# que motivou tirar a UDF daqui.
 SQL_DISTINTOS_COMPLETOS = """
 CREATE OR REPLACE TEMP TABLE codigos_completos AS
 SELECT DISTINCT codigo_norm FROM base WHERE forma_plus_code = 'completo'
-"""
-
-SQL_GEO_COMPLETO = """
-CREATE OR REPLACE TEMP TABLE geo_completo AS
-SELECT * FROM (
-    SELECT codigo_norm, olc_lat(codigo_norm) AS latitude, olc_lon(codigo_norm) AS longitude
-    FROM codigos_completos
-) WHERE latitude IS NOT NULL
 """
 
 # A âncora é a mediana dos pontos já decodificados do mesmo município. Mediana e
@@ -162,26 +144,31 @@ WHERE b.codigo_municipio IS NOT NULL
 GROUP BY 1
 """
 
+# Já sai com a âncora anexada, para o Python receber tudo o que precisa numa
+# leitura só e não ter que voltar ao banco por município.
 SQL_DISTINTOS_CURTOS = """
 CREATE OR REPLACE TEMP TABLE codigos_curtos AS
-SELECT DISTINCT codigo_norm, codigo_municipio
-FROM base WHERE forma_plus_code = 'curto' AND codigo_municipio IS NOT NULL
+SELECT DISTINCT b.codigo_norm, b.codigo_municipio, a.lat_ancora, a.lon_ancora
+FROM base b
+JOIN ancoras a USING (codigo_municipio)
+WHERE b.forma_plus_code = 'curto' AND b.codigo_municipio IS NOT NULL
 """
 
-SQL_GEO_CURTO = """
-CREATE OR REPLACE TEMP TABLE geo_curto AS
-SELECT * FROM (
-    SELECT
-        d.codigo_norm,
-        d.codigo_municipio,
-        olc_lat_curto(d.codigo_norm, a.lat_ancora, a.lon_ancora) AS latitude,
-        olc_lon_curto(d.codigo_norm, a.lat_ancora, a.lon_ancora) AS longitude,
-        a.lat_ancora,
-        a.lon_ancora
-    FROM codigos_curtos d
-    JOIN ancoras a USING (codigo_municipio)
-) WHERE latitude IS NOT NULL
-"""
+# Colunas das tabelas que o Python carrega de volta. Ficam aqui, ao lado do SQL
+# que as consome, para não divergirem em silêncio.
+COLUNAS_GEO_COMPLETO = {
+    "codigo_norm": "VARCHAR",
+    "latitude": "DOUBLE",
+    "longitude": "DOUBLE",
+}
+COLUNAS_GEO_CURTO = {
+    "codigo_norm": "VARCHAR",
+    "codigo_municipio": "VARCHAR",
+    "latitude": "DOUBLE",
+    "longitude": "DOUBLE",
+    "lat_ancora": "DOUBLE",
+    "lon_ancora": "DOUBLE",
+}
 
 
 def _distancia_km(lat: str, lon: str, lat_ref: str, lon_ref: str) -> str:
