@@ -50,12 +50,18 @@ def test_dag_carrega_sem_erro(dag):
 
 
 def test_encadeamento_das_etapas(dag):
-    """extrair -> tratar -> validar, nessa ordem e sem ramificação."""
-    assert set(dag.task_ids) == {"extrair", "tratar", "validar"}
+    """extrair -> tratar -> validar -> curar, nessa ordem e sem ramificação.
+
+    A curadoria vem depois da validação de propósito: é ela que alimenta o
+    relatório e o dashboard, e publicar número em cima de dado reprovado é pior
+    do que não publicar número nenhum.
+    """
+    assert set(dag.task_ids) == {"extrair", "tratar", "validar", "curar"}
 
     assert dag.get_task("extrair").downstream_task_ids == {"tratar"}
     assert dag.get_task("tratar").downstream_task_ids == {"validar"}
-    assert dag.get_task("validar").downstream_task_ids == set()
+    assert dag.get_task("validar").downstream_task_ids == {"curar"}
+    assert dag.get_task("curar").downstream_task_ids == set()
 
 
 def test_so_a_extracao_tem_retry(dag):
@@ -67,6 +73,7 @@ def test_so_a_extracao_tem_retry(dag):
     assert dag.get_task("extrair").retries == 3
     assert dag.get_task("tratar").retries == 0
     assert dag.get_task("validar").retries == 0
+    assert dag.get_task("curar").retries == 0
 
 
 def test_nao_faz_backfill(dag):

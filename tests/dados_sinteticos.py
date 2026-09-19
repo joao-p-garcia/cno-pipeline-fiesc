@@ -67,10 +67,15 @@ OBRAS_CSV = CABECALHO_OBRAS + "".join(
         _obra("010010119386", uf="EX", pais="249", nome_pais="ESTADOS UNIDOS"),
         # sem plus code
         _obra("010010119387", localizacao=""),
-        # situação encerrada
-        _obra("010010119388", situacao="15"),
-        # tipografia cp1252 no nome
-        _obra("010010119389", nome="OBRA – FASE 2"),
+        # situação encerrada, e Plus Code na forma curta: só vira coordenada se a
+        # curadoria conseguir ancorar no município. `64Q5+JP` é `58PJ64Q5+JP`
+        # sem os 4 caracteres do bloco de 1°, que é como a Receita recebe 227 mil
+        # códigos da base real.
+        _obra("010010119388", situacao="15", localizacao="64Q5+JP"),
+        # tipografia cp1252 no nome, e um Plus Code válido apontando para o
+        # Japão: 3,7% da base real tem código sintaticamente perfeito e lugar
+        # errado. Tem de ser geocodificado e marcado como implausível.
+        _obra("010010119389", nome="OBRA – FASE 2", localizacao="8Q4GQRQP+J2"),
     ]
 )
 

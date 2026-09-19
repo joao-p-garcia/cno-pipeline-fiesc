@@ -15,7 +15,7 @@ CNO := $(VENV)/bin/cno
 # Sobrescrevível para o CI e o container apontarem o deles.
 AIRFLOW_VENV ?= $(HOME)/.venvs/airflow
 
-.PHONY: help setup info extract extract-force transform validate pipeline \
+.PHONY: help setup info extract extract-force transform validate curate pipeline \
         test test-dag lint fmt clean clean-data \
         build up down down-tudo logs ps dag-run docker-pipeline
 
@@ -56,7 +56,10 @@ transform: setup  ## Trata a camada raw e materializa parquet em staging
 validate: setup  ## Valida a camada tratada e reconcilia com os totais oficiais
 	$(CNO) validate
 
-pipeline: extract transform validate  ## Roda o pipeline inteiro, na ordem
+curate: setup  ## Modela a camada curada e os marts que a análise consome
+	$(CNO) curate
+
+pipeline: extract transform validate curate  ## Roda o pipeline inteiro, na ordem
 
 test: setup  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
@@ -119,7 +122,8 @@ dag-run:  ## Dispara uma execução da DAG no Airflow em container
 # Roda as três etapas em containers efêmeros, sem orquestrador nenhum. Escreve
 # no mesmo volume que a DAG usa, então serve tanto de demonstração rápida
 # quanto de pré-aquecimento antes de subir o Airflow.
-docker-pipeline:  ## Roda extract -> transform -> validate em container, sem Airflow
+docker-pipeline:  ## Roda o pipeline inteiro em container, sem Airflow
 	$(COMPOSE) run --rm cno extract
 	$(COMPOSE) run --rm cno transform
 	$(COMPOSE) run --rm cno validate
+	$(COMPOSE) run --rm cno curate

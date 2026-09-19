@@ -1,7 +1,7 @@
 """DAG de orquestração do pipeline CNO.
 
 A DAG é deliberadamente fina: ela encadeia os mesmos comandos que qualquer
-pessoa roda na mão (`cno extract`, `cno transform`, `cno validate`) e não contém
+pessoa roda na mão (`cno extract`, `cno transform`, `cno validate`, `cno curate`) e não contém
 regra de negócio nenhuma. Isso mantém a lógica testável fora do Airflow — a
 suíte de 65 testes roda sem subir scheduler — e garante que reproduzir uma falha
 de produção seja copiar e colar um comando.
@@ -40,7 +40,7 @@ CNO_BIN = os.environ.get("CNO_BIN", "/opt/cno/.venv/bin/cno")
 
 # Timeout por etapa. A extração é a única que depende de rede e de baixar
 # 315 MB, por isso tem folga maior.
-TIMEOUTS = {"extract": 60 * 30, "transform": 60 * 20, "validate": 60 * 10}
+TIMEOUTS = {"extract": 60 * 30, "transform": 60 * 20, "validate": 60 * 10, "curate": 60 * 20}
 
 
 def executar_etapa(etapa: str, *argumentos: str) -> dict:
@@ -155,7 +155,30 @@ def cno_pipeline():
         log.info("validação aprovada para o snapshot %s", snapshot_id)
         return resumo
 
-    validar(tratar(extrair()))
+    @task(retries=0)
+    def curar(relatorio: dict) -> dict:
+        """Modela a camada curada e os marts que a análise e o dashboard leem.
+
+        Roda **depois** da validação, e é de propósito: a camada curada é a que
+        alimenta gráfico e relatório, e publicar número em cima de dado
+        reprovado é pior do que não publicar número nenhum. Como a validação
+        derruba a execução quando reprova, chegar aqui já significa que a camada
+        tratada reconcilia com a fonte.
+        """
+        snapshot_id = relatorio["snapshot_id"]
+        resumo = executar_etapa("curate", "--snapshot", snapshot_id)
+        geo = resumo["geocodificacao"]
+        log.info(
+            "geocodificação: %.1f%% (%s completos, %s curtos recuperados)",
+            geo["cobertura"] * 100,
+            f"{geo['completos']:,}",
+            f"{geo['curtos_recuperados']:,}",
+        )
+        for tabela in resumo["tabelas"]:
+            log.info("%-20s %s linhas", tabela["nome"], f"{tabela['linhas']:,}")
+        return resumo
+
+    curar(validar(tratar(extrair())))
 
 
 cno_pipeline()
