@@ -119,11 +119,30 @@ FROM {obras}
 # Geocodificação, em três passos
 # ---------------------------------------------------------------------------
 
+# A seleção dos códigos distintos e a decodificação são passos separados de
+# propósito. O primeiro é trabalho puro de DuckDB sobre 3,6 M de linhas e quer
+# todas as threads; o segundo chama Python por linha, segura o GIL e só piora com
+# paralelismo. Medido nos dois ambientes, com a UDF:
+#
+#     threads    local      container
+#         1     35,8 us       52,2 us
+#         2      0,2 us      204,8 us
+#         4      0,2 us      220,0 us
+#
+# No container, cada thread a mais multiplica a disputa pelo GIL em vez de somar
+# trabalho — foi o que fez a etapa passar de 36 segundos para mais de dez minutos
+# lá dentro. Por isso `curated._geocodificar` baixa para uma thread só ao aplicar
+# a UDF e devolve o paralelismo em seguida.
+SQL_DISTINTOS_COMPLETOS = """
+CREATE OR REPLACE TEMP TABLE codigos_completos AS
+SELECT DISTINCT codigo_norm FROM base WHERE forma_plus_code = 'completo'
+"""
+
 SQL_GEO_COMPLETO = """
 CREATE OR REPLACE TEMP TABLE geo_completo AS
 SELECT * FROM (
     SELECT codigo_norm, olc_lat(codigo_norm) AS latitude, olc_lon(codigo_norm) AS longitude
-    FROM (SELECT DISTINCT codigo_norm FROM base WHERE forma_plus_code = 'completo')
+    FROM codigos_completos
 ) WHERE latitude IS NOT NULL
 """
 
@@ -143,6 +162,12 @@ WHERE b.codigo_municipio IS NOT NULL
 GROUP BY 1
 """
 
+SQL_DISTINTOS_CURTOS = """
+CREATE OR REPLACE TEMP TABLE codigos_curtos AS
+SELECT DISTINCT codigo_norm, codigo_municipio
+FROM base WHERE forma_plus_code = 'curto' AND codigo_municipio IS NOT NULL
+"""
+
 SQL_GEO_CURTO = """
 CREATE OR REPLACE TEMP TABLE geo_curto AS
 SELECT * FROM (
@@ -153,10 +178,7 @@ SELECT * FROM (
         olc_lon_curto(d.codigo_norm, a.lat_ancora, a.lon_ancora) AS longitude,
         a.lat_ancora,
         a.lon_ancora
-    FROM (
-        SELECT DISTINCT codigo_norm, codigo_municipio
-        FROM base WHERE forma_plus_code = 'curto' AND codigo_municipio IS NOT NULL
-    ) d
+    FROM codigos_curtos d
     JOIN ancoras a USING (codigo_municipio)
 ) WHERE latitude IS NOT NULL
 """

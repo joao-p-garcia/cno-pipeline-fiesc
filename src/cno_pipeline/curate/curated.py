@@ -111,7 +111,7 @@ def executar_curadoria(settings: Settings, *, snapshot_id: str | None = None) ->
         registrar_udfs(con)
         con.execute(f"CREATE OR REPLACE TEMP VIEW base AS {sql_mod.sql_base(staging, snapshot)}")
 
-        geo = _geocodificar(con)
+        geo = _geocodificar(con, settings)
 
         tabelas = [
             _materializar(
@@ -206,13 +206,30 @@ def _conectar(settings: Settings) -> duckdb.DuckDBPyConnection:
     return con
 
 
-def _geocodificar(con: duckdb.DuckDBPyConnection) -> MetricasGeo:
-    """Decodifica os Plus Codes completos e recupera os curtos pela âncora municipal."""
+def _geocodificar(con: duckdb.DuckDBPyConnection, settings: Settings) -> MetricasGeo:
+    """Decodifica os Plus Codes completos e recupera os curtos pela âncora municipal.
+
+    A aplicação da UDF roda com **uma thread só**. Função Python chamada por linha
+    segura o GIL, então threads adicionais não somam trabalho: disputam. O efeito
+    é invisível na máquina de quem desenvolve e brutal no container — 0,2 µs por
+    chamada contra 220 µs, o que transformou 36 segundos em mais de dez minutos.
+    O resto da etapa continua paralelo.
+    """
     inicio = time.monotonic()
 
-    con.execute(sql_mod.SQL_GEO_COMPLETO)
+    def _decodificar_serialmente(*comandos: str) -> None:
+        con.execute("SET threads = 1")
+        try:
+            for comando in comandos:
+                con.execute(comando)
+        finally:
+            con.execute(f"SET threads = {settings.duckdb_threads}")
+
+    con.execute(sql_mod.SQL_DISTINTOS_COMPLETOS)
+    _decodificar_serialmente(sql_mod.SQL_GEO_COMPLETO)
     con.execute(sql_mod.SQL_ANCORAS)
-    con.execute(sql_mod.SQL_GEO_CURTO)
+    con.execute(sql_mod.SQL_DISTINTOS_CURTOS)
+    _decodificar_serialmente(sql_mod.SQL_GEO_CURTO)
 
     obras, completos = con.execute("""
         SELECT count(*),
