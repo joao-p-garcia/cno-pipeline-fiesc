@@ -226,5 +226,9 @@ dados_raw/
 /data/*
 !/data/.gitkeep
 
-# Notas locais de trabalho (estado da sessão), não fazem parte da entrega.
+# Notas locais de trabalho, não fazem parte da entrega.
+# ESTADO.md   = onde paramos e qual o próximo passo.
+# DECISOES.md = registro das decisões de engenharia com o porquê e as medições,
+#               incluindo os erros. Matéria-prima da apresentação.
 /ESTADO.md
+/DECISOES.md
