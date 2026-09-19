@@ -232,3 +232,6 @@ dados_raw/
 #               incluindo os erros. Matéria-prima da apresentação.
 /ESTADO.md
 /DECISOES.md
+# INSIGHTS.md = os achados no formato da apresentação (o que vi / o que
+# quebraria / o que mudei), com os números medidos.
+/INSIGHTS.md

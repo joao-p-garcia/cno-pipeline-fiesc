@@ -10,3 +10,8 @@ Makefile text eol=lf
 *.zip binary
 *.parquet binary
 *.png binary
+
+# Amostra crua do CNO, usada pelo notebook e pelo dashboard para demonstrar o
+# encoding da fonte. Os bytes cp1252 são o conteúdo: marcada como binária para
+# que nenhuma normalização encoste neles.
+analise/amostra_bruta.csv binary

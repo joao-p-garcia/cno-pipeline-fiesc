@@ -3,7 +3,15 @@
 Pipeline de extração e tratamento da base do **CNO — Cadastro Nacional de Obras**
 da Receita Federal.
 
-> **Status:** etapa de extração concluída e testada. Aqui, a ideia é realizar uma análise inicial dos dados para entender como transformar eles pra algo mais útil, ao mesmo tempo em que já estou construindo uma solução escalável quando colocarmos o deploy. Tratamento, orquestração e análise descritiva em construção — veja [Roadmap](#roadmap).
+> **Status:** entrega completa. Extração, tratamento, validação, orquestração,
+> camada curada e análise estão no ar; a stack sobe inteira com um comando e
+> inclui o dashboard. Veja [Roadmap](#roadmap).
+
+A entrega tem duas pontas: uma **esteira de dados** que vai do zip publicado pela
+Receita até uma camada curada reconciliada contra a própria fonte, e uma
+**análise narrativa** em cima dela — um dashboard em seis seções que conta o que
+o dado ensinou sobre como construir o sistema, e um notebook versionado com as
+saídas que registra como cada achado apareceu.
 
 ## Requisitos
 
@@ -18,6 +26,13 @@ precisam existir na máquina. Veja [Em container](#em-container).
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+```
+
+Para abrir a análise, instale também os extras dela:
+
+```bash
+pip install -e ".[dashboard]"   # o dashboard
+pip install -e ".[notebook]"    # e, opcionalmente, o caderno de exploração
 ```
 
 Consultar a fonte sem baixar nada (faz só um `HEAD`):
@@ -105,7 +120,17 @@ make up
 ```
 
 Isso constrói a imagem, sobe Airflow 3.3.2 com LocalExecutor sobre Postgres e
-deixa a UI em <http://localhost:8080> (usuário `airflow`, senha `airflow`).
+deixa duas coisas no ar:
+
+| Onde | O quê |
+|---|---|
+| <http://localhost:8080> | a UI do Airflow (usuário `airflow`, senha `airflow`) |
+| <http://localhost:8501> | o **dashboard narrativo**, lendo o mesmo volume |
+
+O dashboard sobe junto e não espera a DAG: enquanto a primeira execução não
+termina, ele mostra qual comando rodar; quando a camada curada aparece no volume,
+ele passa a responder sozinho, sem reiniciar nada. O volume é montado nele como
+**somente leitura** — quem publica número não escreve dado.
 
 A DAG sobe despausada e **começa a rodar sozinha**, sem nenhum passo a mais:
 baixa os ~315 MB da Receita, trata as 12,5 M de linhas e valida o resultado.
@@ -176,6 +201,51 @@ esteira que não precisa do IBGE para nada; a DAG roda diariamente e o IBGE
 publica uma vez por ano; e trocar a safra é trocar um arquivo de 400 KB em vez de
 reprocessar 3,6 M de linhas. Ver [Fronteira de dados externos](#fronteira-de-dados-externos).
 
+### A análise: um dashboard narrativo e um caderno
+
+A entrega da análise **é o dashboard**. Ele não é um painel de filtros: é uma
+história em seis seções, na ordem em que as decisões de engenharia foram tomadas.
+
+```bash
+make dashboard      # http://localhost:8501
+```
+
+| Seção | O argumento |
+|---|---|
+| 1. O dado como ele chega | 315 MB, cinco CSVs, cp1252 — e a fonte publicando o próprio gabarito |
+| 2. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas, não lacunas |
+| 3. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
+| 4. O endereço vem em Plus Code | cobertura honesta de 41,2%, não os 59% que o campo sugere |
+| 5. A série que triplica | o degrau de 2018-2019 é recadastramento, não construção |
+| 6. O que dá para afirmar | e, explicitamente, o que **não** dá |
+
+Cada seção tem a mesma anatomia: um parágrafo com o que foi visto, **um gráfico
+fixo que faz o argumento** — o mesmo que vai para a apresentação, e que filtro
+nenhum altera —, um bloco declarando *o que quebraria se eu ignorasse* e *o que
+mudou no sistema*, e só então um expander com os controles para explorar.
+Storytelling e BI puxam em direções opostas; separar os dois em camadas é o que
+permite os dois no mesmo app.
+
+O topo de toda página mostra a **data do snapshot da Receita**. É o que separa um
+dashboard de um extrato: o número na tela veio de uma publicação identificada, e
+a esteira sabe qual.
+
+O **caderno** é o caminho, não o destino:
+
+```bash
+make notebook       # reexecuta e regrava as saídas
+```
+
+`analise/exploracao.ipynb` está versionado **com as saídas**, para ser lido sem
+ser executado. Ele segue duas regras: lê de `data/curated` sem redefinir regra de
+negócio nenhuma, e roda de ponta a ponta de cima para baixo.
+
+**O que impede o caderno e o dashboard de divergirem:** os dois chamam as mesmas
+funções, em `analise/dados.py`. Nenhum dos dois escreve SQL próprio, e nenhum dos
+dois recalcula `area_m2`, `geo_plausivel` ou `serie_comparavel` — isso chega
+decidido da camada curada. Se os dois discordassem de um número, seria falha de
+arquitetura, não diferença de opinião.
+
 ### Configuração local opcional
 
 Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
@@ -223,8 +293,20 @@ analise/                 camada de análise, fora do pipeline
 ├── construir_municipios.py  gera a tabela de referência do IBGE
 ├── municipios.csv           5.571 municípios com população e centroide
 ├── correcoes_municipios.csv as 17 divergências de nome, à mão
-├── malha_municipios.geojson.gz  malha para o coroplético
-└── referencias.py           a junção, usada pelo notebook e pelo dashboard
+├── malha_municipios.geojson.gz  malha municipal, para o mapa
+├── amostra_bruta.csv        7 linhas do cno.csv com os bytes cp1252 originais
+├── referencias.py           a junção com o IBGE, idêntica nos dois consumidores
+├── dados.py                 as consultas — o caderno e o app chamam estas funções
+├── estilo.py                paleta e tipografia, iguais no matplotlib e no Altair
+├── malha.py                 GeoJSON sem GIS: recorte, orientação e enquadramento
+└── exploracao.ipynb         o caderno, versionado com as saídas
+
+app/                     o dashboard narrativo (Streamlit)
+├── dashboard.py         ponto de entrada: as seis seções e a navegação
+├── dados_app.py         a única porta para a camada curada, e o único cache
+├── graficos.py          construtores de gráfico em Altair
+├── componentes.py       cabeçalho, bloco de decisão, expander de exploração
+└── secoes/              uma seção por arquivo, na ordem da narrativa
 
 Dockerfile               imagem única: Airflow oficial + pipeline em /opt/cno/.venv
 docker-compose.yml       stack de entrega: Airflow LocalExecutor + Postgres
@@ -544,6 +626,46 @@ serviços, cada um com motivo.
 aceleram é o reprocessamento do mesmo snapshot, que é raro; a idempotência não
 depende deles, porque a extração confere os CSVs contra o manifesto, não o zip.
 
+### Análise e visualização
+
+**Uma camada de consultas, dois consumidores.** `analise/dados.py` tem uma função
+por pergunta, e é o único lugar com SQL fora do pipeline. O notebook e o
+dashboard chamam as mesmas funções — se escrevessem o próprio SQL, bastaria um
+`WHERE` diferente para divergirem num número, e os dois continuariam rodando sem
+erro.
+
+**O app lê marts, não a tabela analítica.** Um Streamlit não pode varrer 3,6 M de
+linhas a cada clique. As exceções são as consultas de perfilamento (distribuição
+de unidade, quantis de área, distância dos pontos), que são perguntas sobre a
+distribuição de uma coluna e não cabem num agregado — e a docstring de cada
+função diz qual das duas ela toca.
+
+**Mediana de medianas não é mediana.** O mart guarda a mediana de cada grupo;
+somar contagens a partir dele é exato, tirar quantil não é. Onde a mediana é o
+argumento, a consulta varre a tabela analítica e paga o preço.
+
+**Matplotlib no caderno, Altair no app, uma paleta só.** O caderno precisa de
+imagem embutida no `.ipynb` — é o que faz o avaliador ler sem executar, e é o que
+o GitHub renderiza. O app precisa de *hover*. As cores, a grade e a tipografia
+saem de `analise/estilo.py` nos dois casos, senão o mesmo achado teria duas caras.
+A paleta são os três primeiros slots de uma escala categórica validada para
+daltonismo; barra maior não ganha cor mais forte, e o que o gráfico defende fica
+azul enquanto o resto fica cinza.
+
+**Mapa sem GIS.** Um polígono do GeoJSON é uma lista de pares de coordenadas, e a
+junção com o CNO é por código de município — não por geometria. Trazer geopandas
+custaria GEOS, PROJ e uma cadeia de binários na imagem para comprar o que `json`
+já entrega. Duas surpresas ficaram documentadas em `analise/malha.py`: o Vega não
+enquadra a projeção sozinho quando a geometria vem numa camada junto com pontos,
+e a convenção de sentido de giro do D3 é **o contrário** da do RFC 7946 — com o
+sentido "certo", o mapa vira uma mancha chapada, sem erro nenhum no console.
+
+**O dashboard é testado sem navegador.** `AppTest`, do próprio Streamlit, executa
+o app e devolve os elementos produzidos; as seis seções são exercitadas sobre a
+camada sintética. Foi isso que pegou uma divisão por zero (num recorte sem área
+em m²) e um `iloc[0]` numa seleção vazia (numa série com um ano só) antes de
+qualquer um dos dois chegar à tela.
+
 ## Sobre os dados
 
 Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
@@ -579,4 +701,6 @@ tratamento:
 - [x] Camada curada, com geocodificação e marts
 - [x] Tabela de referência do IBGE, com validade vigiada por DAG
 - [x] Containerização
-- [ ] Análise descritiva
+- [x] Análise descritiva: dashboard narrativo e notebook versionado
+- [ ] Lock por snapshot dentro do `cno transform`, para o caso de duas execuções
+      se sobreporem (hoje protegido só pelo `max_active_runs` do Airflow)
