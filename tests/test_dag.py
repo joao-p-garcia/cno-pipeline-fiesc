@@ -155,3 +155,84 @@ def test_timeout_vira_falha_definitiva(monkeypatch):
 
     with pytest.raises(AirflowFailException, match="tempo limite"):
         modulo.executar_etapa("extract")
+
+
+# ---------------------------------------------------------------------------
+# DAG de vigilância da referência do IBGE
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dag_ibge():
+    from airflow.models import DagBag
+
+    bag = DagBag(dag_folder=str(DAGS_DIR))
+    assert not bag.import_errors, f"DAG não carregou: {bag.import_errors}"
+    return bag.get_dag("referencias_ibge")
+
+
+def _verificador(dag_ibge, monkeypatch, diretorio):
+    """Devolve a função da task, com o diretório de referências redirecionado.
+
+    O `DagBag` importa o arquivo da DAG sob um nome próprio, então o módulo que
+    ele carregou **não é** o que um `import` normal traz. Patchear pelo import
+    não alcança a cópia que a task usa; alcançar os globais da própria função é
+    o que funciona, e é a razão deste helper existir.
+    """
+    funcao = dag_ibge.get_task("verificar_validade").python_callable
+    monkeypatch.setitem(funcao.__globals__, "DIRETORIO_REFERENCIAS", diretorio)
+    return funcao
+
+
+def test_dag_do_ibge_e_separada_e_minima(dag_ibge):
+    """Separada da `cno_pipeline` de propósito: não pode derrubar a esteira.
+
+    Uma task só, sem rede, lendo um arquivo local. Se esta DAG ficar vermelha, o
+    pipeline de dados continua verde — que é exatamente a divisão pretendida.
+    """
+    assert dag_ibge is not None
+    assert set(dag_ibge.task_ids) == {"verificar_validade"}
+    assert dag_ibge.dag_id != "cno_pipeline"
+
+
+def test_referencia_ausente_e_skip_nao_falha(dag_ibge, tmp_path, monkeypatch):
+    """Sem camada de análise instalada, a DAG pula em vez de ficar vermelha.
+
+    Um pipeline de dados sem dashboard é implantação legítima; marcar isso como
+    erro treinaria quem opera a ignorar o alerta — que é o oposto do objetivo.
+    """
+    from airflow.sdk.exceptions import AirflowSkipException
+
+    with pytest.raises(AirflowSkipException):
+        _verificador(dag_ibge, monkeypatch, tmp_path)()
+
+
+def test_safra_vencida_falha_com_instrucao(dag_ibge, tmp_path, monkeypatch):
+    """Vencida tem de falhar: é a falha que dispara o alerta do Airflow."""
+    (tmp_path / "municipios.meta.json").write_text(
+        json.dumps(
+            {
+                "gerado_em": "2020-01-01",
+                "valido_ate": "2021-01-01",
+                "safra_populacao": "2020",
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeError) as erro:
+        _verificador(dag_ibge, monkeypatch, tmp_path)()
+    # A mensagem tem de dizer o que fazer, não só que quebrou.
+    assert "construir_municipios.py" in str(erro.value)
+
+
+def test_safra_valida_passa(dag_ibge, tmp_path, monkeypatch):
+    from datetime import date, timedelta
+
+    futuro = (date.today() + timedelta(days=200)).isoformat()
+    (tmp_path / "municipios.meta.json").write_text(
+        json.dumps({"gerado_em": "2026-09-19", "valido_ate": futuro, "safra_populacao": "2026"}),
+        encoding="utf-8",
+    )
+    resultado = _verificador(dag_ibge, monkeypatch, tmp_path)()
+    assert resultado["safra"] == "2026"
+    assert resultado["dias_restantes"] > 0

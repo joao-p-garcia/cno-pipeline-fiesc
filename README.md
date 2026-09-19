@@ -138,6 +138,44 @@ montada do host.
 O container é o empacotamento da entrega, não o ambiente de desenvolvimento —
 para desenvolver, `make pipeline` roda direto e sem esperar build.
 
+### Camada de análise e a tabela do IBGE
+
+O pipeline processa **uma fonte só**: o CNO da Receita. Município, população e
+malha territorial vêm do IBGE e ficam **fora** do pipeline, em `analise/`, como
+tabela de referência versionada:
+
+```
+analise/
+├── construir_municipios.py     gera os arquivos abaixo a partir das APIs do IBGE
+├── municipios.csv              5.571 municípios: código, UF, região, população, centroide
+├── correcoes_municipios.csv    as 17 divergências de nome, escritas à mão
+├── malha_municipios.geojson.gz malha municipal para o mapa (792 KB)
+└── referencias.py              a junção, usada igual pelo notebook e pelo dashboard
+```
+
+> ### ⚠️ Regerar uma vez por ano
+>
+> A população é a estimativa anual do IBGE, publicada por volta de **agosto**.
+> Os arquivos declaram a própria validade em `municipios.meta.json`, e a partir
+> dela **nada depende da memória de ninguém**:
+>
+> ```bash
+> python analise/construir_municipios.py --verificar   # falha se a safra venceu
+> python analise/construir_municipios.py               # regera e atualiza a validade
+> ```
+>
+> A DAG **`referencias_ibge`** roda esse `--verificar` mensalmente e falha
+> quando a safra vence — e falha no Airflow é o que dispara o alerta. Ela é uma
+> DAG **separada** de propósito: pode ficar vermelha sem afetar a
+> `cno_pipeline`.
+>
+> Enquanto não for regerada, todo número per capita usa um denominador vencido.
+
+**Por que fora do pipeline:** uma indisponibilidade do IBGE não pode derrubar uma
+esteira que não precisa do IBGE para nada; a DAG roda diariamente e o IBGE
+publica uma vez por ano; e trocar a safra é trocar um arquivo de 400 KB em vez de
+reprocessar 3,6 M de linhas. Ver [Fronteira de dados externos](#fronteira-de-dados-externos).
+
 ### Configuração local opcional
 
 Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
@@ -178,7 +216,15 @@ src/cno_pipeline/
     └── curated.py       orquestração e métricas de cobertura
 
 dags/
-└── cno_pipeline_dag.py  encadeia extract -> transform -> validate
+├── cno_pipeline_dag.py     encadeia extract -> transform -> validate -> curate
+└── referencias_ibge_dag.py vigia a validade da tabela do IBGE (DAG separada)
+
+analise/                 camada de análise, fora do pipeline
+├── construir_municipios.py  gera a tabela de referência do IBGE
+├── municipios.csv           5.571 municípios com população e centroide
+├── correcoes_municipios.csv as 17 divergências de nome, à mão
+├── malha_municipios.geojson.gz  malha para o coroplético
+└── referencias.py           a junção, usada pelo notebook e pelo dashboard
 
 Dockerfile               imagem única: Airflow oficial + pipeline em /opt/cno/.venv
 docker-compose.yml       stack de entrega: Airflow LocalExecutor + Postgres
@@ -415,6 +461,52 @@ a fonte não publica não tem como ser reconciliado; além disso, misturar safra
 não dá sintoma. Se um dia precisar entrar, a forma é uma dimensão `municipios`
 separada, nunca colunas na tabela de obras.
 
+### Fronteira de dados externos
+
+**O pipeline processa uma fonte só, e isso é uma decisão, não uma limitação.**
+Toda a camada curada é derivável do snapshot do CNO e reconciliável contra os
+totais que a própria Receita publica. No momento em que uma coluna de
+`obras_analitico` viesse de outra fonte, com outra data de referência, a frase
+"esta camada reconcilia com a fonte" deixaria de ser verdadeira para a tabela.
+
+Município, população e malha do IBGE entram na **camada de análise**, e os
+motivos, em ordem de peso:
+
+**Acoplamento de falha.** Como task da DAG, uma indisponibilidade do IBGE
+derrubaria o pipeline do CNO — que não usa o IBGE para nada. Seria deixar um
+terceiro que não contribui para o produto principal poder quebrá-lo.
+
+**Cadências incompatíveis.** A DAG roda diariamente; o IBGE publica uma vez por
+ano. Seriam 365 buscas do mesmo arquivo, ou lógica condicional para evitá-las —
+complexidade para benefício zero.
+
+**Assimetria de custo.** Como tabela separada, trocar a safra da população é
+trocar um arquivo. Como coluna na tabela de obras, é reprocessar 3,6 M de linhas
+para mudar um dado que nem veio da Receita.
+
+**O resultado não é processo rodando por fora — é tabela de referência
+versionada.** A mesma categoria dos nomes das seções da CNAE, que são constantes
+em `dominios.py` e ninguém espera que sejam buscados da CONCLA toda noite. O
+script ao lado existe para regerar quando vencer, e a DAG `referencias_ibge`
+avisa quando esse momento chega.
+
+**A junção é por nome normalizado, não por código.** A Receita usa TOM de 4
+dígitos, o IBGE usa código de 7, e a de-para entre os dois não tem fonte
+canônica estável. Medido na base real: normalizar (maiúscula, sem acento, sem
+hífen e apóstrofo) casa **5.555 de 5.572 (99,7%)**. Os 17 restantes são o
+conjunto clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do
+Livramento`, `BOA SAÚDE`/`Januário Cicco` — e viram uma tabela de correção
+auditável linha a linha, com o motivo de cada uma. Importar a tabela TOM de
+5.570 linhas de um terceiro não evitaria esse trabalho: só o esconderia num
+arquivo que não dá para revisar. **Não se evita a de-para; escolhe-se o tamanho
+dela.**
+
+Com as correções, o casamento é de **5.570 de 5.570**. E o efeito no resultado é
+o esperado: em SC, o ranking por obras por mil habitantes não tem nenhum dos
+municípios do topo absoluto — aparecem Itapoá (58,0), Maravilha (49,4) e
+Balneário Piçarras (48,3), separando litoral de Oeste. Sem denominador, todo
+ranking municipal é um ranking populacional disfarçado.
+
 ### Containerização
 
 **Uma imagem só, com dois ambientes Python dentro.** O Airflow vem da imagem
@@ -485,5 +577,6 @@ tratamento:
 - [x] Funções de validação, com reconciliação contra os totais oficiais
 - [x] Orquestração em DAG
 - [x] Camada curada, com geocodificação e marts
+- [x] Tabela de referência do IBGE, com validade vigiada por DAG
 - [x] Containerização
 - [ ] Análise descritiva

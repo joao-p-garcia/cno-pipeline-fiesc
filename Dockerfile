@@ -46,9 +46,16 @@ RUN /opt/cno/.venv/bin/python -c "from cno_pipeline.curate.geocodificacao import
 # com o papel do container aqui, que é empacotar a entrega, não desenvolver.
 COPY --chown=airflow:root dags/ /opt/airflow/dags/
 
+# A camada de análise — tabela de referência do IBGE e a ponte que a junta com a
+# camada curada. Não é parte do pipeline (o `cno` não a importa), mas precisa
+# existir na imagem por dois motivos: a DAG `referencias_ibge` lê a validade da
+# safra da população, e o dashboard, quando existir, lê a tabela em execução.
+COPY --chown=airflow:root analise/ /opt/cno/analise/
+
 # O caminho do executável é o contrato entre a DAG e o pipeline. Fica no
 # ENV da imagem para valer também em `docker run` direto, sem compose.
 # O PATH de propósito NÃO recebe /opt/cno/.venv/bin: isso trocaria o `python`
 # visto pelo Airflow pelo do venv do pipeline, que não tem Airflow dentro.
 ENV CNO_BIN=/opt/cno/.venv/bin/cno \
-    CNO_DATA_DIR=/opt/cno/data
+    CNO_DATA_DIR=/opt/cno/data \
+    CNO_REFERENCIAS_DIR=/opt/cno/analise
