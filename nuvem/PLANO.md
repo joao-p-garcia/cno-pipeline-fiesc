@@ -17,19 +17,19 @@ editar `src/cno_pipeline/`, o desenho está errado.**
 
 | | |
 |---|---|
-| Assinatura | `a473d0e0-3635-4fac-bf47-a55cc5cbd547` · tenant `b82ee7d5-…` |
+| Assinatura | em `nuvem/terraform/terraform.tfvars`, fora do repositório |
 | Região | `brazilsouth` |
 | Grupos | `rg-cno-nuvem` (a esteira) · `rg-cno-tfstate` (o state) |
 | Registry | `acrcnofiesc.azurecr.io` |
 | Lake | `https://stcnolakefiesc.dfs.core.windows.net/lake/curated` |
-| Dashboard | https://ca-cno-dashboard.agreeablecoast-cf9edb1a.brazilsouth.azurecontainerapps.io |
+| Dashboard | `ca-cno-dashboard`, ingress público — URL em `terraform output dashboard_url` |
 | Imagem | 231 MB (a da raiz, com Airflow, tem 3,88 GB) |
 
-Terraform: 21 recursos, state remoto. Tudo em `nuvem/terraform/`.
+Terraform: 23 recursos, state remoto. Tudo em `nuvem/terraform/`.
 
-**A única coisa que falta é manual e é sua:** cadastrar cinco *Variables*
-(não Secrets) no repositório do GitHub, para o CD funcionar. Os valores saem de
-`terraform output github_variaveis`.
+CD verde de ponta a ponta, com as cinco *Variables* cadastradas no repositório.
+Idempotência verificada na nuvem: com o lake populado, o `extract` registra
+`reaproveitado: true` e não toca na Receita.
 
 ---
 
@@ -49,11 +49,11 @@ Terraform: 21 recursos, state remoto. Tudo em `nuvem/terraform/`.
               2 vCPU / 4 GiB                  0,5 vCPU / 1 GiB
               identidade: escrita             identidade: leitura
                         │                               ▲
-                        │  extract→transform→           │  baixa 191 MB
-                        │  validate→curate no           │  no boot
-                        │  disco efêmero, depois        │
-                        └──────▶  ADLS Gen2  ───────────┘
-                                 curated/ + _manifests/
+                        │  restaura raw, roda as        │  baixa 191 MB
+                        │  quatro etapas, publica       │  no boot
+                        │  no disco efêmero             │
+                        └────▶◀  ADLS Gen2  ──────────┘
+                                 raw/ + curated/
 ```
 
 ### O que substitui o quê
@@ -61,7 +61,7 @@ Terraform: 21 recursos, state remoto. Tudo em `nuvem/terraform/`.
 | Hoje (compose) | Azure | Nota |
 |---|---|---|
 | DAG Airflow + scheduler + api-server + dag-processor + Postgres | **Container Apps Job**, trigger cron | 5 serviços viram 1 recurso que escala a zero |
-| volume `cno-dados` | **ADLS Gen2** (storage com HNS) | só o `curated/` sobe; raw e staging são efêmeros |
+| volume `cno-dados` | **ADLS Gen2** (storage com HNS) | `raw/` e `curated/` sobem; staging é efêmero |
 | `make build` na máquina | **ACR** + `docker build` no runner | é o "CD ainda não existe" do README, resolvido |
 | serviço `dashboard` | **Container App** | mesma imagem, entrypoint diferente |
 | `airflow-logs` | **Log Analytics** | histórico de execução visível no portal |
@@ -98,7 +98,9 @@ para `abfss://` e acabar. Três motivos para não:
    partição pela metade *sem levantar exceção*. Não é a peça para experimentar.
 
 Então: o job trabalha no disco efêmero, exatamente como faz hoje num volume, e
-**publica só o `curated/` e os manifestos** no fim. 191 MB por dia.
+**publica `raw/` e `curated/`** no fim — restaurando o `raw/` do lake no começo,
+para que a idempotência por ETag continue valendo. Staging fica de fora: é
+função pura de raw e `cno transform` o refaz em 20 s.
 
 **O dashboard baixa em vez de ler remoto.** São 191 MB de mesma região; leva
 segundos no boot. A alternativa (extensão `azure` do DuckDB lendo `abfss://`
@@ -124,7 +126,7 @@ assinatura recusa:
 
 ```
 ERROR: (TasksOperationsNotAllowed) ACR Tasks requests for the registry
-acrcnofiesc and a473d0e0-… are not permitted.
+acrcnofiesc and <assinatura> are not permitted.
 ```
 
 É uma restrição de assinatura nova, não do registry nem do plano Basic, e
@@ -234,8 +236,10 @@ foreach ($ns in @("Microsoft.App","Microsoft.ContainerRegistry","Microsoft.Stora
 }
 ```
 
-Subscription: `Azure subscription 1` (`a473d0e0-3635-4fac-bf47-a55cc5cbd547`),
-tenant `b82ee7d5-cc25-4077-b154-8e83daa18cd5`.
+Os identificadores da assinatura e da tenant não entram neste documento nem no
+código: ficam em `nuvem/terraform/terraform.tfvars`, que não é versionado. O
+repositório é público, e um módulo que traz embutidos os identificadores de uma
+conta específica expõe o que não precisa e só serve para aquela conta.
 
 **Região: `brazilsouth`.** Uma versão anterior deste plano dizia `eastus2`, por
 custo. O argumento não sobrevive ao desenho: o job cabe na cota gratuita nas

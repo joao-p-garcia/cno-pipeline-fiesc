@@ -75,7 +75,7 @@ locals {
   # repositório emite a outra, e a Azure recusou com:
   #
   #   AADSTS700213: No matching federated identity record found for presented
-  #   assertion subject 'repo:joao-p-garcia@67357644/cno-pipeline-fiesc@1373520143:...'
+  #   assertion subject 'repo:<dono>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/...'
   #
   # Os números são o ID do dono e o ID do repositório, confirmados na API do
   # GitHub e não copiados da mensagem de erro. Parece frágil, mas é o oposto:

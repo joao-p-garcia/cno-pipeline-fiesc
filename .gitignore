@@ -235,3 +235,7 @@ dados_raw/
 # INSIGHTS.md = os achados no formato da apresentação (o que vi / o que
 # quebraria / o que mudei), com os números medidos.
 /INSIGHTS.md
+
+# Cola pessoal para a apresentação: links e números, não é documentação
+# do projeto. Mesmo tratamento do ESTADO.md.
+ROTEIRO-NUVEM.md

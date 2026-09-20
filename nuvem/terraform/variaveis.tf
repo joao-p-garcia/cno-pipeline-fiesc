@@ -1,8 +1,34 @@
+# As variáveis sem `default` são os identificadores do ambiente de quem aplica:
+# assinatura, e-mail de alerta e os IDs do repositório no GitHub. Elas moram em
+# `terraform.tfvars`, que **não é versionado** — o repositório é público, e um
+# módulo que traz embutidos os identificadores de uma conta específica é ruim
+# por dois motivos independentes: expõe o que não precisa ser exposto, e só
+# serve para aquela conta.
+#
+# Para aplicar noutro ambiente, copie `exemplo.tfvars` para `terraform.tfvars`
+# e preencha. O Terraform lê esse nome automaticamente.
+
 variable "assinatura" {
   description = "ID da assinatura Azure onde tudo é criado."
   type        = string
-  default     = "a473d0e0-3635-4fac-bf47-a55cc5cbd547"
 }
+
+variable "email_alerta" {
+  description = "Destino dos avisos de orçamento. Normalmente o dono da assinatura."
+  type        = string
+}
+
+variable "owner_id_github" {
+  description = "ID numérico do dono no GitHub. Ver o comentário em identidades.tf."
+  type        = string
+}
+
+variable "repo_id_github" {
+  description = "ID numérico do repositório no GitHub."
+  type        = string
+}
+
+# --- daqui para baixo, nada é específico de uma conta ----------------------
 
 variable "regiao" {
   description = <<-TXT
@@ -25,18 +51,6 @@ variable "repositorio_github" {
   description = "owner/repo, para o subject da credencial federada do OIDC."
   type        = string
   default     = "joao-p-garcia/cno-pipeline-fiesc"
-}
-
-variable "owner_id_github" {
-  description = "ID numerico do dono no GitHub. Ver o comentario em identidades.tf."
-  type        = string
-  default     = "67357644"
-}
-
-variable "repo_id_github" {
-  description = "ID numerico do repositorio no GitHub."
-  type        = string
-  default     = "1373520143"
 }
 
 variable "branch_github" {
@@ -67,10 +81,4 @@ locals {
     ambiente  = "demonstracao"
     terraform = "true"
   }
-}
-
-variable "email_alerta" {
-  description = "Destino dos avisos de orçamento. O dono da assinatura."
-  type        = string
-  default     = "joaopedrogarciaufsc@gmail.com"
 }
