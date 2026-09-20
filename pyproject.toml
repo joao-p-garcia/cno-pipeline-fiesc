@@ -13,6 +13,10 @@ dependencies = [
     # cabem em memória com folga no DuckDB e estourariam vários GB no pandas, e
     # porque ele escreve parquet particionado nativamente.
     "duckdb>=1.1",
+    # Implementação de referência do Open Location Code, do Google. Python puro,
+    # sem dependências transitivas. É o que permite geocodificar os Plus Codes do
+    # `Código de localização` sem chamar nenhum serviço externo pago.
+    "openlocationcode>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +24,24 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.6",
+]
+# O que o dashboard precisa, e só isso — é este grupo que o container instala.
+# pandas e altair vêm de carona com o Streamlit, mas o código os importa
+# diretamente, então são declarados: dependência implícita já custou uma task
+# morta em container uma vez neste projeto.
+dashboard = [
+    "streamlit>=1.40",
+    "pandas>=2.2",
+    "altair>=5.4",
+]
+# Só para quem vai abrir ou reexecutar o notebook. Fica fora do container de
+# propósito: o caderno é registro de como os achados surgiram, não serviço.
+notebook = [
+    "matplotlib>=3.9",
+    "jupyterlab>=4.2",
+    "nbformat>=5.10",
+    "nbclient>=0.10",
+    "ipykernel>=6.29",
 ]
 
 [project.scripts]
@@ -41,3 +63,8 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# O caderno ajusta o `sys.path` antes de importar `analise` — ele roda a partir
+# do repositório, que não é um pacote instalado, e a ordem aqui é obrigatória.
+"*.ipynb" = ["E402"]

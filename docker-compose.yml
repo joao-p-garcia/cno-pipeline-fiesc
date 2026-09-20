@@ -154,6 +154,52 @@ services:
       CNO_LOG_JSON: '0'
     depends_on: []
 
+  # O dashboard narrativo, lendo o mesmo volume que a DAG escreve. É o que fecha
+  # o ciclo da entrega: a esteira materializa a camada curada e o app publica
+  # em cima dela, sem exportar nada no meio.
+  #
+  # Não depende do Postgres nem do Airflow — depende de existir camada curada no
+  # volume, e quando ela não existe o próprio app explica o que rodar. Por isso
+  # sobe junto e não espera ninguém: a alternativa seria um `depends_on` que
+  # travaria a subida por seis minutos na primeira execução.
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cno-pipeline:0.1.0
+    # O entrypoint da imagem oficial do Airflow entrega tudo o que recebe ao
+    # comando `airflow`. Sem sobrescrever, `streamlit run ...` chega lá dentro
+    # como se fosse subcomando do Airflow e o container morre imprimindo o
+    # help — mesma razão pela qual o serviço `cno` sobrescreve o dele.
+    entrypoint: ["/opt/cno/.venv/bin/streamlit"]
+    command:
+      - run
+      - /opt/cno/app/dashboard.py
+      - --server.port=8501
+      - --server.address=0.0.0.0
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    environment:
+      # Só o caminho dos dados importa aqui, e ele já vem do ENV da imagem. O
+      # resto do ambiente do Airflow não faz sentido para um processo que só lê
+      # parquet.
+      CNO_DUCKDB_MEMORY: ${CNO_DUCKDB_MEMORY:-4GB}
+      CNO_DUCKDB_THREADS: ${CNO_DUCKDB_THREADS:-4}
+    ports:
+      - "${DASHBOARD_PORTA:-8501}:8501"
+    volumes:
+      # Somente leitura, e isso é uma afirmação de arquitetura: quem publica
+      # número não escreve dado. Se o app um dia precisar escrever, é sinal de
+      # que a conta migrou para o lugar errado.
+      - cno-dados:/opt/cno/data:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
 volumes:
   postgres-dados:
   cno-dados:

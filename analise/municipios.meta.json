@@ -1,0 +1,14 @@
+{
+  "gerado_em": "2026-09-19",
+  "valido_ate": "2027-09-19",
+  "safra_populacao": "2026",
+  "municipios": 5571,
+  "sem_populacao": 0,
+  "sem_centroide": 1,
+  "fontes": {
+    "localidades": "https://servicodados.ibge.gov.br/api/v1/localidades/municipios",
+    "populacao": "https://apisidra.ibge.gov.br/values/t/6579/n6/all/v/9324/p/last",
+    "malha": "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&intrarregiao=municipio"
+  },
+  "aviso": "Tabela de referência do IBGE, fora do pipeline de propósito. Regerar com `python analise/construir_municipios.py` quando vencer. A DAG `referencias_ibge` verifica isso uma vez por ano."
+}
