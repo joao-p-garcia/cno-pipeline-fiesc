@@ -702,5 +702,7 @@ tratamento:
 - [x] Tabela de referência do IBGE, com validade vigiada por DAG
 - [x] Containerização
 - [x] Análise descritiva: dashboard narrativo e notebook versionado
+- [x] Integração contínua: lint e a suíte inteira a cada push, em 3.11 e 3.12,
+      mais os testes da DAG com Airflow em venv próprio
 - [ ] Lock por snapshot dentro do `cno transform`, para o caso de duas execuções
       se sobreporem (hoje protegido só pelo `max_active_runs` do Airflow)
