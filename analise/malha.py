@@ -22,10 +22,6 @@ from functools import lru_cache
 
 from .referencias import ARQUIVO_MALHA
 
-# O código do IBGE começa com dois dígitos que identificam a UF. É o que permite
-# filtrar a malha sem carregar uma segunda tabela de-para.
-TAMANHO_PREFIXO_UF = 2
-
 
 class MalhaAusente(FileNotFoundError):
     """A malha não foi gerada."""

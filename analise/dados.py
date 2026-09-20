@@ -589,7 +589,7 @@ def prefixo_ibge(curada: Curada, uf: str) -> str:
     É o que permite recortar a malha municipal sem uma segunda de-para.
     """
     codigo = curada.valor(f"SELECT min(codigo_ibge)::VARCHAR FROM municipios WHERE uf = '{uf}'")
-    return str(codigo)[:2]
+    return str(codigo)[: referencias.TAMANHO_PREFIXO_UF]
 
 
 # ---------------------------------------------------------------------------

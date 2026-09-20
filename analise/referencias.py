@@ -33,6 +33,12 @@ ARQUIVO_CORRECOES = AQUI / "correcoes_municipios.csv"
 ARQUIVO_MALHA = AQUI / "malha_municipios.geojson.gz"
 ARQUIVO_META = AQUI / "municipios.meta.json"
 
+# O código do IBGE começa com dois dígitos que identificam a UF. É o que permite
+# recortar a malha municipal sem carregar uma segunda tabela de-para — e mora
+# aqui, junto do resto do que se sabe sobre o código do IBGE, porque quem o usa
+# são dois módulos diferentes: o que desenha o mapa e o que consulta a UF.
+TAMANHO_PREFIXO_UF = 2
+
 
 class ReferenciaAusente(FileNotFoundError):
     """A tabela de referência não foi gerada."""
