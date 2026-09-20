@@ -12,9 +12,12 @@ dados_raw/
 .git/
 .pytest_cache/
 .ruff_cache/
-__pycache__/
-*.py[cod]
-*.egg-info/
+# Com `**/`: sem o prefixo o padrão casa só na raiz do contexto, e o
+# `analise/__pycache__` do host acabava entrando na imagem — bytecode compilado
+# por outra versão de Python, que é lixo na melhor das hipóteses.
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
 build/
 dist/
 

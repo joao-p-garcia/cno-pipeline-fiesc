@@ -51,6 +51,16 @@ cno validate
 Sai com código 1 se houver divergência de reconciliação ou violação de regra com
 severidade de erro — é o que faz a task falhar no orquestrador.
 
+Modelar a camada curada, que é o que a análise e o dashboard consomem (~35s):
+
+```bash
+cno curate
+```
+
+Ela produz uma linha por obra em `obras_analitico` e três marts pré-agregados.
+É também onde a geocodificação acontece, a partir do Plus Code, sem serviço
+externo.
+
 Testes (não tocam a rede, rodam em segundos):
 
 ```bash
@@ -128,6 +138,44 @@ montada do host.
 O container é o empacotamento da entrega, não o ambiente de desenvolvimento —
 para desenvolver, `make pipeline` roda direto e sem esperar build.
 
+### Camada de análise e a tabela do IBGE
+
+O pipeline processa **uma fonte só**: o CNO da Receita. Município, população e
+malha territorial vêm do IBGE e ficam **fora** do pipeline, em `analise/`, como
+tabela de referência versionada:
+
+```
+analise/
+├── construir_municipios.py     gera os arquivos abaixo a partir das APIs do IBGE
+├── municipios.csv              5.571 municípios: código, UF, região, população, centroide
+├── correcoes_municipios.csv    as 17 divergências de nome, escritas à mão
+├── malha_municipios.geojson.gz malha municipal para o mapa (792 KB)
+└── referencias.py              a junção, usada igual pelo notebook e pelo dashboard
+```
+
+> ### ⚠️ Regerar uma vez por ano
+>
+> A população é a estimativa anual do IBGE, publicada por volta de **agosto**.
+> Os arquivos declaram a própria validade em `municipios.meta.json`, e a partir
+> dela **nada depende da memória de ninguém**:
+>
+> ```bash
+> python analise/construir_municipios.py --verificar   # falha se a safra venceu
+> python analise/construir_municipios.py               # regera e atualiza a validade
+> ```
+>
+> A DAG **`referencias_ibge`** roda esse `--verificar` mensalmente e falha
+> quando a safra vence — e falha no Airflow é o que dispara o alerta. Ela é uma
+> DAG **separada** de propósito: pode ficar vermelha sem afetar a
+> `cno_pipeline`.
+>
+> Enquanto não for regerada, todo número per capita usa um denominador vencido.
+
+**Por que fora do pipeline:** uma indisponibilidade do IBGE não pode derrubar uma
+esteira que não precisa do IBGE para nada; a DAG roda diariamente e o IBGE
+publica uma vez por ano; e trocar a safra é trocar um arquivo de 400 KB em vez de
+reprocessar 3,6 M de linhas. Ver [Fronteira de dados externos](#fronteira-de-dados-externos).
+
 ### Configuração local opcional
 
 Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
@@ -158,12 +206,25 @@ src/cno_pipeline/
 │   ├── sql.py           o SQL do tratamento, montado a partir do contrato
 │   ├── encoding.py      transcodificação cp1252 → UTF-8, só onde é preciso
 │   └── staging.py       carga no DuckDB e escrita em parquet particionado
-└── validate/
-    ├── regras.py        19 regras, cada uma um SELECT do que está errado
-    └── executor.py      avalia, reconcilia com a fonte e emite o relatório
+├── validate/
+│   ├── regras.py        19 regras, cada uma um SELECT do que está errado
+│   └── executor.py      avalia, reconcilia com a fonte e emite o relatório
+└── curate/
+    ├── dominios.py      seções e divisões da CNAE, faixas de área, limites
+    ├── geocodificacao.py  Plus Code offline, com recuperação dos códigos curtos
+    ├── sql.py           a tabela analítica e os três marts
+    └── curated.py       orquestração e métricas de cobertura
 
 dags/
-└── cno_pipeline_dag.py  encadeia extract -> transform -> validate
+├── cno_pipeline_dag.py     encadeia extract -> transform -> validate -> curate
+└── referencias_ibge_dag.py vigia a validade da tabela do IBGE (DAG separada)
+
+analise/                 camada de análise, fora do pipeline
+├── construir_municipios.py  gera a tabela de referência do IBGE
+├── municipios.csv           5.571 municípios com população e centroide
+├── correcoes_municipios.csv as 17 divergências de nome, à mão
+├── malha_municipios.geojson.gz  malha para o coroplético
+└── referencias.py           a junção, usada pelo notebook e pelo dashboard
 
 Dockerfile               imagem única: Airflow oficial + pipeline em /opt/cno/.venv
 docker-compose.yml       stack de entrega: Airflow LocalExecutor + Postgres
@@ -181,6 +242,12 @@ data/                    gerado, nunca versionado
     ├── areas/snapshot_date=.../*.parquet
     ├── cnaes/snapshot_date=.../*.parquet
     └── vinculos/snapshot_date=.../*.parquet
+└── curated/
+    ├── _manifests/      cobertura da geocodificação e tamanho de cada tabela
+    ├── obras_analitico/ uma linha por obra, para drill-down
+    ├── mart_municipio_ano/   133 mil linhas
+    ├── mart_setor_ano/        12 mil linhas
+    └── mart_destinacao_ano/   59 mil linhas
 ```
 
 ## Decisões técnicas
@@ -338,6 +405,108 @@ processou e as etapas seguintes o recebem, em vez de cada uma resolver "o mais
 recente" sozinha — assim uma publicação da Receita no meio da execução não faz a
 DAG misturar dois snapshots.
 
+### Curadoria
+
+**A staging é fiel à origem e é isso que a impede de responder perguntas.** Ela
+tem quatro tabelas e uma linha por registro publicado — ótimo para auditar,
+inútil para perguntar "quantos m² Joinville construiu em 2023". A camada curada
+toma as decisões que a fonte não toma, e as toma num lugar só, explicitamente.
+
+**`area_m2` só existe quando a unidade é metro quadrado.** A base mistura
+unidades no mesmo campo: 3.404.652 obras em m², mas 21.328 em km, 14.539 em m³,
+3.580 em kW e 156.712 em "Outra" — são dutos, rodovias, subestações. Somar a
+coluna crua dá 49.286 km² de área construída no Brasil; somando só o que é metro
+quadrado dá 2.839 km². **Fator de 17 entre o número certo e o errado**, e o
+errado é o que sai de um `SUM(area_total)` desavisado. A área declarada continua
+na tabela ao lado da unidade; o que muda é que existe uma coluna segura de somar.
+
+**A geocodificação não usa serviço externo, e recupera mais do que parecia.** O
+`Código de localização` é Plus Code em parte da base, mas só 36,4% dos registros
+trazem um código completo. Outros 6,2% vêm na forma curta (`RF8J+VH`), a que
+faltam os 4 caracteres do bloco de 1° — e a recuperação desses normalmente exige
+um centroide municipal, ou seja, dado externo. Aqui a âncora sai da própria base:
+a **mediana dos pontos já decodificados do mesmo município**. Isso cobre 226.854
+dos 227.074 códigos curtos, e 5.516 dos 5.572 municípios têm âncora própria.
+
+**Um Plus Code pode ser válido e estar errado, e 3,7% estão.** Medidos 48.436
+pontos que decodificam perfeitamente e caem a mais de 150 km do município
+declarado — 39 mil deles a mais de 500 km, alguns no Japão. Por isso a tabela
+grava `geo_distancia_municipio_km` e `geo_plausivel`, e os marts contam só o
+ponto plausível. A coordenada crua fica gravada para auditoria, como
+`area_suspeita` faz na staging: marcar, não apagar. **A cobertura honesta é
+41,2%**, não os 42,5% brutos nem os 59% que "contém um `+`" sugeririam.
+
+**O recorte setorial é por divisão da CNAE, não por seção.** O CNO é cadastro de
+obra: 100% da base cai na seção F, então agrupar por seção daria uma linha só. As
+três divisões que ocorrem são 41 Construção de edifícios (1,9 M), 43 Serviços
+especializados (1,4 M) e 42 Obras de infraestrutura (283 mil) — e é aí que a
+diferença aparece: infraestrutura é 7% das obras e 29% dos metros quadrados.
+
+**Os marts existem por causa do dashboard.** Um Streamlit não pode varrer 3,6 M
+de linhas a cada clique num filtro. As três tabelas agregadas têm de 12 mil a 133
+mil linhas, respondem instantaneamente e carregam as mesmas definições da tabela
+analítica — o app não recalcula regra de negócio, que é o que impede o dashboard
+e o notebook de divergirem com o tempo. Há um teste que confere que os três marts
+somam exatamente o mesmo que `obras_analitico`.
+
+**A curadoria roda depois da validação.** É ela que alimenta gráfico e relatório,
+e publicar número em cima de dado reprovado é pior do que não publicar número
+nenhum. Como a validação derruba a execução quando reprova, chegar na curadoria
+já significa que a camada tratada reconcilia com a fonte.
+
+**Dado externo não entra aqui.** População, PIB e malha municipal ficam na camada
+de análise, fora do pipeline. O pipeline reconcilia contra a fonte, e um dado que
+a fonte não publica não tem como ser reconciliado; além disso, misturar safras
+(snapshot de 2026, população de 2022) dentro da mesma linha é o tipo de erro que
+não dá sintoma. Se um dia precisar entrar, a forma é uma dimensão `municipios`
+separada, nunca colunas na tabela de obras.
+
+### Fronteira de dados externos
+
+**O pipeline processa uma fonte só, e isso é uma decisão, não uma limitação.**
+Toda a camada curada é derivável do snapshot do CNO e reconciliável contra os
+totais que a própria Receita publica. No momento em que uma coluna de
+`obras_analitico` viesse de outra fonte, com outra data de referência, a frase
+"esta camada reconcilia com a fonte" deixaria de ser verdadeira para a tabela.
+
+Município, população e malha do IBGE entram na **camada de análise**, e os
+motivos, em ordem de peso:
+
+**Acoplamento de falha.** Como task da DAG, uma indisponibilidade do IBGE
+derrubaria o pipeline do CNO — que não usa o IBGE para nada. Seria deixar um
+terceiro que não contribui para o produto principal poder quebrá-lo.
+
+**Cadências incompatíveis.** A DAG roda diariamente; o IBGE publica uma vez por
+ano. Seriam 365 buscas do mesmo arquivo, ou lógica condicional para evitá-las —
+complexidade para benefício zero.
+
+**Assimetria de custo.** Como tabela separada, trocar a safra da população é
+trocar um arquivo. Como coluna na tabela de obras, é reprocessar 3,6 M de linhas
+para mudar um dado que nem veio da Receita.
+
+**O resultado não é processo rodando por fora — é tabela de referência
+versionada.** A mesma categoria dos nomes das seções da CNAE, que são constantes
+em `dominios.py` e ninguém espera que sejam buscados da CONCLA toda noite. O
+script ao lado existe para regerar quando vencer, e a DAG `referencias_ibge`
+avisa quando esse momento chega.
+
+**A junção é por nome normalizado, não por código.** A Receita usa TOM de 4
+dígitos, o IBGE usa código de 7, e a de-para entre os dois não tem fonte
+canônica estável. Medido na base real: normalizar (maiúscula, sem acento, sem
+hífen e apóstrofo) casa **5.555 de 5.572 (99,7%)**. Os 17 restantes são o
+conjunto clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do
+Livramento`, `BOA SAÚDE`/`Januário Cicco` — e viram uma tabela de correção
+auditável linha a linha, com o motivo de cada uma. Importar a tabela TOM de
+5.570 linhas de um terceiro não evitaria esse trabalho: só o esconderia num
+arquivo que não dá para revisar. **Não se evita a de-para; escolhe-se o tamanho
+dela.**
+
+Com as correções, o casamento é de **5.570 de 5.570**. E o efeito no resultado é
+o esperado: em SC, o ranking por obras por mil habitantes não tem nenhum dos
+municípios do topo absoluto — aparecem Itapoá (58,0), Maravilha (49,4) e
+Balneário Piçarras (48,3), separando litoral de Oeste. Sem denominador, todo
+ranking municipal é um ranking populacional disfarçado.
+
 ### Containerização
 
 **Uma imagem só, com dois ambientes Python dentro.** O Airflow vem da imagem
@@ -407,5 +576,7 @@ tratamento:
 - [x] Tratamento: CSV → parquet tipado e particionado
 - [x] Funções de validação, com reconciliação contra os totais oficiais
 - [x] Orquestração em DAG
+- [x] Camada curada, com geocodificação e marts
+- [x] Tabela de referência do IBGE, com validade vigiada por DAG
 - [x] Containerização
 - [ ] Análise descritiva

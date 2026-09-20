@@ -13,6 +13,10 @@ dependencies = [
     # cabem em memória com folga no DuckDB e estourariam vários GB no pandas, e
     # porque ele escreve parquet particionado nativamente.
     "duckdb>=1.1",
+    # Implementação de referência do Open Location Code, do Google. Python puro,
+    # sem dependências transitivas. É o que permite geocodificar os Plus Codes do
+    # `Código de localização` sem chamar nenhum serviço externo pago.
+    "openlocationcode>=1.0",
 ]
 
 [project.optional-dependencies]

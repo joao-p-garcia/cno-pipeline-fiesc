@@ -12,6 +12,7 @@ import logging
 import sys
 
 from .config import get_settings
+from .curate import ErroDeCuradoria, executar_curadoria
 from .extract import ErroDeExtracao, ErroDeFonte, HttpSource, carregar_ultimo
 from .extract.cno import executar_extracao
 from .logging_conf import configurar_logging
@@ -179,6 +180,53 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_curate(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    resultado = executar_curadoria(settings, snapshot_id=args.snapshot)
+    geo = resultado.geo
+
+    if args.json:
+        _emitir_json(
+            {
+                "etapa": "curate",
+                "snapshot_id": resultado.snapshot_id,
+                "segundos": round(resultado.segundos_total, 1),
+                "geocodificacao": {
+                    "cobertura": round(geo.cobertura, 4),
+                    "cobertura_util": round(geo.cobertura_util, 4),
+                    "plausiveis": geo.plausiveis,
+                    "completos": geo.completos,
+                    "curtos_recuperados": geo.curtos_recuperados,
+                    "sem_geocodificacao": geo.sem_geocodificacao,
+                },
+                "tabelas": [{"nome": m.nome, "linhas": m.linhas} for m in resultado.tabelas],
+            }
+        )
+        return 0
+
+    print()
+    print(f"snapshot        : {resultado.snapshot_id}")
+    print(f"tempo total     : {resultado.segundos_total:.1f}s")
+    print(f"diretório       : {resultado.curated_dir}")
+    print()
+    print("GEOCODIFICAÇÃO (Plus Code, sem serviço externo)")
+    print(f"  {'completos':24} {geo.completos:>12,}".replace(",", "."))
+    print(f"  {'curtos recuperados':24} {geo.curtos_recuperados:>12,}".replace(",", "."))
+    print(f"  {'sem geocodificação':24} {geo.sem_geocodificacao:>12,}".replace(",", "."))
+    print(f"  {'cobertura bruta':24} {geo.cobertura * 100:>11.1f}%")
+    print(f"  {'no município declarado':24} {geo.plausiveis:>12,}".replace(",", "."))
+    print(f"  {'cobertura utilizável':24} {geo.cobertura_util * 100:>11.1f}%")
+    print(f"  {'municípios com âncora':24} {geo.municipios_com_ancora:>12,}".replace(",", "."))
+    print()
+    print(f"{'tabela':22} {'linhas':>12} {'parquet':>10}")
+    print("-" * 46)
+    for m in resultado.tabelas:
+        print(
+            f"{m.nome:22} {m.linhas:>12,} {formatar_bytes(m.bytes_parquet):>10}".replace(",", ".")
+        )
+    return 0
+
+
 def _cmd_info(args: argparse.Namespace) -> int:
     """Consulta a fonte e o estado local sem baixar nada."""
     settings = get_settings()
@@ -273,6 +321,16 @@ def construir_parser() -> argparse.ArgumentParser:
     p_validate.add_argument("--json", action="store_true", help="resumo em JSON no stdout")
     p_validate.set_defaults(func=_cmd_validate)
 
+    p_curate = sub.add_parser(
+        "curate", help="modela a camada curada e os marts que a análise consome"
+    )
+    p_curate.add_argument(
+        "--snapshot",
+        help="snapshot a curar (AAAA-MM-DD). Padrão: o mais recente tratado",
+    )
+    p_curate.add_argument("--json", action="store_true", help="resumo em JSON no stdout")
+    p_curate.set_defaults(func=_cmd_curate)
+
     p_info = sub.add_parser("info", help="compara a fonte com o estado local, sem baixar nada")
     p_info.add_argument("--json", action="store_true", help="saída em JSON")
     p_info.set_defaults(func=_cmd_info)
@@ -285,7 +343,13 @@ def main(argv: list[str] | None = None) -> int:
     configurar_logging(args.verbose)
     try:
         return args.func(args)
-    except (ErroDeFonte, ErroDeExtracao, ErroDeStaging, ErroDeValidacao) as exc:
+    except (
+        ErroDeFonte,
+        ErroDeExtracao,
+        ErroDeStaging,
+        ErroDeValidacao,
+        ErroDeCuradoria,
+    ) as exc:
         # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
         # orquestrador marcar a task como falha sem um traceback inútil.
         log.error("%s", exc)
