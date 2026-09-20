@@ -26,8 +26,9 @@ Uso:
     python analise/construir_municipios.py --verificar  # falha se a safra venceu
 
 O modo `--verificar` existe para que o envelhecimento seja detectado por máquina,
-e não pela memória de alguém. É o que a DAG `referencias_ibge` executa uma vez
-por ano, e o que um passo de CI pode rodar num deploy em nuvem.
+e não pela memória de alguém. É para quem roda na mão e para um passo de CI; a
+DAG `referencias_ibge` vigia a mesma coisa mensalmente, chamando a **mesma**
+função (`referencias.dias_ate_vencer`) em vez de executar este script.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ import gzip
 import json
 import sys
 import urllib.request
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Roda como script (`python analise/construir_municipios.py`), então a raiz do
@@ -49,6 +50,8 @@ from analise.referencias import (  # noqa: E402
     ARQUIVO_MALHA,
     ARQUIVO_META,
     ARQUIVO_MUNICIPIOS,
+    DIAS_AVISO_VALIDADE,
+    dias_ate_vencer,
 )
 
 USER_AGENT = "cno-pipeline/0.1 (+https://github.com/joao-p-garcia/cno-pipeline-fiesc)"
@@ -265,14 +268,18 @@ def construir() -> dict:
 
 
 def verificar() -> int:
-    """Falha se a tabela venceu. É o que a DAG de vigilância executa."""
+    """Falha se a tabela venceu. Modo para quem roda na mão e para um passo de CI.
+
+    A conta de quantos dias faltam **não está aqui**: é `dias_ate_vencer`, a
+    mesma que a DAG `referencias_ibge` consulta. Esta função decide só o que
+    fazer com o número — imprimir e devolver código de saída. Antes ela refazia
+    a conta, e o limiar de aviso daqui (30 dias) já discordava do da DAG (60).
+    """
     if not ARQUIVO_META.is_file():
         print(f"ERRO: {ARQUIVO_META} não existe — a tabela nunca foi gerada.")
         return 1
     meta = json.loads(ARQUIVO_META.read_text(encoding="utf-8"))
-    valido_ate = date.fromisoformat(meta["valido_ate"])
-    hoje = datetime.now(UTC).date()
-    dias = (valido_ate - hoje).days
+    dias = dias_ate_vencer()
 
     print(f"safra da população : {meta['safra_populacao']}")
     print(f"gerado em          : {meta['gerado_em']}")
@@ -285,7 +292,7 @@ def verificar() -> int:
             "Regere com:  python analise/construir_municipios.py"
         )
         return 1
-    if dias < 30:
+    if dias <= DIAS_AVISO_VALIDADE:
         print(f"\nAVISO: vence em {dias} dias.")
     else:
         print(f"\nOK: válida por mais {dias} dias.")

@@ -189,10 +189,13 @@ analise/
 > python analise/construir_municipios.py               # regera e atualiza a validade
 > ```
 >
-> A DAG **`referencias_ibge`** roda esse `--verificar` mensalmente e falha
-> quando a safra vence — e falha no Airflow é o que dispara o alerta. Ela é uma
-> DAG **separada** de propósito: pode ficar vermelha sem afetar a
-> `cno_pipeline`.
+> A DAG **`referencias_ibge`** vigia a mesma validade mensalmente e falha
+> quando a safra vence — e falha no Airflow é o que dispara o alerta. Ela não
+> executa o script: carrega `analise/referencias.py` e chama
+> `dias_ate_vencer()`, a **mesma** função que o `--verificar` usa. A conta
+> existia em três cópias que já discordavam entre si (avisavam com 60 e com 30
+> dias, em relógios diferentes); agora é uma só. Ela é uma DAG **separada** de
+> propósito: pode ficar vermelha sem afetar a `cno_pipeline`.
 >
 > Enquanto não for regerada, todo número per capita usa um denominador vencido.
 

@@ -72,11 +72,6 @@ class CamadaAusente(FileNotFoundError):
         )
 
 
-# Os três recursos que podem faltar numa instalação legítima. Ficam juntos para
-# que quem monta uma tela precise de um `except` só — ver `app/dashboard.py`.
-RECURSOS_AUSENTES = (CamadaAusente, referencias.ReferenciaAusente)
-
-
 def tem_referencias() -> bool:
     """A tabela do IBGE é opcional: sem ela o app perde o denominador, não o resto."""
     return referencias.ARQUIVO_MUNICIPIOS.is_file()

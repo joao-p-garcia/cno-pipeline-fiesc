@@ -32,7 +32,6 @@ VERDE_AGUA = "#1baf7a"
 CATEGORICAS = (AZUL, LARANJA, VERDE_AGUA)
 
 # Estado, não identidade. Só para marcar o que o pipeline descartou ou marcou.
-VERMELHO = "#d03b3b"
 
 # Tinta e cromo. Tudo um tom acima da superfície: grade e eixo são hairline e
 # recuam; quem tem que aparecer é a marca.

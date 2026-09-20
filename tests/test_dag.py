@@ -11,6 +11,7 @@ negócio: essa já é coberta pelos testes das etapas, sem precisar de scheduler
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -184,6 +185,19 @@ def _verificador(dag_ibge, monkeypatch, diretorio):
     return funcao
 
 
+def _instalar_referencias(diretorio: Path) -> None:
+    """Copia `analise/referencias.py` para o diretório, como a imagem faz.
+
+    A DAG deixou de refazer a conta de validade e passou a chamar
+    `referencias.dias_ate_vencer()`. Com isso o diretório de referências precisa
+    conter o módulo, não só o JSON — que é como ele existe de verdade, no
+    repositório e em `/opt/cno/analise` dentro da imagem. Um diretório com
+    `municipios.meta.json` e sem `referencias.py` não acontece em lugar nenhum.
+    """
+    origem = Path(__file__).resolve().parents[1] / "analise" / "referencias.py"
+    shutil.copy(origem, diretorio / "referencias.py")
+
+
 def test_dag_do_ibge_e_separada_e_minima(dag_ibge):
     """Separada da `cno_pipeline` de propósito: não pode derrubar a esteira.
 
@@ -200,6 +214,9 @@ def test_referencia_ausente_e_skip_nao_falha(dag_ibge, tmp_path, monkeypatch):
 
     Um pipeline de dados sem dashboard é implantação legítima; marcar isso como
     erro treinaria quem opera a ignorar o alerta — que é o oposto do objetivo.
+
+    O diretório vazio representa isso com mais fidelidade do que antes: sem
+    `referencias.py`, a camada de análise de fato não está ali.
     """
     from airflow.sdk.exceptions import AirflowSkipException
 
@@ -209,6 +226,7 @@ def test_referencia_ausente_e_skip_nao_falha(dag_ibge, tmp_path, monkeypatch):
 
 def test_safra_vencida_falha_com_instrucao(dag_ibge, tmp_path, monkeypatch):
     """Vencida tem de falhar: é a falha que dispara o alerta do Airflow."""
+    _instalar_referencias(tmp_path)
     (tmp_path / "municipios.meta.json").write_text(
         json.dumps(
             {
@@ -228,6 +246,7 @@ def test_safra_vencida_falha_com_instrucao(dag_ibge, tmp_path, monkeypatch):
 def test_safra_valida_passa(dag_ibge, tmp_path, monkeypatch):
     from datetime import date, timedelta
 
+    _instalar_referencias(tmp_path)
     futuro = (date.today() + timedelta(days=200)).isoformat()
     (tmp_path / "municipios.meta.json").write_text(
         json.dumps({"gerado_em": "2026-09-19", "valido_ate": futuro, "safra_populacao": "2026"}),

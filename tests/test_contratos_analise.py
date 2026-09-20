@@ -268,3 +268,37 @@ def test_tooltip_nao_usa_o_format_do_vega():
         "tooltip com `format=` formata em inglês; use `_tooltips`, que "
         "pré-formata a coluna com estilo.numero"
     )
+
+
+# ---------------------------------------------------------------------------
+# 6. A validade da tabela do IBGE tem uma conta só
+# ---------------------------------------------------------------------------
+
+DAG_IBGE = RAIZ / "dags" / "referencias_ibge_dag.py"
+GERADOR = RAIZ / "analise" / "construir_municipios.py"
+
+
+def test_ninguem_refaz_a_conta_de_validade():
+    """A subtração de datas mora em `referencias.dias_ate_vencer`, e só lá.
+
+    Ela já existiu em três versões — no módulo, no `--verificar` do gerador e na
+    DAG de vigilância — e as três divergiam: a DAG avisava com 60 dias, o
+    gerador com 30, e usavam relógios diferentes. Nada disso levanta erro; só
+    faz o alerta chegar em momentos diferentes conforme quem pergunta.
+    """
+    from analise import referencias
+
+    for arquivo in (DAG_IBGE, GERADOR):
+        fonte = arquivo.read_text(encoding="utf-8")
+        assert "dias_ate_vencer" in fonte, (
+            f"{arquivo.name} não usa `dias_ate_vencer` — a conta voltou a ser duplicada"
+        )
+        assert 'date.fromisoformat(meta["valido_ate"])' not in fonte, (
+            f"{arquivo.name} voltou a calcular a validade por conta própria"
+        )
+
+    # E o limiar de aviso é um número só, não um por chamador.
+    assert isinstance(referencias.DIAS_AVISO_VALIDADE, int)
+    for arquivo in (DAG_IBGE, GERADOR):
+        fonte = arquivo.read_text(encoding="utf-8")
+        assert "DIAS_AVISO_VALIDADE" in fonte, f"{arquivo.name} redigitou o limiar de aviso"
