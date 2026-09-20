@@ -127,26 +127,49 @@ Esperado: um `303`, depois `200` com ETag e `Last-Modified`; e `206` com
 `Content-Range` na segunda. Se der `403` ou faltar o ETag, o plano muda antes
 de custar uma hora de Terraform.
 
-**0.2 — Ferramental.** Nem `terraform` nem `az` estão instalados. Ambos no
-**WSL**, não no Windows: o resto do desenvolvimento já mora lá e os scripts são
-POSIX.
+**0.2 — Ferramental. ✅ feito em 20/09/2026.** `az` e `terraform` no **Windows
+nativo**, via winget — não no WSL, como este plano dizia antes, e não em
+container.
 
-```bash
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt update && sudo apt install terraform
-az login --use-device-code
+```powershell
+winget install --id Hashicorp.Terraform --exact --silent
+winget install --id Microsoft.AzureCLI   --exact --silent
+az login
 ```
 
-**0.3 — Conferir cota.** Subscription nova costuma vir com cota zero de
-Container Apps em algumas regiões, e descobrir isso no meio do `apply` é ruim.
+Três razões para o Windows, contra o WSL que estava escrito aqui:
 
-```bash
-az provider register --namespace Microsoft.App --wait
-az provider register --namespace Microsoft.OperationalInsights --wait
+1. `az login` abre o navegador e resolve sozinho; no WSL cai no fluxo de
+   device code, e em container o token morre com o container.
+2. O provider `azurerm` autentica reaproveitando o cache de token do `az`
+   (`~/.azure`). Nativo, as duas ferramentas se enxergam sem costura.
+3. Esta trilha não tem dependência POSIX: é `az`, `terraform` e `git`. O
+   pipeline continua rodando pelo WSL, com os dados em `/home/administrador/cno-data`.
+
+Container foi descartado apesar de o projeto ser todo container, e a distinção
+vale registrar: container empacota o que **roda sozinho** — o pipeline, o
+dashboard. CLI de operador, executada dezenas de vezes por sessão e precisando
+de cache de credencial e de ~100 MB de providers persistentes, só ganha
+cerimônia com ele.
+
+Instalado: Terraform 1.16.2, Azure CLI 2.90.0.
+
+**0.3 — Registrar providers e conferir cota. ✅ registrado em 20/09/2026.**
+É o `gcloud services enable` da Azure: numa subscription nova **nada** vem
+registrado, e descobrir isso no meio de um `apply` é ruim.
+
+```powershell
+foreach ($ns in @("Microsoft.App","Microsoft.ContainerRegistry","Microsoft.Storage",
+                  "Microsoft.OperationalInsights","Microsoft.ContainerInstance")) {
+  az provider register --namespace $ns --wait
+}
 ```
+
+Subscription: `Azure subscription 1` (`a473d0e0-3635-4fac-bf47-a55cc5cbd547`),
+tenant `b82ee7d5-cc25-4077-b154-8e83daa18cd5`.
+
+Falta conferir a **cota** de Container Apps na região — subscription nova às
+vezes nasce com zero em algumas delas.
 
 Região: **`eastus2`**. Container Apps em `brazilsouth` custa mais e a base é
 pública — não há argumento de residência de dado aqui. (Se a narrativa de
@@ -384,9 +407,9 @@ O que abrir, na ordem, depois que o Streamlit local terminar:
 
 ## Ordem de execução
 
-- [ ] 0.1 testar a fonte pelo Cloud Shell *(bloqueia tudo)*
-- [ ] 0.2 instalar az + terraform no WSL, `az login`
-- [ ] 0.3 registrar providers, confirmar região e cota
+- [ ] 0.1 testar a fonte de dentro da Azure *(bloqueia tudo)*
+- [x] 0.2 instalar az + terraform no Windows, `az login`
+- [x] 0.3 registrar providers — falta confirmar região e cota
 - [ ] 1 `bootstrap.sh` e o backend
 - [ ] 2 `base.tf`, `lake.tf`, `identidades.tf`
 - [ ] 3 `nuvem/Dockerfile` e os dois entrypoints; `az acr build` na mão
