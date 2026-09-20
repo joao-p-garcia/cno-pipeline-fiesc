@@ -58,7 +58,7 @@ WSL para manter os 1,4 GB fora de `/mnt/c`.
 ### Testes
 
 ```bash
-make test       # 232 testes, offline, em segundos
+make test       # 233 testes, offline, em segundos
 make test-dag   # 15 testes das DAGs (exige o venv do Airflow — veja abaixo)
 make lint
 ```
@@ -169,7 +169,7 @@ src/cno_pipeline/     o pipeline: extract, transform, validate, curate
 dags/                 cno_pipeline (as quatro etapas) e referencias_ibge
 analise/              camada de análise: consultas, estilo, malha e o caderno
 app/                  o dashboard narrativo (Streamlit), uma seção por arquivo
-tests/                247 testes, todos offline
+tests/                248 testes, todos offline
 data/                 raw / staging / curated — gerado, nunca versionado
 ```
 
