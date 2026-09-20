@@ -10,5 +10,5 @@
     "populacao": "https://apisidra.ibge.gov.br/values/t/6579/n6/all/v/9324/p/last",
     "malha": "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&intrarregiao=municipio"
   },
-  "aviso": "Tabela de referência do IBGE, fora do pipeline de propósito. Regerar com `python analise/construir_municipios.py` quando vencer. A DAG `referencias_ibge` verifica isso uma vez por ano."
+  "aviso": "Tabela de referência do IBGE, fora do pipeline de propósito. Regerar com `python analise/construir_municipios.py` quando vencer. A safra muda uma vez por ano; a DAG `referencias_ibge` verifica mensalmente e falha quando vence."
 }
