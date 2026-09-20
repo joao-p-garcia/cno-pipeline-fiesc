@@ -64,10 +64,9 @@ def _setor() -> None:
 def _situacao() -> None:
     """A maior parte do que se conta como *obra* já acabou.
 
-    Este bloco vivia como um explorador solto na seção do campo nulo, onde o
-    assunto era PF contra PJ e a situação cadastral aparecia sem ligação com o
-    texto. Aqui ele é argumento: fecha a mesma pergunta que `_setor` abre — o
-    número depende de qual universo se está contando.
+    Vinha de um explorador solto na seção do campo nulo, onde o assunto era PF
+    contra PJ. Aqui fecha a pergunta que `_setor` abre: o número depende de qual
+    universo se está contando.
     """
     st.markdown("### E a maior parte dessas obras já acabou")
     situacao = dados_app.consultar("situacao")
@@ -90,12 +89,11 @@ def _situacao() -> None:
     st.markdown(
         f"Das {estilo.numero(total)} obras da base, **{estilo.numero(ativas)} estão "
         f"ativas** — {estilo.percentual(ativas / total)} do total. É a diferença "
-        "entre duas perguntas que soam iguais: *quantas obras existem em Santa "
-        "Catarina* e *quantas obras estão acontecendo em Santa Catarina*.\n\n"
-        "Nenhum dos dois números está errado, e é por isso que o recorte precisa "
-        "estar declarado. Um indicador de atividade econômica quer as ativas; um "
-        "de estoque construído quer todas. Trocar um pelo outro sem dizer é o "
-        "mesmo erro de contar registro achando que se mediu área."
+        "entre *quantas obras existem em Santa Catarina* e *quantas estão "
+        "acontecendo em Santa Catarina*.\n\n"
+        "Os dois números servem, para coisas diferentes: atividade econômica quer "
+        "as ativas, estoque construído quer todas. Trocar um pelo outro sem dizer "
+        "é o mesmo erro de contar registro achando que mediu área."
     )
 
     with ui.explorar("Ver a situação cadastral por UF"):
