@@ -24,6 +24,13 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.6",
+    # Compila o spec Vega-Lite para PNG, que é como os testes conferem que um
+    # gráfico **apareceu** — `AppTest` só diz que a página não levantou exceção,
+    # e nesta base gráfico que some em silêncio é a regra (DECISOES.md #10/#11).
+    # Só os testes usam: o dashboard renderiza no navegador e o caderno usa
+    # matplotlib. Estava faltando aqui, e os dois testes de gráfico passaram a
+    # pular num clone limpo sem que nada acusasse.
+    "vl-convert-python>=1.7",
 ]
 # O que o dashboard precisa, e só isso — é este grupo que o container instala.
 # pandas e altair vêm de carona com o Streamlit, mas o código os importa

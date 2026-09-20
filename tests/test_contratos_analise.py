@@ -157,8 +157,16 @@ def curada(camada_raw: Settings) -> dados.Curada:
 
 
 def _renderizar(chart) -> bytes:
-    """PNG do gráfico, pelo mesmo compilador Vega-Lite que o navegador usa."""
-    vlc = pytest.importorskip("vl_convert", reason="vl-convert-python não instalado")
+    """PNG do gráfico, pelo mesmo compilador Vega-Lite que o navegador usa.
+
+    Import direto, e não `importorskip`: `vl-convert-python` está declarado no
+    extra `dev`, então ausência dele é ambiente quebrado, não ambiente mínimo.
+    A versão com `importorskip` fazia estes dois testes — os únicos que provam
+    que o gráfico saiu — **pularem em silêncio** onde mais importa, que é um CI
+    recém-provisionado.
+    """
+    import vl_convert as vlc
+
     return vlc.vegalite_to_png(chart.to_json(), scale=1)
 
 
