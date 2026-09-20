@@ -25,6 +25,7 @@ from pathlib import Path
 
 import duckdb
 
+from ..bloqueio import travar_snapshot
 from ..config import Settings
 from ..extract.manifest import Manifest, agora_iso, carregar_manifest, carregar_ultimo
 from ..utils import formatar_bytes
@@ -101,26 +102,34 @@ def executar_staging(
             f"camada raw ausente para o snapshot {snapshot}: rode `cno extract` antes"
         )
 
-    utf8_dir = settings.staging_dir / "_utf8" / f"snapshot_date={snapshot}"
-    fontes = _preparar_fontes(manifest, csv_dir, utf8_dir, forcar=forcar)
+    # A trava cobre **tudo** o que escreve sob o snapshot, até a limpeza final:
+    # os CSVs transcodificados em `_utf8`, cada partição, e o manifesto de
+    # staging. Fechar o bloco antes da limpeza deixaria um `rmtree` fora da
+    # proteção, que é exatamente a operação perigosa. Ela não é do orquestrador
+    # — vale para dois terminais e para um `airflow tasks run` avulso.
+    with travar_snapshot(settings.data_dir, snapshot, etapa="cno transform"):
+        utf8_dir = settings.staging_dir / "_utf8" / f"snapshot_date={snapshot}"
+        fontes = _preparar_fontes(manifest, csv_dir, utf8_dir, forcar=forcar)
 
-    con = _conectar(settings)
-    try:
-        metricas = tuple(_tratar_tabela(con, spec, fontes, settings, snapshot) for spec in TABELAS)
-    finally:
-        con.close()
+        con = _conectar(settings)
+        try:
+            metricas = tuple(
+                _tratar_tabela(con, spec, fontes, settings, snapshot) for spec in TABELAS
+            )
+        finally:
+            con.close()
 
-    resultado = ResultadoStaging(
-        snapshot_id=snapshot,
-        staging_dir=settings.staging_dir,
-        tabelas=metricas,
-        segundos_total=time.monotonic() - inicio,
-    )
-    _salvar_manifesto_staging(settings, manifest, resultado)
+        resultado = ResultadoStaging(
+            snapshot_id=snapshot,
+            staging_dir=settings.staging_dir,
+            tabelas=metricas,
+            segundos_total=time.monotonic() - inicio,
+        )
+        _salvar_manifesto_staging(settings, manifest, resultado)
 
-    if not settings.manter_intermediarios and utf8_dir.exists():
-        shutil.rmtree(utf8_dir, ignore_errors=True)
-        log.info("intermediário UTF-8 removido (CNO_MANTER_INTERMEDIARIOS=0)")
+        if not settings.manter_intermediarios and utf8_dir.exists():
+            shutil.rmtree(utf8_dir, ignore_errors=True)
+            log.info("intermediário UTF-8 removido (CNO_MANTER_INTERMEDIARIOS=0)")
 
     log.info(
         "staging concluído em %.1fs: %s linhas tratadas",
