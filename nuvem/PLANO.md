@@ -111,21 +111,54 @@ imperativo de propósito, para não haver um segundo state a proteger.
 
 ## Fase 0 — antes de escrever qualquer `.tf`
 
-**0.1 — O teste que pode derrubar o plano inteiro.** A fonte é um Nextcloud
-público da Receita que responde 303, e a extração depende de `HEAD` devolvendo
-ETag e de sondagem de `Range`. Nada garante que ela se comporte igual vista de
-um datacenter da Azure. Isso se resolve em trinta segundos no **Cloud Shell**
-do portal, sem provisionar nada:
+**0.1 — O teste que podia derrubar o plano inteiro. ✅ passou em 20/09/2026.**
 
-```bash
-URL=https://arquivos.receitafederal.gov.br/s/PC6732BXG9B98W3/download
-curl -sIL "$URL" | grep -iE 'HTTP/|etag|last-modified|content-length'
-curl -sI -H 'Range: bytes=0-0' -L "$URL" | grep -iE 'HTTP/|content-range'
+A fonte é um Nextcloud público da Receita que responde 303, e a extração depende
+de `HEAD` devolvendo ETag e de sondagem de `Range`. Nada garantia que ela se
+comportasse igual vista de um datacenter da Azure. Verificado com um Container
+Instance descartável em `brazilsouth` (`rg-cno-smoke`, destruído depois):
+
+```
+HEAD          303 → 200
+              ETag: "76bb7f934f457be4234c5733ee92b40b"
+              Last-Modified: Sat, 12 Sep 2026 04:59:45 GMT
+              Content-Length: 330.628.581
+
+GET Range: bytes=0-0            → 206 Partial Content
+GET Range: bytes=104857600-…    → 206, Content-Range: bytes 104857600-104858600/330628581
+
+50 MiB em 9,6 s  →  5,45 MB/s  →  ~60 s para o pacote inteiro
 ```
 
-Esperado: um `303`, depois `200` com ETag e `Last-Modified`; e `206` com
-`Content-Range` na segunda. Se der `403` ou faltar o ETag, o plano muda antes
-de custar uma hora de Terraform.
+Tudo de que a extração precisa está de pé: idempotência por ETag, snapshot
+datado pelo `Last-Modified` (o corrente é **2026-09-12**) e retomada por
+`Range`. O download não será o gargalo do job.
+
+**Duas peculiaridades da fonte, descobertas aqui e que valem registro:**
+
+*`HEAD` com cabeçalho `Range` devolve `500`.* Inofensivo — o pipeline nunca faz
+essa requisição; a sonda é um `GET` (`source.py:_suporta_range`). Só apareceu
+porque o primeiro teste usou `curl -I` por engano.
+
+*`Range: bytes=0-0` devolve `206`, mas com o arquivo inteiro* —
+`Content-Range: bytes 0-330628580/330628581`. O servidor honra o início da
+faixa e ignora o fim quando o fim é zero (cheira a `if (!$end) $end = $size-1`
+em PHP, com `0` caindo como falso). Uma faixa fechada de verdade, testada a
+partir de 100 MB, é honrada nas duas pontas.
+
+Isso **não** é um problema para o pipeline, por duas razões que já estavam
+certas por desenho:
+
+1. A sonda usa `stream=True` e fecha a resposta sem iterar o corpo, então os
+   315 MB nunca chegam a ser transferidos — o `curl` do teste baixou tudo
+   justamente por não fazer isso, e foi o que denunciou o comportamento.
+2. A retomada real pede `bytes={já_temos}-`, faixa aberta, e `_range_confere`
+   compara **só o offset inicial**. Se comparasse a faixa inteira, este servidor
+   a reprovaria.
+
+Fica como nota para quem mexer nessa parte depois: não “melhore” a sonda para
+exigir `Content-Range: bytes 0-0/…`. Esta fonte reprovaria, e a retomada seria
+desligada em silêncio — de volta a rebaixar 315 MB a cada falha de rede.
 
 **0.2 — Ferramental. ✅ feito em 20/09/2026.** `az` e `terraform` no **Windows
 nativo**, via winget — não no WSL, como este plano dizia antes, e não em
@@ -168,13 +201,19 @@ foreach ($ns in @("Microsoft.App","Microsoft.ContainerRegistry","Microsoft.Stora
 Subscription: `Azure subscription 1` (`a473d0e0-3635-4fac-bf47-a55cc5cbd547`),
 tenant `b82ee7d5-cc25-4077-b154-8e83daa18cd5`.
 
-Falta conferir a **cota** de Container Apps na região — subscription nova às
-vezes nasce com zero em algumas delas.
+**Região: `brazilsouth`.** Uma versão anterior deste plano dizia `eastus2`, por
+custo. O argumento não sobrevive ao desenho: o job cabe na cota gratuita nas
+duas regiões e o dashboard fica em `min_replicas = 0`, então a diferença real
+se resume ao ACR Basic e a centavos de storage — uns US$ 2/mês. Contra isso, o
+RTT de Florianópolis para `eastus2` é da ordem de 150 ms, e o Streamlit faz
+round-trip por websocket a cada interação de widget: numa demonstração ao vivo
+isso se sente. Dois dólares não compram isso de volta. Confirmado que
+`Microsoft.App/managedEnvironments` existe em `brazilsouth`; de brinde, a
+narrativa fecha melhor.
 
-Região: **`eastus2`**. Container Apps em `brazilsouth` custa mais e a base é
-pública — não há argumento de residência de dado aqui. (Se a narrativa de
-"dado brasileiro em região brasileira" valer mais que a diferença de preço na
-apresentação, é uma variável a trocar, não um redesenho.)
+A **cota** de Container Apps ainda não foi conferida: o `az quota` exige uma
+extensão em preview e não valeu o desvio. Ela se revela no `apply` do
+`managedEnvironment`, que é barato de tentar e de desfazer.
 
 ---
 
@@ -371,13 +410,15 @@ lição cara de aprender duas vezes.
 
 ## O que pode morder
 
-1. **A fonte vista da Azure** (fase 0.1). É o único risco que invalida o plano,
-   e por isso é a primeira coisa a testar.
+1. ~~**A fonte vista da Azure**~~ — **descartado em 20/09/2026** pela fase 0.1.
+   Era o único risco que invalidava o plano; respondeu com ETag, `Last-Modified`
+   e `206` a 5,45 MB/s.
 2. **Disco efêmero apertado.** ~4 GB de pico contra um teto que depende do par
    vCPU/memória. Se não couber: montar um Azure Files só para o scratch — mas
    aí o `flock` volta a ser questão, então a saída melhor é aumentar o container.
-3. **Cota de Container Apps em subscription nova.** Registrar os providers antes
-   (fase 0.3) e conferir a região.
+   **É o maior risco aberto agora.**
+3. **Cota de Container Apps em subscription nova.** Providers registrados
+   (fase 0.3); a cota em si só se revela no `apply` do `managedEnvironment`.
 4. **Versão do provider azurerm.** `azurerm_container_app_job` existe desde a
    série 3.x, mas os nomes dos blocos mudaram no caminho. Pinar `~> 4.0` e
    conferir a doc da versão exata antes de escrever — não confiar em exemplo
@@ -407,9 +448,9 @@ O que abrir, na ordem, depois que o Streamlit local terminar:
 
 ## Ordem de execução
 
-- [ ] 0.1 testar a fonte de dentro da Azure *(bloqueia tudo)*
+- [x] 0.1 testar a fonte de dentro da Azure — **passou**
 - [x] 0.2 instalar az + terraform no Windows, `az login`
-- [x] 0.3 registrar providers — falta confirmar região e cota
+- [x] 0.3 registrar providers, região definida (`brazilsouth`); cota fica para o apply
 - [ ] 1 `bootstrap.sh` e o backend
 - [ ] 2 `base.tf`, `lake.tf`, `identidades.tf`
 - [ ] 3 `nuvem/Dockerfile` e os dois entrypoints; `az acr build` na mão
