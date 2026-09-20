@@ -178,7 +178,7 @@ gerenciado; a parte difícil já está feita, porque a imagem é autossuficiente
 
 **Duas DAGs.** `cno_pipeline` encadeia as quatro etapas, diariamente.
 `referencias_ibge` é separada e só vigia a validade da tabela do IBGE — pode
-ficar vermelha sem afetar a esteira.
+ficar vermelha sem afetar o pipeline.
 
 **Três camadas.** `raw` preserva o artefato original; `staging` é o parquet
 tratado e validado; `curated` é o que a análise consome, com uma linha por obra

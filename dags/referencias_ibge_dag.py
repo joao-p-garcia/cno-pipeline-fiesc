@@ -5,7 +5,7 @@
 A tabela de municípios (nome, UF, região, população, malha) fica fora do pipeline
 do CNO: ela vem do IBGE, muda uma vez por ano e não torna nenhum número do
 pipeline certo ou errado. Colocá-la como task da `cno_pipeline` criaria um
-acoplamento de falha — uma indisponibilidade do IBGE derrubaria uma esteira que
+acoplamento de falha — uma indisponibilidade do IBGE derrubaria um pipeline que
 não precisa do IBGE para nada.
 
 Mas "fica fora" não pode virar "ninguém lembra". Dado com validade precisa ser
@@ -17,7 +17,7 @@ existe.
 
 Sendo DAG separada, ela pode ficar vermelha o tempo que for sem afetar a
 `cno_pipeline`. É exatamente o que se quer: o aviso é sobre a análise, não sobre
-a esteira de dados.
+o pipeline de dados.
 """
 
 from __future__ import annotations

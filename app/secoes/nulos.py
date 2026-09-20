@@ -1,4 +1,9 @@
-"""Seção 2 — o nulo que não é dado faltante, e a junção que não pode inflar."""
+"""Seção 5 — o nulo que não é dado faltante.
+
+Primeira seção depois da virada: as quatro anteriores montam o pipeline, daqui
+em diante o assunto é o que a base diz. A frase de abertura marca essa troca —
+sem ela a seção caía em `NI do responsável` logo depois de um diagrama de DAG.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +22,8 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
+        "Com parte da arquitetura decidida, continuamos a análise exploratória "
+        "para a tomada de decisões que serão úteis para os insights finais.\n\n"
         "O campo `NI do responsável` está vazio em **dois terços** das obras. A "
         "primeira reação é tratar como coluna suja e imputar ou descartar. Mas o "
         "dicionário da Receita explica: o campo fica em branco quando o "
@@ -57,17 +64,21 @@ def render() -> None:
         ),
     )
 
-    with ui.explorar("Ver a situação cadastral por UF"):
+    # O explorador desta seção mostrava situação cadastral (Ativa/Encerrada),
+    # que é bom achado e assunto nenhum desta seção — a UF aparecia do nada,
+    # num texto sobre PF e PJ. Mudou de casa: agora abre a seção de conclusões,
+    # onde a pergunta é justamente *o que se está contando*. Aqui ficou o
+    # recorte que responde à pergunta da seção.
+    with ui.explorar("Ver a divisão PF/PJ por UF"):
         uf = ui.seletor_uf("uf_nulos")
-        situacao = dados_app.consultar("situacao", uf=uf)
         st.altair_chart(
             graficos.barras(
-                situacao,
-                categoria="situacao",
+                dados_app.consultar("responsavel", uf=uf),
+                categoria="tipo",
                 valor="obras",
-                titulo=f"Situação cadastral — {uf or 'Brasil'}",
-                subtitulo="dois terços das obras já estão encerradas",
-                destaque="Ativa",
+                titulo=f"Quem responde pela obra — {uf or 'Brasil'}",
+                subtitulo="a proporção varia por estado, e a coluna existe para permitir a dúvida",
+                destaque="PF",
                 rotulo_valor="obras",
             ),
             width="stretch",
