@@ -18,15 +18,14 @@ name: nuvem
 on:
   push:
     branches: [cloud/azure]
-    paths:
-      - src/**
-      - app/**
-      - analise/**
-      - pyproject.toml
-      - nuvem/Dockerfile
-      - nuvem/entrypoint-*.sh
-      - .github/workflows/nuvem.yml
   workflow_dispatch:
+
+# Havia um filtro de `paths` aqui, restringindo o gatilho aos arquivos que
+# entram na imagem. Saiu porque não disparou na criação da branch: o GitHub
+# não tem um "antes" contra o que comparar quando a branch nasce, e o push
+# inicial passou em silêncio — o pior modo de falha para um CD, porque parece
+# que funcionou. Um build a mais por mudança de documentação é mais barato que
+# um deploy que não aconteceu e ninguém notou.
 
 # id-token: write é o que permite ao runner emitir o token OIDC. Sem isto o
 # azure/login falha com uma mensagem que não explica nada.

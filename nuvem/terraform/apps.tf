@@ -3,7 +3,9 @@ locals {
 
   # Endpoint dfs, e não blob: a conta tem hierarchical namespace, e o azcopy
   # lida melhor com diretórios de verdade pelo dfs.
-  lake_curated = "${azurerm_storage_account.lake.primary_dfs_endpoint}${azurerm_storage_data_lake_gen2_filesystem.lake.name}/curated"
+  lake_base    = "${azurerm_storage_account.lake.primary_dfs_endpoint}${azurerm_storage_data_lake_gen2_filesystem.lake.name}"
+  lake_curated = "${local.lake_base}/curated"
+  lake_raw     = "${local.lake_base}/raw"
 }
 
 resource "azurerm_container_app_environment" "cno" {
@@ -71,11 +73,13 @@ resource "azurerm_container_app_job" "pipeline" {
         name  = "CNO_LOG_JSON"
         value = "1"
       }
-      # Num container efêmero, guardar o zip e o intermediário custa disco para
-      # acelerar um reprocessamento que nunca acontece: a réplica morre no fim.
+      # O zip fica, ao contrário do intermediário UTF-8: ele é o artefato
+      # original, e o share da Receita não guarda histórico. É o único arquivo
+      # desta esteira que, uma vez perdido, não se reproduz — então sobrevive à
+      # etapa para ser arquivado no lake no fim do job.
       env {
         name  = "CNO_MANTER_ZIP"
-        value = "0"
+        value = "1"
       }
       env {
         name  = "CNO_MANTER_INTERMEDIARIOS"
@@ -94,6 +98,10 @@ resource "azurerm_container_app_job" "pipeline" {
       env {
         name  = "CNO_LAKE_CURATED"
         value = local.lake_curated
+      }
+      env {
+        name  = "CNO_LAKE_RAW"
+        value = local.lake_raw
       }
       # O azcopy precisa saber *qual* identidade usar: a réplica pode ter mais
       # de uma atribuída, e sem isto ele não escolhe sozinho.
