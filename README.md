@@ -464,6 +464,33 @@ mão e não contém regra de negócio nenhuma. Isso mantém a lógica testável 
 Airflow — os 65 testes das etapas rodam sem subir scheduler — e faz com que
 reproduzir uma falha de produção seja copiar e colar um comando do log.
 
+**Duas execuções sobre o mesmo snapshot não se atropelam, e a garantia não é do
+Airflow.** `cno transform` e `cno curate` reescrevem a partição em dois passos —
+`shutil.rmtree(particao)` e, logo depois, um `COPY ... PARTITION_BY`. Entre os
+dois há uma janela, e duas execuções dentro dela produzem uma partição pela
+metade. O modo de falha é o pior possível: **não levanta exceção**, o `COPY`
+termina bem, o parquet é legível, e só a contagem denuncia. Não é hipótese — uma
+task órfã já deixou duas execuções se sobreporem aqui; não mordeu por sorte de
+escalonamento.
+
+O `max_active_runs=1` da DAG resolve para quem passa pelo Airflow. A trava tem
+de valer também para dois terminais abertos, para um `airflow tasks run` avulso
+e para o container, então mora **dentro da etapa** (`cno_pipeline/bloqueio.py`),
+não no orquestrador.
+
+É um `flock` do sistema operacional, por snapshot, e não um arquivo-sentinela.
+A diferença é o que acontece quando o processo morre sem limpar: um sentinela
+criado com `O_EXCL` vira lixo permanente, e a próxima execução legítima é
+recusada até alguém apagar à mão; o bloqueio do kernel é liberado sozinho
+quando o descritor fecha, **inclusive num `SIGKILL` ou numa queda do
+container**. Não existe trava órfã.
+
+`transform` e `curate` disputam a **mesma** trava, de propósito: além de cada um
+poder atropelar a si mesmo, a curadoria lê a staging que o tratamento reescreve.
+Snapshots diferentes têm travas diferentes e seguem em paralelo. A etapa recusa
+na hora, com mensagem dizendo quem detém a trava, em vez de esperar — uma task
+pendurada é mais difícil de diagnosticar do que uma que falha explicando.
+
 **O pipeline é invocado como subprocesso, não importado.** Os dois pacotes até
 convivem no mesmo ambiente (`pip check` passa limpo), mas a fronteira de
 processo dá o que a de import não dá: o pipeline pode ser atualizado sem
@@ -771,5 +798,5 @@ tratamento:
 - [x] Análise descritiva: dashboard narrativo e notebook versionado
 - [x] Integração contínua: lint e a suíte inteira a cada push, em 3.11 e 3.12,
       mais os testes da DAG com Airflow em venv próprio
-- [ ] Lock por snapshot dentro do `cno transform`, para o caso de duas execuções
-      se sobreporem (hoje protegido só pelo `max_active_runs` do Airflow)
+- [x] Lock por snapshot dentro das etapas, para o caso de duas execuções se
+      sobreporem — não depende do `max_active_runs` do orquestrador
