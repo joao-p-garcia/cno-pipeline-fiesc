@@ -11,10 +11,24 @@ somando as quatro tabelas.
 
 ## Rodar
 
-### Com Docker (não precisa de Python nem Airflow)
+O caminho recomendado é o Docker: não pede Python, Airflow nem Postgres na
+máquina, e é idêntico em qualquer sistema. Ache a sua linha:
 
-```bash
-make up
+| Sua máquina | Comando |
+|---|---|
+| **Windows** + Docker Desktop | `docker compose up -d --build` (PowerShell) |
+| **macOS** + Docker Desktop | `docker compose up -d --build` |
+| **Linux** ou **WSL2** + Docker | `make up`, ou o mesmo `docker compose up -d --build` |
+| qualquer sistema, sem Docker | [Sem Docker](#sem-docker), abaixo |
+
+`make` não existe no Windows, e os alvos de container do Makefile são apenas
+atalhos de uma linha para o `docker compose` — por isso as duas colunas dizem a
+mesma coisa.
+
+### Com Docker
+
+```
+docker compose up -d --build
 ```
 
 Sobe Airflow 3.3.2 + Postgres + o dashboard, e a DAG **começa a rodar sozinha**:
@@ -25,27 +39,42 @@ baixa os ~315 MB, trata, valida e cura. Primeira execução ~6,5 min.
 | <http://localhost:8080> | Airflow (`airflow` / `airflow`) |
 | <http://localhost:8501> | o dashboard da análise |
 
-`make down` derruba preservando os dados; `make down-tudo` apaga os volumes.
+```
+docker compose logs -f             # acompanhar a primeira execução
+docker compose down                # derruba, preservando os dados
+docker compose down --volumes      # derruba e apaga os volumes também
+```
+
+Equivalentes no Makefile, para quem está em Linux ou WSL2: `make logs`,
+`make down`, `make down-tudo`, `make dag-run`.
+
+**Se `docker` não for reconhecido:** no Windows, isso significa que falta o
+Docker Desktop — ou que o Docker está instalado só dentro de uma distro WSL, e
+nesse caso os comandos acima precisam ser dados de dentro do WSL. Numa distro
+WSL com engine nativo, o daemon costuma começar parado: `sudo systemctl start
+docker` antes de subir a stack.
 
 ### Sem Docker
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
+Precisa de Python 3.11+. O `cno` é o mesmo executável que a DAG invoca, então
+esta via roda exatamente as mesmas quatro etapas:
+
+```
+python3 -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e ".[dev,dashboard]"
 
-make pipeline     # extract -> transform -> validate -> curate
-make dashboard    # http://localhost:8501
-```
-
-Ou etapa por etapa, que é como a DAG as invoca:
-
-```bash
 cno info        # compara com a fonte sem baixar nada (só um HEAD)
 cno extract     # camada raw (~315 MB comprimidos, 1,4 GB extraídos)
 cno transform   # camada staging em parquet tipado e particionado  (~20s)
 cno validate    # 19 regras + reconciliação com os totais da Receita (~6s)
 cno curate      # camada curada: tabela analítica e três marts      (~35s)
+
+streamlit run app/dashboard.py                        # http://localhost:8501
 ```
+
+Em Linux e WSL2, `make pipeline` encadeia as quatro e `make dashboard` sobe o
+app. Esta via nativa foi exercitada em Linux e WSL2; **no Windows, prefira o
+Docker** — os alvos do Makefile assumem o layout POSIX do venv (`.venv/bin`).
 
 `cno extract` é idempotente: se o ETag da fonte bate com o do manifesto local e
 os arquivos conferem, não baixa nada. `cno validate` sai com código 1 se houver
@@ -62,6 +91,9 @@ make test       # 233 testes, offline, em segundos
 make test-dag   # 15 testes das DAGs (exige o venv do Airflow — veja abaixo)
 make lint
 ```
+
+Sem `make` (Windows), os mesmos três: `pytest`, `ruff check src tests dags
+analise app` e `ruff format --check src tests dags analise app`.
 
 Nenhum teste toca a rede: eles montam camada sintética e, quando precisam de
 HTTP, sobem um servidor local. O CI roda os três a cada push, em Python 3.11 e
