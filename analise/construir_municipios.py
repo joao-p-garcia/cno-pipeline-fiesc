@@ -41,11 +41,15 @@ import urllib.request
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-AQUI = Path(__file__).resolve().parent
+# Roda como script (`python analise/construir_municipios.py`), então a raiz do
+# repositório não está no path por conta própria.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-ARQUIVO_MUNICIPIOS = AQUI / "municipios.csv"
-ARQUIVO_MALHA = AQUI / "malha_municipios.geojson.gz"
-ARQUIVO_META = AQUI / "municipios.meta.json"
+from analise.referencias import (  # noqa: E402
+    ARQUIVO_MALHA,
+    ARQUIVO_META,
+    ARQUIVO_MUNICIPIOS,
+)
 
 USER_AGENT = "cno-pipeline/0.1 (+https://github.com/joao-p-garcia/cno-pipeline-fiesc)"
 

@@ -16,7 +16,7 @@ CNO := $(VENV)/bin/cno
 AIRFLOW_VENV ?= $(HOME)/.venvs/airflow
 
 .PHONY: help setup info extract extract-force transform validate curate pipeline \
-        test test-dag lint fmt clean clean-data \
+        test test-dag lint fmt clean clean-data dashboard notebook \
         build up down down-tudo logs ps dag-run docker-pipeline
 
 # O -h é necessário porque o `-include .env` acrescenta um segundo arquivo ao
@@ -61,6 +61,24 @@ curate: setup  ## Modela a camada curada e os marts que a análise consome
 
 pipeline: extract transform validate curate  ## Roda o pipeline inteiro, na ordem
 
+# -- análise -------------------------------------------------------------
+# O dashboard e o notebook leem a camada curada; não a produzem. Rode
+# `make pipeline` antes, ou deixe a DAG rodar.
+
+ANALISE := $(VENV)/.analise
+
+# Sentinela própria: os extras da análise são pesados (Streamlit, JupyterLab) e
+# quem só quer rodar o pipeline não deve pagar por eles no `make test`.
+$(ANALISE): pyproject.toml | $(VENV)
+	$(PIP) install -e ".[dashboard,notebook]" --quiet
+	@touch $(ANALISE)
+
+dashboard: $(ANALISE)  ## Sobe o dashboard narrativo em http://localhost:8501
+	$(VENV)/bin/streamlit run app/dashboard.py
+
+notebook: $(ANALISE)  ## Reexecuta o notebook de exploração, gravando as saídas
+	$(VENV)/bin/jupyter execute --inplace analise/exploracao.ipynb
+
 test: setup  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
 
@@ -72,12 +90,12 @@ test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
 		$(AIRFLOW_VENV)/bin/pytest tests/test_dag.py
 
 lint: setup  ## Verifica estilo e erros estáticos
-	$(VENV)/bin/ruff check src tests dags
-	$(VENV)/bin/ruff format --check src tests dags
+	$(VENV)/bin/ruff check src tests dags analise app
+	$(VENV)/bin/ruff format --check src tests dags analise app
 
 fmt: setup  ## Formata o código
-	$(VENV)/bin/ruff format src tests dags
-	$(VENV)/bin/ruff check --fix src tests dags
+	$(VENV)/bin/ruff format src tests dags analise app
+	$(VENV)/bin/ruff check --fix src tests dags analise app
 
 clean:  ## Remove artefatos de build e cache
 	rm -rf .pytest_cache .ruff_cache build dist *.egg-info
@@ -99,7 +117,8 @@ build:  ## Constrói a imagem (Airflow + pipeline em venv próprio)
 up:  ## Sobe a stack completa em container e deixa a UI do Airflow no ar
 	$(COMPOSE) up -d --build
 	@echo
-	@echo "Airflow em http://localhost:$(or $(AIRFLOW_PORTA),8080)  (usuário airflow / senha airflow)"
+	@echo "Airflow   em http://localhost:$(or $(AIRFLOW_PORTA),8080)  (usuário airflow / senha airflow)"
+	@echo "Dashboard em http://localhost:$(or $(DASHBOARD_PORTA),8501)"
 	@echo "A DAG cno_pipeline sobe despausada e ja comeca a rodar: primeira"
 	@echo "execucao baixa ~315 MB da Receita e leva ~2min. Acompanhe com 'make logs'."
 	@echo "Para disparar outra: 'make dag-run'."

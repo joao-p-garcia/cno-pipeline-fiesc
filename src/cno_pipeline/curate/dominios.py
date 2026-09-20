@@ -78,10 +78,23 @@ FAIXAS_AREA_M2: tuple[tuple[float | None, float | None, str], ...] = (
     (5000, None, "acima de 5.000 m²"),
 )
 
-# A partir deste ano a série é comparável. Antes disso o volume reflete a
-# migração da matrícula CEI para o CNO, não atividade de construção: as obras por
-# ano saltam de 87 mil (2016) para 307 mil (2019) e depois estabilizam em ~300
-# mil, que é assinatura de recadastramento, não de crescimento setorial.
+# A partir deste ano a série é comparável. Antes disso ela não mede construção:
+# mede cobertura do cadastro.
+#
+# O CNO foi instituído pela IN RFB 1.845, de 22/11/2018, substituindo a matrícula
+# CEI, e passou a valer em 21/01/2019. A base confirma a norma sozinha: a
+# `data_registro` mais antiga é 19/11/2018, e 2018 inteiro tem 385 registros
+# contra 366 mil em 2019 — antes disso o cadastro simplesmente não existia.
+#
+# Obra iniciada antes de 2019 só aparece aqui se alguém a registrou depois, e
+# isso **não foi um evento único**: as obras com início anterior a 2019 entraram
+# espalhadas por todos os anos (215 mil em 2021, 192 mil em 2023, 191 mil em
+# 2019, 172 mil em 2022...). No total, 1,6 M de obras — 45% da base — foram
+# registradas mais de um ano depois de começarem.
+#
+# Duas consequências, e as duas mandam cortar em 2019: o passado é subcontado, e
+# **não é estável** — cada snapshot novo acrescenta obras antigas, então uma
+# série que inclua 2016 muda de valor sem que nada tenha sido construído.
 PRIMEIRO_ANO_COMPARAVEL = 2019
 
 
