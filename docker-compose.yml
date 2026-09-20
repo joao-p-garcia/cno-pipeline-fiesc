@@ -155,7 +155,7 @@ services:
     depends_on: []
 
   # O dashboard narrativo, lendo o mesmo volume que a DAG escreve. É o que fecha
-  # o ciclo da entrega: a esteira materializa a camada curada e o app publica
+  # o ciclo da entrega: o pipeline materializa a camada curada e o app publica
   # em cima dela, sem exportar nada no meio.
   #
   # Não depende do Postgres nem do Airflow — depende de existir camada curada no

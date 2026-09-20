@@ -1,14 +1,8 @@
 """Seção 5 — o nulo que não é dado faltante.
 
-É a primeira seção depois da virada. As quatro anteriores montam a esteira; a
-partir daqui o assunto é o que a base diz, e cada achado volta como uma linha
-de código no sistema que acabou de ser apresentado.
-
-A seção 4 já anuncia essa dobradiça no próprio texto, mas quem assiste não lê
-docstring: o parágrafo de abertura aqui existe para que a troca de gênero
-aconteça na tela, e não só na cabeça de quem escreveu. Sem ele a seção começava
-a falar de `NI do responsável` logo depois de um diagrama de DAG, e o salto
-ficava seco.
+Primeira seção depois da virada: as quatro anteriores montam o pipeline, daqui
+em diante o assunto é o que a base diz. A frase de abertura marca essa troca —
+sem ela a seção caía em `NI do responsável` logo depois de um diagrama de DAG.
 """
 
 from __future__ import annotations
@@ -28,11 +22,8 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "Até aqui o trabalho foi montar a esteira. Ela roda sozinha às quatro da "
-        "manhã, e isso troca a pergunta: em vez de *como trago o dado*, passa a "
-        "ser *o que o dado diz*. **As próximas quatro seções são achados da base — "
-        "e cada um deles virou uma linha de código na esteira que você acabou de "
-        "ver.** Este é o primeiro.\n\n"
+        "Com parte da arquitetura decidida, continuamos a análise exploratória "
+        "para a tomada de decisões que serão úteis para os insights finais.\n\n"
         "O campo `NI do responsável` está vazio em **dois terços** das obras. A "
         "primeira reação é tratar como coluna suja e imputar ou descartar. Mas o "
         "dicionário da Receita explica: o campo fica em branco quando o "

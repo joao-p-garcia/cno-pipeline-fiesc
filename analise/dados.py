@@ -115,7 +115,7 @@ class Curada:
     def snapshot(self) -> str:
         """Data de publicação do snapshot, no formato `AAAA-MM-DD`.
 
-        É o que prova que o dashboard olha para uma esteira viva, e não para um
+        É o que prova que o dashboard olha para um pipeline vivo, e não para um
         extrato tirado à mão em algum momento do passado.
 
         Vem do nome do diretório de partição, não de um `max(snapshot_date)`. O
