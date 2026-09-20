@@ -68,7 +68,14 @@ pipeline: extract transform validate curate  ## Roda o pipeline inteiro, na orde
 ANALISE := $(VENV)/.analise
 
 # Sentinela própria: os extras da análise são pesados (Streamlit, JupyterLab) e
-# quem só quer rodar o pipeline não deve pagar por eles no `make test`.
+# quem só quer extrair e tratar não deve pagar por eles. `extract`, `transform`,
+# `validate` e `curate` dependem só de `setup`.
+#
+# `test`, porém, depende daqui: a suíte cobre a camada de análise, e `analise
+# /dados.py` importa pandas, que não é dependência base. Enquanto `test`
+# dependia só de `setup`, a suíte passava na minha máquina — onde os extras já
+# estavam instalados de um `make dashboard` anterior — e **falhava num clone
+# limpo**. Foi o CI que expôs isso.
 $(ANALISE): pyproject.toml | $(VENV)
 	$(PIP) install -e ".[dashboard,notebook]" --quiet
 	@touch $(ANALISE)
@@ -79,13 +86,23 @@ dashboard: $(ANALISE)  ## Sobe o dashboard narrativo em http://localhost:8501
 notebook: $(ANALISE)  ## Reexecuta o notebook de exploração, gravando as saídas
 	$(VENV)/bin/jupyter execute --inplace analise/exploracao.ipynb
 
-test: setup  ## Roda a suíte de testes (offline)
+test: setup $(ANALISE)  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
 
+# Nove dos quinze testes consultam o banco de metadados. Sem ele o pytest
+# morre com `sqlite3.OperationalError: no such table: dag`, que não diz a
+# ninguém o que fazer — o alvo já conferia o venv, e passou a conferir o
+# banco pelo mesmo motivo. O `db migrate` fica de fora de propósito: ele
+# escreve em $(HOME)/airflow, e um alvo chamado `test` não deve criar
+# estado por conta própria.
 test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
 	@test -x "$(AIRFLOW_VENV)/bin/pytest" \
 		|| { echo "venv do Airflow não encontrado em $(AIRFLOW_VENV)"; \
 		     echo "defina AIRFLOW_VENV=<caminho> — veja o README"; exit 1; }
+	@test -f "$(HOME)/airflow/airflow.db" \
+		|| { echo "banco de metadados do Airflow não existe em $(HOME)/airflow"; \
+		     echo "rode:  AIRFLOW_HOME=$(HOME)/airflow $(AIRFLOW_VENV)/bin/airflow db migrate"; \
+		     exit 1; }
 	AIRFLOW_HOME=$(HOME)/airflow AIRFLOW__CORE__LOAD_EXAMPLES=False \
 		$(AIRFLOW_VENV)/bin/pytest tests/test_dag.py
 

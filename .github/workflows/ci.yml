@@ -1,0 +1,102 @@
+# Integração contínua: roda o que o README manda rodar.
+#
+# Os jobs invocam `make`, e não `pytest` direto, de propósito. O README promete
+# "clone e rode um comando"; se o CI reimplementasse os comandos com suas
+# próprias linhas de `pip install`, ele passaria a testar uma instalação que
+# ninguém executa, e a documentação poderia apodrecer sem ninguém notar. Aqui,
+# se `make test` quebra num clone limpo, o CI quebra junto — que é como este
+# arquivo pagou o próprio custo: expôs que `make test` dependia só de `[dev]`,
+# passava na máquina de quem já tinha rodado `make dashboard`, e falhava num
+# clone limpo porque `analise/dados.py` importa pandas.
+#
+# Tudo aqui é offline. Os testes montam camada sintética em `tmp_path` e, quando
+# precisam de HTTP, sobem um servidor local — nada toca a Receita Federal. Não
+# há segredo, e um fork roda o CI inteiro sem configurar nada.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Um push novo na mesma branch cancela a execução anterior: o que importa é o
+# último commit, e fila de CI obsoleta só atrasa o retorno.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  qualidade:
+    name: lint e testes (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 é o piso declarado em `requires-python`; 3.12 é o que o ambiente
+        # de desenvolvimento e a imagem do Airflow usam. Testar só um dos dois
+        # deixaria metade da promessa sem verificação.
+        python: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Lint e formatação
+        run: make lint
+
+      - name: Testes
+        run: make test
+
+  dags:
+    name: testes das DAGs (Airflow 3.3.2)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # O Airflow vive num venv separado porque suas pinagens conflitam com as
+      # do pipeline — é a mesma separação que o container faz, e o Makefile já
+      # aceita `AIRFLOW_VENV` justamente para o CI apontar o dele.
+      - name: Instalar o Airflow num venv próprio
+        run: |
+          python -m venv "$HOME/.venvs/airflow"
+          "$HOME/.venvs/airflow/bin/pip" install --upgrade pip --quiet
+          "$HOME/.venvs/airflow/bin/pip" install --quiet \
+            "apache-airflow==3.3.2" \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt"
+          "$HOME/.venvs/airflow/bin/pip" install --quiet "pytest>=8.0"
+
+      # O pipeline entra no venv do Airflow porque a DAG o importa para
+      # descobrir os caminhos; é o mesmo arranjo do container, onde a DAG chama
+      # o pipeline por `CNO_BIN`.
+      - name: Instalar o pipeline no venv do Airflow
+        run: '"$HOME/.venvs/airflow/bin/pip" install -e . --quiet'
+
+      # Passo que o README documenta e que este job tinha pulado: nove dos
+      # quinze testes consultam o banco de metadados. Na máquina de
+      # desenvolvimento ele já existia de um `db migrate` antigo, então a falta
+      # só apareceu num runner limpo — `no such table: dag`.
+      #
+      # `AIRFLOW_HOME` tem de ser o mesmo que o Makefile usa em `test-dag`.
+      - name: Inicializar o banco de metadados do Airflow
+        env:
+          AIRFLOW_HOME: /home/runner/airflow
+        run: '"$HOME/.venvs/airflow/bin/airflow" db migrate'
+
+      - name: Testes das DAGs
+        run: make test-dag

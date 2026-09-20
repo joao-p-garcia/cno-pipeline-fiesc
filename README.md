@@ -216,7 +216,7 @@ make dashboard      # http://localhost:8501
 | 2. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas, não lacunas |
 | 3. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
 | 4. O endereço vem em Plus Code | cobertura honesta de 41,2%, não os 59% que o campo sugere |
-| 5. A série que triplica | o degrau de 2018-2019 é recadastramento, não construção |
+| 5. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar, não construção |
 | 6. O que dá para afirmar | e, explicitamente, o que **não** dá |
 
 Cada seção tem a mesma anatomia: um parágrafo com o que foi visto, **um gráfico
@@ -494,13 +494,28 @@ tem quatro tabelas e uma linha por registro publicado — ótimo para auditar,
 inútil para perguntar "quantos m² Joinville construiu em 2023". A camada curada
 toma as decisões que a fonte não toma, e as toma num lugar só, explicitamente.
 
-**`area_m2` só existe quando a unidade é metro quadrado.** A base mistura
-unidades no mesmo campo: 3.404.652 obras em m², mas 21.328 em km, 14.539 em m³,
-3.580 em kW e 156.712 em "Outra" — são dutos, rodovias, subestações. Somar a
-coluna crua dá 49.286 km² de área construída no Brasil; somando só o que é metro
-quadrado dá 2.839 km². **Fator de 17 entre o número certo e o errado**, e o
-errado é o que sai de um `SUM(area_total)` desavisado. A área declarada continua
-na tabela ao lado da unidade; o que muda é que existe uma coluna segura de somar.
+**`area_m2` só existe quando a unidade é metro quadrado e a área não é
+suspeita.** São **dois** defeitos independentes, e nenhum filtro resolve
+sozinho. Primeiro, a base mistura unidades no mesmo campo: 3.404.652 obras em
+m², mas 21.328 em km, 14.539 em m³, 3.580 em kW e 156.712 em "Outra" — são
+dutos, rodovias, subestações. Segundo, 323 obras declaram área impossível, a
+maior com 555.555.555.555 m².
+
+Somar a coluna e ver o que cada filtro tira:
+
+| Critério | km² |
+|---|---:|
+| `SUM(area_total)` cru | **887.114** |
+| só tirando as áreas implausíveis | 49.286 |
+| só pegando o que está em m² | 840.668 |
+| m² **e** sem implausíveis (`area_m2`) | **2.839** |
+
+**Um `SUM(area_total)` desavisado publicaria um número 312 vezes maior que o
+certo.** As duas linhas do meio mostram por que é preciso aplicar os dois
+filtros: cada um sozinho ainda deixa uma ordem de grandeza de erro.
+
+A área declarada continua na tabela ao lado da unidade; o que muda é que existe
+uma coluna segura de somar.
 
 **A geocodificação não usa serviço externo, e recupera mais do que parecia.** O
 `Código de localização` é Plus Code em parte da base, mas só 36,4% dos registros
@@ -542,6 +557,31 @@ a fonte não publica não tem como ser reconciliado; além disso, misturar safra
 (snapshot de 2026, população de 2022) dentro da mesma linha é o tipo de erro que
 não dá sintoma. Se um dia precisar entrar, a forma é uma dimensão `municipios`
 separada, nunca colunas na tabela de obras.
+
+**`serie_comparavel` corta em 2019, e o motivo não é o que parecia.** Obras por
+ano de início saltam de 87.574 (2016) para 307.530 (2019) e depois estabilizam
+perto de 300 mil. Triplicar em dois anos e parar não é assinatura de atividade
+econômica.
+
+A explicação intuitiva — *o CNO absorveu de uma vez o estoque da matrícula CEI*
+— é falsa, e foi a coluna `data_registro` que a derrubou. Se tivesse havido
+migração em bloco, as obras iniciadas antes de 2019 teriam entrado no cadastro
+em 2019. Entraram espalhadas por todos os anos, e **mais em 2021 (215.759) do
+que em 2019 (191.059)**. Registro atrasado não é evento, é rotina: 1,6 M de
+obras — 45% da base — foram cadastradas mais de um ano depois de começarem.
+
+O mecanismo real é mais simples e mais forte: **antes de nov/2018 o cadastro não
+existia.** O CNO foi criado pela IN RFB 1.845, de 22/11/2018, e passou a valer
+em 21/01/2019; a `data_registro` mais antiga da base é 19/11/2018, e 2018
+inteiro tem 385 registros contra 366 mil em 2019. Obra anterior a 2019 só
+aparece se alguém a cadastrou depois, o que é parcial e continua acontecendo.
+
+Duas consequências, e as duas mandam cortar em 2019: o passado é **subcontado**,
+não inflado, e **não é estável entre snapshots** — uma série que comece em 2016
+muda de valor a cada atualização sem que nada tenha sido construído. As
+consultas `entrada_no_cadastro`, `registro_de_obras_antigas` e
+`atraso_de_registro` deixam essa evidência à vista no dashboard e no caderno,
+para que a afirmação não dependa de acreditar na leitura de uma norma.
 
 ### Fronteira de dados externos
 
@@ -660,11 +700,38 @@ enquadra a projeção sozinho quando a geometria vem numa camada junto com ponto
 e a convenção de sentido de giro do D3 é **o contrário** da do RFC 7946 — com o
 sentido "certo", o mapa vira uma mancha chapada, sem erro nenhum no console.
 
-**O dashboard é testado sem navegador.** `AppTest`, do próprio Streamlit, executa
-o app e devolve os elementos produzidos; as seis seções são exercitadas sobre a
-camada sintética. Foi isso que pegou uma divisão por zero (num recorte sem área
-em m²) e um `iloc[0]` numa seleção vazia (numa série com um ano só) antes de
-qualquer um dos dois chegar à tela.
+**O dashboard é testado sem navegador — e `AppTest` não basta.** `AppTest`, do
+próprio Streamlit, executa o app e devolve os elementos produzidos; as seis
+seções são exercitadas sobre a camada sintética. Foi isso que pegou uma divisão
+por zero (num recorte sem área em m²) e um `iloc[0]` numa seleção vazia (numa
+série com um ano só) antes de qualquer um dos dois chegar à tela.
+
+Mas ele responde *"a página subiu"*, não *"o gráfico apareceu"* — e nesta base
+gráfico que some em silêncio é a regra, não a exceção: `alt.Step` em spec com
+camadas devolve um gráfico vazio, barra em escala logarítmica não desenha, e a
+malha municipal vira uma mancha chapada se o sentido de giro dos anéis seguir o
+RFC 7946 em vez da convenção do D3. Nenhum levanta exceção, e `AppTest` passou
+verde em todos.
+
+Por isso há um segundo grupo de testes que **compila o spec pelo mesmo
+Vega-Lite do navegador e mede o PNG**. Junto com eles, `tests/test_contratos_analise.py`
+trava as invariantes que não são contas e que já erodiram uma vez: que o app e o
+caderno não contenham SQL, que cada chamada a `analise/dados.py` bata com a
+assinatura real (é o que testa o caderno **sem executá-lo**, já que reexecutá-lo
+exige os 3 GB), e que as constantes da análise sejam **o mesmo objeto** das do
+pipeline — `is`, não `==`, porque dois inteiros iguais passariam num `==` e
+continuariam sendo duas fontes de verdade.
+
+**Número em português é parte do contrato, e quase não era.** O tema carimbava
+`formatLocale` em `usermeta.embedOptions`, que é como o vega-embed troca o
+locale do d3. O Streamlit **filtra** esse objeto — mantém `theme`, `renderer` e
+`padding` e descarta o resto —, então o carimbo saía do Python e morria no
+frontend: todo eixo do dashboard vinha com vírgula de milhar, sem nada acusando.
+A troca passou a ser expressão Vega dentro do spec, que ninguém filtra, com duas
+sutilezas que só apareceram renderizando: sem o `/g` o `replace` do Vega troca
+apenas a primeira ocorrência (1.000.000 sai como "1.000,000"), e `labelExpr`
+existe em `Legend` mas não em `LegendConfig`, então a legenda do mapa declara a
+sua. Eixo de ano opta por sair, senão 2019 viraria "2.019".
 
 ## Sobre os dados
 
@@ -702,5 +769,7 @@ tratamento:
 - [x] Tabela de referência do IBGE, com validade vigiada por DAG
 - [x] Containerização
 - [x] Análise descritiva: dashboard narrativo e notebook versionado
+- [x] Integração contínua: lint e a suíte inteira a cada push, em 3.11 e 3.12,
+      mais os testes da DAG com Airflow em venv próprio
 - [ ] Lock por snapshot dentro do `cno transform`, para o caso de duas execuções
       se sobreporem (hoje protegido só pelo `max_active_runs` do Airflow)

@@ -203,7 +203,9 @@ def _limites() -> None:
         ),
         (
             "Antes de 2019 a série não é comparável, e o último ano nunca está fechado.",
-            "Degrau de recadastramento de um lado, corte de calendário do outro.",
+            "O CNO não existia antes de nov/2018, então o passado é subcontado — e "
+            "**não é estável**: cresce a cada snapshot, conforme obras antigas são "
+            "registradas com atraso. Do outro lado, corte de calendário.",
         ),
         (
             "58,8% das obras não têm ponto no mapa, e a ausência não é aleatória.",
