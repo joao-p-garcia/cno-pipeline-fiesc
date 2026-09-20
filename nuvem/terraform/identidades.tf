@@ -131,11 +131,27 @@ resource "azurerm_role_assignment" "deploy_enxerga_a_assinatura" {
   principal_id         = azurerm_user_assigned_identity.deploy.principal_id
 }
 
-# Precisa poder trocar a tag da imagem no job e no app. `Contributor` no grupo
-# seria mais simples e é o que a maioria dos tutoriais faz; este papel é o
-# recorte certo, e o grupo inteiro continua fora do alcance dele.
+# Precisa poder trocar a tag da imagem no dashboard **e** no job — e são dois
+# papéis, porque são dois tipos de recurso.
+#
+# `Container Apps Contributor` cobre `Microsoft.App/containerApps/*` e nada
+# mais: um Container Apps **Job** é `Microsoft.App/jobs`, um tipo à parte. O
+# nome do papel sugere que cobre tudo de Container Apps, e não cobre. O sintoma
+# foi o CD falhar no `az containerapp job update` depois de o build e o push
+# terem passado.
+#
+# `Contributor` no grupo resolveria os dois de uma vez e é o que a maioria dos
+# tutoriais faz. Estes dois papéis são o recorte certo: fora containerApps e
+# jobs, o grupo continua inteiro fora do alcance da identidade de deploy — ela
+# não pode tocar no lake, no registry além de push, nem no ambiente.
 resource "azurerm_role_assignment" "deploy_atualiza_apps" {
   scope                = azurerm_resource_group.cno.id
   role_definition_name = "Container Apps Contributor"
+  principal_id         = azurerm_user_assigned_identity.deploy.principal_id
+}
+
+resource "azurerm_role_assignment" "deploy_atualiza_jobs" {
+  scope                = azurerm_resource_group.cno.id
+  role_definition_name = "Container Apps Jobs Contributor"
   principal_id         = azurerm_user_assigned_identity.deploy.principal_id
 }
