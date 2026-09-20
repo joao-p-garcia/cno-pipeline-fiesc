@@ -1,4 +1,4 @@
-"""Seção 6 — o que dá para afirmar, e o que não dá."""
+"""Seção 10 — o que dá para afirmar, e o que não dá."""
 
 from __future__ import annotations
 
@@ -25,7 +25,12 @@ def render() -> None:
         "**Sem elas, nenhum deles seria.**",
     )
 
+    # A ordem é uma escalada sobre a mesma pergunta — *o que exatamente se está
+    # contando*: contar obras ou medir área (_setor), contar tudo ou só o que
+    # está em andamento (_situacao), contar em absoluto ou por habitante
+    # (_denominador). Só depois o que a obra é (_destinacao) e o que fica fora.
     _setor()
+    _situacao()
     _denominador()
     _destinacao()
     _limites()
@@ -54,6 +59,59 @@ def _setor() -> None:
         "Vale registrar o que **não** funcionou: agrupar pela *seção* da CNAE daria uma "
         "linha só — 100% da base é seção F (Construção). O recorte útil é a divisão."
     )
+
+
+def _situacao() -> None:
+    """A maior parte do que se conta como *obra* já acabou.
+
+    Este bloco vivia como um explorador solto na seção do campo nulo, onde o
+    assunto era PF contra PJ e a situação cadastral aparecia sem ligação com o
+    texto. Aqui ele é argumento: fecha a mesma pergunta que `_setor` abre — o
+    número depende de qual universo se está contando.
+    """
+    st.markdown("### E a maior parte dessas obras já acabou")
+    situacao = dados_app.consultar("situacao")
+    total = int(situacao["obras"].sum())
+    ativas = int(situacao.loc[situacao["situacao"] == "Ativa", "obras"].sum())
+
+    st.altair_chart(
+        graficos.barras(
+            situacao,
+            categoria="situacao",
+            valor="obras",
+            titulo="Situação cadastral — dois terços das obras estão encerradas",
+            subtitulo="a base é o histórico do cadastro, não uma fotografia do canteiro hoje",
+            destaque="Ativa",
+            rotulo_valor="obras",
+        ),
+        width="stretch",
+    )
+
+    st.markdown(
+        f"Das {estilo.numero(total)} obras da base, **{estilo.numero(ativas)} estão "
+        f"ativas** — {estilo.percentual(ativas / total)} do total. É a diferença "
+        "entre duas perguntas que soam iguais: *quantas obras existem em Santa "
+        "Catarina* e *quantas obras estão acontecendo em Santa Catarina*.\n\n"
+        "Nenhum dos dois números está errado, e é por isso que o recorte precisa "
+        "estar declarado. Um indicador de atividade econômica quer as ativas; um "
+        "de estoque construído quer todas. Trocar um pelo outro sem dizer é o "
+        "mesmo erro de contar registro achando que se mediu área."
+    )
+
+    with ui.explorar("Ver a situação cadastral por UF"):
+        uf = ui.seletor_uf("uf_situacao")
+        st.altair_chart(
+            graficos.barras(
+                dados_app.consultar("situacao", uf=uf),
+                categoria="situacao",
+                valor="obras",
+                titulo=f"Situação cadastral — {uf or 'Brasil'}",
+                subtitulo="a proporção de ativas varia entre estados",
+                destaque="Ativa",
+                rotulo_valor="obras",
+            ),
+            width="stretch",
+        )
 
 
 def _denominador() -> None:

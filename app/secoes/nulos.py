@@ -1,4 +1,15 @@
-"""Seção 2 — o nulo que não é dado faltante, e a junção que não pode inflar."""
+"""Seção 5 — o nulo que não é dado faltante.
+
+É a primeira seção depois da virada. As quatro anteriores montam a esteira; a
+partir daqui o assunto é o que a base diz, e cada achado volta como uma linha
+de código no sistema que acabou de ser apresentado.
+
+A seção 4 já anuncia essa dobradiça no próprio texto, mas quem assiste não lê
+docstring: o parágrafo de abertura aqui existe para que a troca de gênero
+aconteça na tela, e não só na cabeça de quem escreveu. Sem ele a seção começava
+a falar de `NI do responsável` logo depois de um diagrama de DAG, e o salto
+ficava seco.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +28,11 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
+        "Até aqui o trabalho foi montar a esteira. Ela roda sozinha às quatro da "
+        "manhã, e isso troca a pergunta: em vez de *como trago o dado*, passa a "
+        "ser *o que o dado diz*. **As próximas quatro seções são achados da base — "
+        "e cada um deles virou uma linha de código na esteira que você acabou de "
+        "ver.** Este é o primeiro.\n\n"
         "O campo `NI do responsável` está vazio em **dois terços** das obras. A "
         "primeira reação é tratar como coluna suja e imputar ou descartar. Mas o "
         "dicionário da Receita explica: o campo fica em branco quando o "
@@ -57,17 +73,21 @@ def render() -> None:
         ),
     )
 
-    with ui.explorar("Ver a situação cadastral por UF"):
+    # O explorador desta seção mostrava situação cadastral (Ativa/Encerrada),
+    # que é bom achado e assunto nenhum desta seção — a UF aparecia do nada,
+    # num texto sobre PF e PJ. Mudou de casa: agora abre a seção de conclusões,
+    # onde a pergunta é justamente *o que se está contando*. Aqui ficou o
+    # recorte que responde à pergunta da seção.
+    with ui.explorar("Ver a divisão PF/PJ por UF"):
         uf = ui.seletor_uf("uf_nulos")
-        situacao = dados_app.consultar("situacao", uf=uf)
         st.altair_chart(
             graficos.barras(
-                situacao,
-                categoria="situacao",
+                dados_app.consultar("responsavel", uf=uf),
+                categoria="tipo",
                 valor="obras",
-                titulo=f"Situação cadastral — {uf or 'Brasil'}",
-                subtitulo="dois terços das obras já estão encerradas",
-                destaque="Ativa",
+                titulo=f"Quem responde pela obra — {uf or 'Brasil'}",
+                subtitulo="a proporção varia por estado, e a coluna existe para permitir a dúvida",
+                destaque="PF",
                 rotulo_valor="obras",
             ),
             width="stretch",
