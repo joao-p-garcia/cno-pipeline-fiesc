@@ -95,6 +95,21 @@ resource "azurerm_role_assignment" "deploy_le_o_registry" {
   principal_id         = azurerm_user_assigned_identity.deploy.principal_id
 }
 
+# Reader na assinatura inteira, e não só no grupo.
+#
+# Parece excessivo para quem só empurra imagem, mas o `azure/login` faz
+# `az account set --subscription` logo depois de autenticar, e um principal sem
+# nenhum papel no escopo da assinatura não a enxerga para poder selecioná-la.
+# Sem isto o login falha antes de qualquer comando útil.
+#
+# Reader é leitura de metadados de recurso — não dá acesso a dado nenhum (é a
+# mesma separação control plane / data plane que faz Owner não ler blob).
+resource "azurerm_role_assignment" "deploy_enxerga_a_assinatura" {
+  scope                = "/subscriptions/${var.assinatura}"
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.deploy.principal_id
+}
+
 # Precisa poder trocar a tag da imagem no job e no app. `Contributor` no grupo
 # seria mais simples e é o que a maioria dos tutoriais faz; este papel é o
 # recorte certo, e o grupo inteiro continua fora do alcance dele.
