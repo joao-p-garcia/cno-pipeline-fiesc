@@ -11,6 +11,7 @@ import json
 import logging
 import sys
 
+from .bloqueio import SnapshotOcupado
 from .config import get_settings
 from .curate import ErroDeCuradoria, executar_curadoria
 from .extract import ErroDeExtracao, ErroDeFonte, HttpSource, carregar_ultimo
@@ -349,6 +350,9 @@ def main(argv: list[str] | None = None) -> int:
         ErroDeStaging,
         ErroDeValidacao,
         ErroDeCuradoria,
+        # Recusar rodar porque o snapshot está ocupado é falha esperada, não
+        # defeito: merece a mesma mensagem limpa e o mesmo código de saída.
+        SnapshotOcupado,
     ) as exc:
         # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
         # orquestrador marcar a task como falha sem um traceback inútil.

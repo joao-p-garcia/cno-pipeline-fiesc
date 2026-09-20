@@ -22,6 +22,7 @@ from pathlib import Path
 
 import duckdb
 
+from ..bloqueio import travar_snapshot
 from ..config import Settings
 from ..extract.manifest import agora_iso
 from ..utils import formatar_bytes
@@ -107,6 +108,29 @@ def executar_curadoria(settings: Settings, *, snapshot_id: str | None = None) ->
     snapshot = manifesto["snapshot_id"]
     staging = str(settings.staging_dir).replace("\\", "/")
 
+    # Mesma trava do `cno transform`, e de propósito: além de a curadoria poder
+    # atropelar a si mesma, ela **lê** a staging que o tratamento reescreve. Uma
+    # trava por etapa deixaria essa segunda corrida em pé. Snapshots diferentes
+    # têm travas diferentes e seguem em paralelo.
+    with travar_snapshot(settings.data_dir, snapshot, etapa="cno curate"):
+        resultado = _curar(settings, snapshot, staging, inicio)
+
+    log.info(
+        "curadoria concluída em %.1fs: %s obras, %.1f%% com ponto utilizável",
+        resultado.segundos_total,
+        f"{resultado.geo.obras:,}",
+        resultado.geo.cobertura_util * 100,
+    )
+    return resultado
+
+
+def _curar(
+    settings: Settings,
+    snapshot: str,
+    staging: str,
+    inicio: float,
+) -> ResultadoCuradoria:
+    """O corpo da curadoria, já sob a trava do snapshot."""
     con = _conectar(settings)
     try:
         con.execute(f"CREATE OR REPLACE TEMP VIEW base AS {sql_mod.sql_base(staging, snapshot)}")
@@ -163,13 +187,6 @@ def executar_curadoria(settings: Settings, *, snapshot_id: str | None = None) ->
         segundos_total=time.monotonic() - inicio,
     )
     _salvar_manifesto(settings, resultado)
-
-    log.info(
-        "curadoria concluída em %.1fs: %s obras, %.1f%% com ponto utilizável",
-        resultado.segundos_total,
-        f"{geo.obras:,}",
-        geo.cobertura_util * 100,
-    )
     return resultado
 
 

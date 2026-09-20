@@ -22,10 +22,9 @@ a esteira de dados.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 from airflow.sdk import dag, task
@@ -37,9 +36,30 @@ log = logging.getLogger(__name__)
 # em /opt/cno/analise; em desenvolvimento, o diretório do repositório.
 DIRETORIO_REFERENCIAS = Path(os.environ.get("CNO_REFERENCIAS_DIR", "/opt/cno/analise"))
 
-# Quantos dias antes do vencimento a DAG começa a avisar no log. Não falha ainda:
-# falhar cedo demais treina quem opera a ignorar o alerta.
-ANTECEDENCIA_AVISO = 60
+
+def _referencias():
+    """Carrega `analise/referencias.py` a partir do diretório instalado.
+
+    Por que `importlib` e não `import`: esta DAG roda no venv do **Airflow**, e
+    `analise/` não é pacote instalado nele — ela vive ao lado, no ambiente do
+    dashboard. O módulo é stdlib puro (json, datetime, pathlib), então carregá-lo
+    por caminho não arrasta dependência nenhuma para dentro do Airflow. É o mesmo
+    recurso que `tests/test_referencias.py` já usa.
+
+    Por que carregar em vez de reimplementar: a DAG **refazia** a conta de
+    validade. Havia três versões dela, e já discordavam — a DAG avisava com 60
+    dias, o gerador com 30, e os dois usavam relógios diferentes. Agora a conta é
+    uma só, e esta função só decide o que fazer com o número.
+    """
+    import importlib.util
+
+    caminho = DIRETORIO_REFERENCIAS / "referencias.py"
+    spec = importlib.util.spec_from_file_location("referencias_ibge_analise", caminho)
+    if spec is None or spec.loader is None:  # pragma: no cover - caminho inválido
+        raise RuntimeError(f"não foi possível carregar {caminho}")
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
 
 
 @dag(
@@ -70,19 +90,23 @@ def referencias_ibge():
         Isso mantém a DAG imune a instabilidade do IBGE — ela vigia o nosso
         arquivo, não o serviço deles.
         """
-        caminho = DIRETORIO_REFERENCIAS / "municipios.meta.json"
-
-        if not caminho.is_file():
-            # Ausência não é falha: significa que a camada de análise não foi
-            # instalada neste ambiente. Um pipeline de dados sem dashboard é uma
-            # implantação legítima, e marcar isso como erro seria ruído.
+        # Ausência não é falha: significa que a camada de análise não foi
+        # instalada neste ambiente. Um pipeline de dados sem dashboard é uma
+        # implantação legítima, e marcar isso como erro seria ruído.
+        modulo = DIRETORIO_REFERENCIAS / "referencias.py"
+        if not modulo.is_file():
             raise AirflowSkipException(
-                f"{caminho} não existe; a camada de análise não está instalada aqui"
+                f"{modulo} não existe; a camada de análise não está instalada aqui"
             )
 
-        meta = json.loads(caminho.read_text(encoding="utf-8"))
-        valido_ate = date.fromisoformat(meta["valido_ate"])
-        dias = (valido_ate - datetime.now().date()).days
+        referencias = _referencias()
+        if not referencias.ARQUIVO_META.is_file():
+            raise AirflowSkipException(
+                f"{referencias.ARQUIVO_META} não existe; a tabela nunca foi gerada aqui"
+            )
+
+        meta = referencias.metadados()
+        dias = referencias.dias_ate_vencer()
 
         log.info(
             "safra da população: %s (gerada em %s, válida até %s)",
@@ -102,7 +126,7 @@ def referencias_ibge():
                 "um denominador vencido."
             )
 
-        if dias <= ANTECEDENCIA_AVISO:
+        if dias <= referencias.DIAS_AVISO_VALIDADE:
             log.warning(
                 "a tabela de municípios vence em %d dias — vale regerar antes que "
                 "alguém apresente um número com denominador velho",

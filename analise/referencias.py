@@ -19,7 +19,7 @@ você escolhe o tamanho dela.**
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
@@ -61,9 +61,27 @@ def coluna_populacao() -> str:
     return f"populacao_{metadados()['safra_populacao']}"
 
 
+# Quantos dias antes do vencimento vale começar a avisar. Sessenta, e não
+# trinta, porque quem consome este aviso é uma DAG **mensal**: com trinta, o
+# vencimento poderia ser anunciado uma vez só antes de acontecer. Com sessenta,
+# há duas execuções de folga para alguém regerar a tabela.
+DIAS_AVISO_VALIDADE = 60
+
+
 def dias_ate_vencer() -> int:
+    """Dias até a safra da população vencer. Negativo se já venceu.
+
+    **A conta mora aqui e em nenhum outro lugar.** Ela já existiu em três
+    versões — esta, o `--verificar` do gerador e a DAG `referencias_ibge` — e as
+    três divergiam: a DAG avisava com 60 dias, o gerador com 30, e duas usavam
+    fuso local contra UTC. Nenhuma divergência dessas dá erro; elas só fazem o
+    alerta chegar em momentos diferentes conforme quem pergunta.
+
+    UTC porque o resto do projeto data tudo em UTC (o manifesto, o snapshot); um
+    dia a mais ou a menos num aviso não é grave, mas ter dois relógios é.
+    """
     meta = metadados()
-    return (date.fromisoformat(meta["valido_ate"]) - datetime.now().date()).days
+    return (date.fromisoformat(meta["valido_ate"]) - datetime.now(UTC).date()).days
 
 
 def sql_normalizar(coluna: str) -> str:
