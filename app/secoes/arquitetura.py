@@ -221,6 +221,8 @@ def render() -> None:
         ),
     )
 
+    _fronteira_externa()
+
     st.markdown("### O que eu não escolhi")
     st.dataframe(pd.DataFrame(NAO_ESCOLHIDOS), hide_index=True, width="stretch")
 
@@ -245,3 +247,63 @@ def render() -> None:
         )
 
     ui.rodape(*ui.vizinhos(__name__))
+
+
+def _fronteira_externa() -> None:
+    """Por que o IBGE não entra no pipeline.
+
+    Está em arquitetura, e não na seção que usa o denominador, porque é decisão
+    de fronteira: define o que o pipeline aceita processar. Quem vê o ranking
+    por mil habitantes mais adiante precisa saber de onde veio o divisor.
+    """
+    st.markdown("### O dado que vem de fora, e por que ele fica de fora")
+    st.markdown(
+        "A análise usa **população, nome e região do IBGE** para dividir obras por "
+        "habitante e desenhar o mapa. É a segunda fonte do projeto — e ela **não "
+        "entra no pipeline**. Entra na análise, como tabela de referência "
+        "versionada no repositório.\n\n"
+        "O motivo não é purismo. O pipeline tem uma garantia verificável: fonte "
+        "versionada por ETag e sha256, reconciliada contra os totais que a própria "
+        "Receita publica. **Dado externo não tem nada disso**, e misturar os dois "
+        "custa a garantia inteira:"
+    )
+    st.markdown(
+        "- **Proveniência.** CSV commitado envelhece em silêncio.\n"
+        "- **Safras misturadas na mesma linha.** Snapshot de 2026 dividido por "
+        "população de 2022 não é erro se estiver declarado; é erro grave se não "
+        "estiver.\n"
+        "- **Cadências diferentes.** A Receita publica de forma irregular, o IBGE "
+        "anualmente e com defasagem. Acoplar sincroniza o que não precisa andar "
+        "junto.\n"
+        "- **Peso do stack.** Geometria pediria DuckDB spatial ou geopandas. Hoje "
+        "o pipeline depende de `requests` e `duckdb`, e essa magreza é qualidade."
+    )
+
+    ui.decisao(
+        achado=(
+            "A Receita identifica município por **TOM de 4 dígitos** e o IBGE por "
+            "**código de 7**. A de-para entre os dois não vem em nenhuma das duas "
+            "fontes — então juntar exige uma ponte."
+        ),
+        risco=(
+            "Importar uma tabela TOM↔IBGE de terceiro parece o caminho curto, mas "
+            "troca um problema conhecido por um desconhecido: mais uma fonte sem "
+            "proveniência, para resolver um casamento que eu ainda teria de "
+            "conferir."
+        ),
+        decisao=(
+            "Junção por **(UF, nome normalizado)**, medida antes de decidir: casa "
+            "**5.555 de 5.572 municípios (99,7%)**. Os 17 que sobram são o conjunto "
+            "clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
+            "Livramento`, `BOA SAÚDE`/`Januário Cicco`, que foi renomeado. Viraram "
+            "um CSV de correções auditável linha a linha, com o motivo de cada uma, "
+            "e o casamento final é de **5.570 de 5.570**."
+        ),
+    )
+
+    st.markdown(
+        "É também por isso que existe a **segunda DAG**. A `referencias_ibge` roda "
+        "mensalmente, não acessa a rede e só verifica se a safra versionada ainda "
+        "vale. **Ela pode ficar vermelha sem afetar o pipeline** — que é exatamente "
+        "o desacoplamento que a separação das fontes comprou."
+    )
