@@ -120,6 +120,32 @@ def percentual(fracao: float, casas: int = 1) -> str:
     return numero(fracao * 100, casas) + "%"
 
 
+# A mesma troca de `numero`, escrita como expressão Vega, para os rótulos de
+# eixo - que são formatados no navegador, não em Python.
+#
+# **Por que não é o `formatLocale` do vega-embed.** Era, e não funcionava.
+# Aquela opção viaja em `usermeta.embedOptions`, e o Streamlit (1.64) filtra
+# esse objeto: mantém `theme`, `renderer` e `padding` e descarta o resto. O
+# carimbo saía do Python e morria no frontend - todo eixo do dashboard vinha
+# com vírgula de milhar, e nada acusava. Expressão é parte do spec, e spec
+# ninguém filtra.
+#
+# O `/g` não é detalhe: sem ele o `replace` do Vega troca só a primeira
+# ocorrência, e 1.000.000 sai como "1.000,000" - medido, renderizando. O `~`
+# é o pivô que impede a segunda troca de desfazer a primeira, como o
+# caractere nulo em `numero`; não aparece em número formatado.
+ROTULO_NUMERO_BR = (
+    "isNumber(datum.value)"
+    r" ? replace(replace(replace(format(datum.value, ','), /,/g, '~'), /\./g, ','),"
+    " /~/g, '.')"
+    " : datum.label"
+)
+
+# Eixo de ano opta por sair: `format(2019, ',')` devolveria "2.019". Quem
+# desenha um eixo de ano usa isto no lugar do default do tema.
+ROTULO_SEM_SEPARADOR = "datum.label"
+
+
 def rotular_barras(
     ax, valores, sufixo: str = "", casas: int = 0, deslocamento: float = 0.01
 ) -> None:
@@ -140,47 +166,62 @@ def rotular_barras(
         )
 
 
+def tema_altair() -> dict:
+    """O tema do dashboard, como dicionário.
+
+    Função de módulo, e não closure dentro de `registrar_altair`, para que possa
+    ser **lido sem ser aplicado**: há teste que confere que o eixo numérico
+    carrega a formatação brasileira, e um tema preso dentro do decorador só
+    existiria depois do efeito colateral de registrá-lo.
+    """
+    return {
+        "config": {
+            "background": SUPERFICIE,
+            "font": FONTE_CSS,
+            "view": {"stroke": "transparent", "continuousWidth": 640},
+            "title": {
+                "color": TINTA,
+                "fontSize": 13,
+                "fontWeight": 600,
+                "anchor": "start",
+                "offset": 12,
+                "subtitleColor": TINTA_SECUNDARIA,
+                "subtitleFontSize": 11,
+            },
+            "axis": {
+                "labelColor": CINZA,
+                "titleColor": TINTA_SECUNDARIA,
+                "labelFontSize": 11,
+                "titleFontSize": 11,
+                "domainColor": GRADE,
+                "tickColor": GRADE,
+                "gridColor": GRADE,
+                "gridWidth": 0.8,
+                "labelLimit": 220,
+                # Vale para todo eixo numérico do app. Ano é a exceção, e cada
+                # eixo de ano a declara — ver `ROTULO_SEM_SEPARADOR`.
+                "labelExpr": ROTULO_NUMERO_BR,
+            },
+            "legend": {
+                "labelColor": TINTA_SECUNDARIA,
+                "titleColor": TINTA_SECUNDARIA,
+                "labelFontSize": 11,
+                "titleFontSize": 11,
+                "symbolType": "square",
+                # `labelExpr` **não** entra aqui: existe em `Legend`, não em
+                # `LegendConfig`, e no tema seria config morta. Quem tem legenda
+                # numérica declara no próprio encoding — ver `graficos.mapa`.
+            },
+            "range": {"category": list(CATEGORICAS)},
+            "bar": {"color": AZUL, "cornerRadiusEnd": 3},
+            "line": {"color": AZUL, "strokeWidth": 2},
+            "point": {"color": AZUL, "size": 70, "filled": True},
+        }
+    }
+
+
 def registrar_altair() -> None:
     """Registra e ativa o tema do dashboard. Chamado uma vez, na subida do app."""
     import altair as alt
 
-    @alt.theme.register("cno", enable=True)
-    def _tema() -> alt.theme.ThemeConfig:
-        return {
-            "config": {
-                "background": SUPERFICIE,
-                "font": FONTE_CSS,
-                "view": {"stroke": "transparent", "continuousWidth": 640},
-                "title": {
-                    "color": TINTA,
-                    "fontSize": 13,
-                    "fontWeight": 600,
-                    "anchor": "start",
-                    "offset": 12,
-                    "subtitleColor": TINTA_SECUNDARIA,
-                    "subtitleFontSize": 11,
-                },
-                "axis": {
-                    "labelColor": CINZA,
-                    "titleColor": TINTA_SECUNDARIA,
-                    "labelFontSize": 11,
-                    "titleFontSize": 11,
-                    "domainColor": GRADE,
-                    "tickColor": GRADE,
-                    "gridColor": GRADE,
-                    "gridWidth": 0.8,
-                    "labelLimit": 220,
-                },
-                "legend": {
-                    "labelColor": TINTA_SECUNDARIA,
-                    "titleColor": TINTA_SECUNDARIA,
-                    "labelFontSize": 11,
-                    "titleFontSize": 11,
-                    "symbolType": "square",
-                },
-                "range": {"category": list(CATEGORICAS)},
-                "bar": {"color": AZUL, "cornerRadiusEnd": 3},
-                "line": {"color": AZUL, "strokeWidth": 2},
-                "point": {"color": AZUL, "size": 70, "filled": True},
-            }
-        }
+    alt.theme.register("cno", enable=True)(tema_altair)

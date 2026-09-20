@@ -39,12 +39,6 @@ def consultar(pergunta: str, **filtros):
     return getattr(dados, pergunta)(conexao(), **filtros)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def valor(sql: str):
-    """Escapatória para um número avulso que não justifica uma função nomeada."""
-    return conexao().valor(sql)
-
-
 @st.cache_data(show_spinner=False)
 def consultar_amostra() -> list[bytes]:
     """As linhas cruas do `cno.csv`, em bytes, como a Receita publica."""

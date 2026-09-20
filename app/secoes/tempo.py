@@ -20,8 +20,9 @@ def render() -> None:
         TITULO,
         "Obras por ano de início, sem filtro nenhum: 87.574 em 2016, 187.432 em 2018, "
         "**307.530 em 2019** — e então estabiliza em torno de 300 mil. **Triplicar em dois "
-        "anos e parar não é crescimento: é recadastramento.** O CNO substituiu a matrícula "
-        "CEI, e o cadastro absorveu de uma vez um estoque de obras antigas.",
+        "anos e parar não é crescimento: é o cadastro entrando no ar.** O CNO substituiu a "
+        "matrícula CEI e passou a valer em 21/01/2019; antes disso ele não existia, e obra "
+        "antiga só aparece aqui se alguém a registrou depois.",
     )
 
     serie = dados_app.consultar("obras_por_ano", desde=1995)
@@ -45,18 +46,26 @@ def render() -> None:
     ui.decisao(
         vi=(
             "Um degrau de 3,5× entre 2016 e 2019, seguido de patamar estável. Nenhuma "
-            "série econômica se comporta assim; cadastro migrado, sim."
+            "série econômica se comporta assim; cadastro entrando no ar, sim. A própria "
+            "base confirma: o registro mais antigo é de **19/11/2018**, na mesma semana "
+            "da IN que criou o CNO (22/11/2018), e 2018 inteiro tem 385 registros contra "
+            "366 mil em 2019. **O passado não foi absorvido de uma vez** — as obras "
+            "iniciadas "
+            "antes de 2019 entraram espalhadas por todos os anos desde então, e 45% da "
+            "base foi registrada mais de um ano depois de a obra começar."
         ),
         quebraria=(
-            "Qualquer frase do tipo *crescimento de X% desde 2016* estaria medindo mudança "
-            "de norma, não atividade econômica. É o erro que sobrevive à revisão, porque o "
-            "gráfico fica bonito e a conta está certa."
+            "Qualquer frase do tipo *crescimento de X% desde 2016* estaria medindo entrada "
+            "em vigor de norma, não atividade econômica. É o erro que sobrevive à revisão, "
+            "porque o gráfico fica bonito e a conta está certa. Pior: o passado **não é "
+            "estável** — cada snapshot novo acrescenta obras antigas registradas com "
+            "atraso, então a mesma série muda de valor sem que nada tenha sido construído."
         ),
         mudou=(
             "A coluna `serie_comparavel` marca o que começa em "
             f"{consultas.ANO_SERIE_COMPARAVEL} ou depois. O período anterior continua "
-            "acessível — com aviso, nunca apagado. A data exata da norma ainda precisa ser "
-            "confirmada antes de o corte virar afirmação pública."
+            "acessível — com aviso, nunca apagado. A data saiu da norma: **IN RFB 1.845, "
+            "de 22/11/2018**, com o CNO em vigor a partir de **21/01/2019**."
         ),
     )
 
@@ -101,6 +110,31 @@ def render() -> None:
             ),
             width="stretch",
         )
+        st.markdown("**A evidência do corte, na própria base**")
+        esquerda, direita = st.columns(2)
+        with esquerda:
+            st.caption("quando as obras entraram no cadastro (`data_registro`)")
+            st.dataframe(
+                dados_app.consultar("entrada_no_cadastro"), hide_index=True, width="stretch"
+            )
+        with direita:
+            st.caption(
+                f"e quando entraram as que **começaram antes de {consultas.ANO_SERIE_COMPARAVEL}**"
+            )
+            st.dataframe(
+                dados_app.consultar("registro_de_obras_antigas"),
+                hide_index=True,
+                width="stretch",
+            )
+        st.dataframe(dados_app.consultar("atraso_de_registro"), hide_index=True, width="stretch")
+        st.caption(
+            "A tabela da esquerda data o cadastro sem depender da norma: nada antes de "
+            "19/11/2018. A da direita desmente a migração em bloco — se o CNO tivesse "
+            "absorvido o estoque do CEI de uma vez, esta coluna seria quase toda 2019, e "
+            "2021 tem mais. Registrar obra atrasada é rotina: 45% da base entrou mais de "
+            "um ano depois de a obra começar."
+        )
+
         st.markdown("**O que fica fora de qualquer série**")
         st.dataframe(dados_app.consultar("datas_ausentes"), hide_index=True, width="stretch")
         st.caption(

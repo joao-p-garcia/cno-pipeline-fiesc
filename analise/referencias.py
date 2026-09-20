@@ -24,6 +24,10 @@ from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
 
+# Os quatro artefatos que `construir_municipios.py` gera. Ficam declarados num
+# lugar só porque quem os escreve, quem os lê e quem checa a validade são módulos
+# diferentes: com uma cópia em cada um, renomear um arquivo não dá erro — dá o
+# caminho de ausência, que diz "gere com o script" sobre um arquivo que existe.
 ARQUIVO_MUNICIPIOS = AQUI / "municipios.csv"
 ARQUIVO_CORRECOES = AQUI / "correcoes_municipios.csv"
 ARQUIVO_MALHA = AQUI / "malha_municipios.geojson.gz"

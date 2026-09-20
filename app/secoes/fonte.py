@@ -29,7 +29,7 @@ def render() -> None:
             ("linhas na origem", "12,5 M", "somando as quatro tabelas"),
             (
                 "obras",
-                estilo.numero(dados_app.valor("SELECT sum(n_obras) FROM municipio_ano")),
+                estilo.numero(dados_app.consultar("total_obras")),
                 None,
             ),
             ("tempo até a camada curada", "~6,5 min", "a frio, em container, do zero ao dashboard"),

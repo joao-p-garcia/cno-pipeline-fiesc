@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pandas as pd
 import streamlit as st
 
+from analise import dados as consultas
 from analise import estilo, malha
 
 from .. import componentes as ui
@@ -28,21 +28,12 @@ def render() -> None:
         "base geocodificada*. **O caminho até o número honesto tem três degraus.**",
     )
 
-    geo = dados_app.consultar("perfil_geo")
-    total = int(geo["pontos"].sum())
-    com_mais = int(
-        dados_app.valor("SELECT count(*) FROM obras WHERE contains(codigo_localizacao, '+')")
-    )
-    decodificaram = int(geo.loc[geo["origem"] != "sem código utilizável", "pontos"].sum())
-    plausiveis = int(geo["plausiveis"].sum())
-
-    funil = pd.DataFrame(
-        {
-            "etapa": ["contém um '+'", "decodifica de fato", "cai no município certo"],
-            "obras": [com_mais, decodificaram, plausiveis],
-        }
-    )
-    funil["% da base"] = (funil["obras"] / total * 100).round(1)
+    # Os três degraus vêm de `dados.funil_geocodificacao`, não de três contagens
+    # remontadas aqui: é o número mais citado da narrativa, e o caderno mostra
+    # exatamente este. Duas cópias do mesmo SQL divergiriam em silêncio.
+    funil = dados_app.consultar("funil_geocodificacao")
+    total = dados_app.consultar("total_obras")
+    com_mais, decodificaram, plausiveis = (int(v) for v in funil["obras"])
 
     st.altair_chart(
         graficos.barras(
@@ -83,7 +74,8 @@ def render() -> None:
         ),
         mudou=(
             "Existem duas colunas: `geo_distancia_municipio_km`, com a distância até a "
-            "mediana do município, e `geo_plausivel`, que corta em 150 km. O ponto errado "
+            "mediana do município, e `geo_plausivel`, que corta em "
+            f"{consultas.LIMITE_PLAUSIVEL_KM} km. O ponto errado "
             "**continua gravado** — quem plota filtra por `geo_plausivel`, quem investiga "
             "tem o caso na mão. A cobertura publicada é 41,2%."
         ),
@@ -109,7 +101,7 @@ def render() -> None:
     # A malha e a tabela de municípios saem do mesmo gerador, mas o mapa depende
     # das duas: uma dá o desenho, a outra dá o prefixo de UF do IBGE.
     if malha.disponivel() and dados_app.metadados_referencia() and not pontos.empty:
-        prefixo = _prefixo_ibge(pontos)
+        prefixo = dados_app.consultar("prefixo_ibge", uf=uf)
         st.altair_chart(
             graficos.mapa(
                 pontos,
@@ -136,7 +128,7 @@ def render() -> None:
                 categoria="faixa",
                 valor="pontos",
                 titulo="Distância entre o ponto decodificado e a mediana do município",
-                destaque="até 150 km (plausível)",
+                destaque=f"até {consultas.LIMITE_PLAUSIVEL_KM} km (plausível)",
                 rotulo_valor="pontos",
                 ordenar=False,
             ),
@@ -150,14 +142,3 @@ def render() -> None:
         )
 
     ui.rodape(anterior="A soma que mente", proxima="A série que triplica")
-
-
-def _prefixo_ibge(pontos: pd.DataFrame) -> str:
-    """Descobre o prefixo de UF do IBGE a partir dos municípios já casados.
-
-    Vem do dado, não de um dicionário de 27 linhas escrito à mão: a tabela de
-    referência já sabe qual código pertence a qual UF.
-    """
-    uf = pontos["uf"].iloc[0]
-    codigo = dados_app.valor(f"SELECT min(codigo_ibge)::VARCHAR FROM municipios WHERE uf = '{uf}'")
-    return str(codigo)[:2]

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import altair as alt
 import streamlit as st
 
+from analise import dados as consultas
 from analise import estilo
 
 from .. import componentes as ui
@@ -28,12 +28,17 @@ def render() -> None:
     certo = float(decomposicao["km2"].iloc[-1])
 
     st.altair_chart(
-        _grafico_decomposicao(decomposicao),
+        graficos.decomposicao_log(
+            decomposicao,
+            titulo="Quantos km² esta base soma — quatro respostas, uma certa",
+            subtitulo="as duas do meio isolam um problema cada; a última aplica os dois",
+        ),
         width="stretch",
     )
     st.caption(
         "Escala logarítmica: sem ela, a resposta certa vira um traço invisível ao lado "
-        "da errada. Cada barra acrescenta um filtro à anterior."
+        "da errada. As duas linhas do meio isolam um problema cada — a unidade "
+        "misturada e a área implausível —, e a última aplica os dois."
     )
 
     ui.numeros(
@@ -84,7 +89,8 @@ def render() -> None:
             titulo="Área construída por obra",
             subtitulo=(
                 f"mediana {estilo.numero(mediana)} m² · média {estilo.numero(media)} m² — "
-                "tudo acima de 1.000 m² empilhado na última barra"
+                f"tudo acima de {estilo.numero(consultas.TETO_HISTOGRAMA_M2)} m² "
+                "empilhado na última barra"
             ),
             mediana=mediana,
         ),
@@ -131,49 +137,3 @@ def render() -> None:
         )
 
     ui.rodape(anterior="O nulo que não é dado faltante", proxima="O endereço vem em Plus Code")
-
-
-# Início do eixo logarítmico. A escala precisa dele: os quatro valores vão de
-# 2.839 a 887.114 km², e numa escala linear a resposta certa vira um traço
-# invisível ao lado da errada.
-PISO_LOG_KM2 = 1_000
-
-
-def _grafico_decomposicao(decomposicao) -> alt.LayerChart:
-    """Régua com ponta, em escala logarítmica, com a resposta certa em azul.
-
-    Não são barras. Barra mede a partir do zero, e o zero não existe em escala
-    logarítmica — em Vega-Lite isso não dá erro, dá um gráfico vazio. A régua
-    declara de onde parte (`PISO_LOG_KM2`) e o ponto marca onde chega.
-    """
-    tabela = decomposicao.assign(
-        _rotulo=decomposicao["km2"].map(lambda v: f"{estilo.numero(v)} km²"),
-        _certa=decomposicao["ordem"] == decomposicao["ordem"].max(),
-        _piso=PISO_LOG_KM2,
-    )
-    cor = alt.condition(alt.datum._certa, alt.value(estilo.AZUL), alt.value(estilo.CINZA))
-    base = alt.Chart(tabela).encode(
-        y=alt.Y("criterio:N", title=None, sort=list(tabela["criterio"])),
-        x=alt.X(
-            "km2:Q",
-            title="km² (escala logarítmica)",
-            scale=alt.Scale(type="log", domain=[PISO_LOG_KM2, 3_000_000]),
-        ),
-        tooltip=[
-            alt.Tooltip("criterio:N", title="critério"),
-            alt.Tooltip("km2:Q", title="km²", format=",.1f"),
-        ],
-    )
-    reguas = base.mark_rule(strokeWidth=6, strokeCap="round").encode(x2="_piso:Q", color=cor)
-    pontos = base.mark_point(filled=True, size=160, opacity=1).encode(color=cor)
-    rotulos = base.mark_text(
-        align="left", dx=14, fontSize=11, color=estilo.TINTA_SECUNDARIA
-    ).encode(text="_rotulo:N")
-    return alt.layer(reguas, pontos, rotulos).properties(
-        title=alt.TitleParams(
-            "Quantos km² esta base soma — quatro respostas, uma certa",
-            subtitle="cada linha acrescenta um filtro à anterior",
-            anchor="start",
-        ),
-        height=150,
-    )

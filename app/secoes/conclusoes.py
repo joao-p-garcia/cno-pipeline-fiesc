@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from analise import dados as consultas
 from analise import estilo
 
 from .. import componentes as ui
@@ -124,7 +125,11 @@ def _denominador() -> None:
 
     with ui.explorar("Ver o ranking completo, por UF"):
         uf = ui.seletor_uf("uf_conclusoes")
-        comparavel = st.toggle("Só a série comparável (2019+)", value=True, key="comp_conclusoes")
+        comparavel = st.toggle(
+            f"Só a série comparável ({consultas.ANO_SERIE_COMPARAVEL}+)",
+            value=True,
+            key="comp_conclusoes",
+        )
         tabela = dados_app.consultar("municipios", uf=uf, comparavel=comparavel)
         st.dataframe(
             tabela[
@@ -151,7 +156,7 @@ def _denominador() -> None:
 
 def _destinacao() -> None:
     st.markdown("### Para que serve a obra")
-    destinos = dados_app.consultar("destinacoes", limite=8)
+    destinos = dados_app.consultar("destinacoes").head(8)
     st.altair_chart(
         graficos.barras(
             destinos,
@@ -166,7 +171,7 @@ def _destinacao() -> None:
     )
     with ui.explorar("Ver destinação e tamanho típico por UF"):
         uf = ui.seletor_uf("uf_destinacao")
-        tabela = dados_app.consultar("destinacoes", uf=uf, limite=12)
+        tabela = dados_app.consultar("destinacoes", uf=uf).head(12)
         st.dataframe(
             tabela.assign(
                 obras=tabela["obras"].map(estilo.numero),

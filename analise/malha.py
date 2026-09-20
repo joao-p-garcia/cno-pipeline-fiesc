@@ -19,10 +19,8 @@ import gzip
 import json
 import math
 from functools import lru_cache
-from pathlib import Path
 
-AQUI = Path(__file__).resolve().parent
-ARQUIVO_MALHA = AQUI / "malha_municipios.geojson.gz"
+from .referencias import ARQUIVO_MALHA
 
 # O código do IBGE começa com dois dígitos que identificam a UF. É o que permite
 # filtrar a malha sem carregar uma segunda tabela de-para.

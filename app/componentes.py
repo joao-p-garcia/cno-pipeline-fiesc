@@ -48,13 +48,14 @@ def cabecalho() -> None:
     colunas[0].caption("snapshot da Receita Federal")
     colunas[0].markdown(f"**{curada.snapshot}**")
 
-    obras = dados_app.valor("SELECT sum(n_obras) FROM municipio_ano")
+    # As duas medidas saem de uma varredura só, e são as mesmas que a seção 1
+    # exibe: o cabeçalho não pode discordar do corpo da página.
+    totais = dados_app.consultar("totais_do_cabecalho")
     colunas[1].caption("obras")
-    colunas[1].markdown(f"**{estilo.numero(obras)}**")
+    colunas[1].markdown(f"**{estilo.numero(totais['obras'])}**")
 
-    municipios = dados_app.valor("SELECT count(DISTINCT codigo_municipio) FROM municipio_ano")
     colunas[2].caption("municípios")
-    colunas[2].markdown(f"**{estilo.numero(municipios)}**")
+    colunas[2].markdown(f"**{estilo.numero(totais['municipios'])}**")
 
     colunas[3].caption("referência do IBGE")
     if meta:
