@@ -16,7 +16,7 @@ TITULO = "A série que triplica"
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 5 de 6",
+        ui.posicao(__name__),
         TITULO,
         "Obras por ano de início, sem filtro nenhum: 87.574 em 2016, 187.432 em 2018, "
         "**307.530 em 2019** — e então estabiliza em torno de 300 mil. **Triplicar em dois "
@@ -142,4 +142,4 @@ def render() -> None:
             "sentinela como 1900-01-01. Elas continuam na base, fora do recorte temporal."
         )
 
-    ui.rodape(anterior="O endereço vem em Plus Code", proxima="O que dá para afirmar")
+    ui.rodape(*ui.vizinhos(__name__))

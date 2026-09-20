@@ -27,7 +27,7 @@ streamlit = pytest.importorskip(
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 RAIZ = Path(__file__).resolve().parents[1]
-SECOES = ("fonte", "nulos", "area", "geo", "tempo", "conclusoes")
+SECOES = ("fonte", "tabelas", "nulos", "area", "geo", "tempo", "camadas", "conclusoes")
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +84,7 @@ def test_secao_renderiza_sem_excecao(secao, camada_curada, tmp_path):
 
 
 def test_app_inteiro_sobe(camada_curada, tmp_path):
-    """A navegação em si: seis páginas, e nenhuma pode colidir de URL."""
+    """A navegação em si: oito páginas, e nenhuma pode colidir de URL."""
     app = AppTest.from_file(str(RAIZ / "app" / "dashboard.py"), default_timeout=120)
     app.run()
     assert not app.exception, [str(e.value) for e in app.exception]

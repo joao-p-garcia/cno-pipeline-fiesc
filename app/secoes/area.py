@@ -16,7 +16,7 @@ TITULO = "A soma que mente"
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 3 de 6",
+        ui.posicao(__name__),
         TITULO,
         "Pergunta de primeiro slide: *quantos metros quadrados esta base soma?* "
         "`SUM(area_total)` responde na hora — e responde errado, por **dois motivos "
@@ -136,4 +136,4 @@ def render() -> None:
             width="stretch",
         )
 
-    ui.rodape(anterior="O nulo que não é dado faltante", proxima="O endereço vem em Plus Code")
+    ui.rodape(*ui.vizinhos(__name__))

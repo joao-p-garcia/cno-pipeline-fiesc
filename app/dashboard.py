@@ -26,11 +26,15 @@ RAIZ = Path(__file__).resolve().parents[1]
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from importlib import import_module  # noqa: E402
+
 from analise import dados  # noqa: E402
 from app import componentes as ui  # noqa: E402
-from app.secoes import area, conclusoes, fonte, geo, nulos, tempo  # noqa: E402
 
-SECOES = (fonte, nulos, area, geo, tempo, conclusoes)
+# A ordem vive em `componentes.ORDEM`, junto das funções que numeram as seções e
+# nomeiam os vizinhos do rodapé. Aqui só se resolve nome de módulo para módulo:
+# uma lista só manda na narrativa inteira.
+SECOES = tuple(import_module(f"app.secoes.{nome}") for nome in ui.ORDEM)
 
 
 def _sem_dados(erro: Exception) -> None:

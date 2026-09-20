@@ -19,7 +19,7 @@ POPULACAO_MINIMA = 10_000
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 6 de 6",
+        ui.posicao(__name__),
         TITULO,
         "Com as cinco decisões anteriores no lugar, os números abaixo são defensáveis. "
         "**Nenhum deles seria, sem elas.**",
@@ -30,7 +30,7 @@ def render() -> None:
     _destinacao()
     _limites()
 
-    ui.rodape(anterior="A série que triplica")
+    ui.rodape(*ui.vizinhos(__name__))
 
 
 def _setor() -> None:

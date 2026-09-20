@@ -24,6 +24,45 @@ from analise import estilo
 
 from . import dados_app
 
+# A ordem da narrativa, e a **única** fonte dela. A numeração do topo de cada
+# seção, os vizinhos do rodapé e as páginas do `st.navigation` saem daqui.
+#
+# Antes cada seção escrevia `"Seção 3 de 6"` e o nome do vizinho à mão. Com seis
+# seções já eram doze lugares para desencontrar; a primeira mudança de ordem
+# deixaria metade do app mentindo sobre onde o leitor está — e mentira de
+# navegação é do tipo que ninguém reporta, só desorienta.
+ORDEM = ("fonte", "tabelas", "nulos", "area", "geo", "tempo", "camadas", "conclusoes")
+
+
+def _titulo_de(modulo: str) -> str:
+    """O `TITULO` de uma seção, importada sob demanda.
+
+    O import é adiado de propósito: `componentes` é importado por toda seção no
+    topo, e importar as seções aqui em cima fecharia o ciclo. Dentro da função
+    ele só roda quando a página está sendo desenhada, com tudo já carregado.
+    """
+    from importlib import import_module
+
+    return import_module(f".secoes.{modulo}", package=__package__).TITULO
+
+
+def _nome_curto(modulo: str) -> str:
+    """`app.secoes.geo` -> `geo`. É o que as seções passam como `__name__`."""
+    return modulo.rsplit(".", 1)[-1]
+
+
+def posicao(modulo: str) -> str:
+    """ "Seção 4 de 8", calculado a partir de `ORDEM`."""
+    return f"Seção {ORDEM.index(_nome_curto(modulo)) + 1} de {len(ORDEM)}"
+
+
+def vizinhos(modulo: str) -> tuple[str | None, str | None]:
+    """Títulos da seção anterior e da próxima, ou `None` nas pontas."""
+    i = ORDEM.index(_nome_curto(modulo))
+    anterior = _titulo_de(ORDEM[i - 1]) if i > 0 else None
+    proxima = _titulo_de(ORDEM[i + 1]) if i < len(ORDEM) - 1 else None
+    return anterior, proxima
+
 
 def configurar_pagina() -> None:
     st.set_page_config(

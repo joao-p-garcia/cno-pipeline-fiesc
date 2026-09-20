@@ -20,7 +20,7 @@ UF_PADRAO = "SC"
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 4 de 6",
+        ui.posicao(__name__),
         TITULO,
         "`Código de localização` traz um **Plus Code** (Open Location Code, do Google) em "
         "2,1 milhões de registros. Dá para geocodificar a base inteira sem nenhum serviço "
@@ -141,4 +141,4 @@ def render() -> None:
             width="stretch",
         )
 
-    ui.rodape(anterior="A soma que mente", proxima="A série que triplica")
+    ui.rodape(*ui.vizinhos(__name__))

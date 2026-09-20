@@ -15,7 +15,7 @@ TITULO = "O nulo que não é dado faltante"
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 2 de 6",
+        ui.posicao(__name__),
         TITULO,
         "`NI do responsável` está vazio em **dois terços** das obras. A leitura "
         "automática é *coluna suja: imputar ou descartar*. A leitura certa está no "
@@ -91,4 +91,4 @@ def render() -> None:
             width="stretch",
         )
 
-    ui.rodape(anterior="O dado como ele chega", proxima="A soma que mente")
+    ui.rodape(*ui.vizinhos(__name__))

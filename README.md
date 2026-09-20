@@ -11,8 +11,7 @@ somando as quatro tabelas.
 
 ## Rodar
 
-O caminho recomendado é o Docker: não pede Python, Airflow nem Postgres na
-máquina, e é idêntico em qualquer sistema. Ache a sua linha:
+Caso seu sistema operacional não seja Linux, recomendo usar Docker Desktop.
 
 | Sua máquina | Comando |
 |---|---|
@@ -21,9 +20,7 @@ máquina, e é idêntico em qualquer sistema. Ache a sua linha:
 | **Linux** ou **WSL2** + Docker | `make up`, ou o mesmo `docker compose up -d --build` |
 | qualquer sistema, sem Docker | [Sem Docker](#sem-docker), abaixo |
 
-`make` não existe no Windows, e os alvos de container do Makefile são apenas
-atalhos de uma linha para o `docker compose` — por isso as duas colunas dizem a
-mesma coisa.
+`make` : tem uma Makefile, mas Make não funciona no Windows. Se estiver no Linux, pode usar pra facilitar.
 
 ### Com Docker
 
@@ -33,6 +30,7 @@ docker compose up -d --build
 
 Sobe Airflow 3.3.2 + Postgres + o dashboard, e a DAG **começa a rodar sozinha**:
 baixa os ~315 MB, trata, valida e cura. Primeira execução ~6,5 min.
+Acompanhe o funcionamento nos localhost abaixo:
 
 | Onde | O quê |
 |---|---|
@@ -49,7 +47,7 @@ Equivalentes no Makefile, para quem está em Linux ou WSL2: `make logs`,
 `make down`, `make down-tudo`, `make dag-run`.
 
 **Se `docker` não for reconhecido:** no Windows, isso significa que falta o
-Docker Desktop — ou que o Docker está instalado só dentro de uma distro WSL, e
+Docker Desktop (ou você esqueceu de abrir), ou que o Docker está instalado só dentro de uma distro WSL, e
 nesse caso os comandos acima precisam ser dados de dentro do WSL. Numa distro
 WSL com engine nativo, o daemon costuma começar parado: `sudo systemctl start
 docker` antes de subir a stack.
@@ -190,7 +188,7 @@ e três marts pré-agregados.
 ### A análise
 
 ```bash
-make dashboard    # a entrega: seis seções, na ordem em que as decisões surgiram
+make dashboard    # a entrega: oito seções, na ordem em que as decisões surgiram
 make notebook     # o caminho: reexecuta analise/exploracao.ipynb com as saídas
 ```
 
@@ -201,12 +199,14 @@ controles para explorar.
 
 | Seção | O achado |
 |---|---|
-| 1. O dado como ele chega | 315 MB, cp1252 — e a fonte publicando o próprio gabarito |
-| 2. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas |
-| 3. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
-| 4. O endereço vem em Plus Code | cobertura honesta de **41,2%**, não os 59% aparentes |
-| 5. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar |
-| 6. O que dá para afirmar | e, explicitamente, o que **não** dá |
+| 1. O dado como ele chega | 315 MB em cp1252 — e ler com o encoding errado **não dá erro** |
+| 2. As quatro tabelas | 1 linha por obra em `cno.csv`, N nas outras três — e a fonte publicando o próprio gabarito |
+| 3. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas |
+| 4. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
+| 5. O endereço vem em Plus Code | cobertura honesta de **41,2%**, não os 59% aparentes |
+| 6. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar |
+| 7. Das tabelas às camadas | onde cada decisão das seções anteriores foi parar |
+| 8. O que dá para afirmar | e, explicitamente, o que **não** dá |
 
 O caderno (`analise/exploracao.ipynb`) está versionado **com as saídas**, para
 ser lido sem ser executado.
