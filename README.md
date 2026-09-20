@@ -1,805 +1,194 @@
 # cno-pipeline-fiesc
 
 Pipeline de extração e tratamento da base do **CNO — Cadastro Nacional de Obras**
-da Receita Federal.
+da Receita Federal, com análise descritiva em cima da camada tratada.
 
-> **Status:** entrega completa. Extração, tratamento, validação, orquestração,
-> camada curada e análise estão no ar; a stack sobe inteira com um comando e
-> inclui o dashboard. Veja [Roadmap](#roadmap).
+Do `.zip` publicado pela Receita até um dashboard narrativo, sem download manual
+e sem passo manual nenhum no meio. **3,6 milhões de obras**, 12,5 M de linhas
+somando as quatro tabelas.
 
-A entrega tem duas pontas: uma **esteira de dados** que vai do zip publicado pela
-Receita até uma camada curada reconciliada contra a própria fonte, e uma
-**análise narrativa** em cima dela — um dashboard em seis seções que conta o que
-o dado ensinou sobre como construir o sistema, e um notebook versionado com as
-saídas que registra como cada achado apareceu.
+---
 
-## Requisitos
+## Rodar
 
-Python 3.11+  (por enquanto, em construção). Utilizar o pyproject.toml para baixar as libs necessárias.
-
-Para rodar em container, só Docker com Compose v2 — nem Python nem Airflow
-precisam existir na máquina. Veja [Em container](#em-container).
-
-## Como executar
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-```
-
-Para abrir a análise, instale também os extras dela:
-
-```bash
-pip install -e ".[dashboard]"   # o dashboard
-pip install -e ".[notebook]"    # e, opcionalmente, o caderno de exploração
-```
-
-Consultar a fonte sem baixar nada (faz só um `HEAD`):
-
-```bash
-cno info
-```
-
-Baixar e materializar a camada raw (~315 MB comprimidos, ~1,4 GB extraídos):
-
-```bash
-cno extract
-```
-
-Rodar de novo não baixa nada: se o ETag da fonte bate com o do manifesto local (ou seja, comparamos os metadados para saber se houve dados novos ou não) e
-os arquivos conferem, a etapa é pulada. Para forçar, `cno extract --force`.
-
-Tratar os dados e materializar a camada staging em parquet (~20s para os 12,5 M
-de linhas das quatro tabelas):
-
-```bash
-cno transform
-```
-
-Validar a camada tratada e reconciliar com os totais da Receita (~6s):
-
-```bash
-cno validate
-```
-
-Sai com código 1 se houver divergência de reconciliação ou violação de regra com
-severidade de erro — é o que faz a task falhar no orquestrador.
-
-Modelar a camada curada, que é o que a análise e o dashboard consomem (~35s):
-
-```bash
-cno curate
-```
-
-Ela produz uma linha por obra em `obras_analitico` e três marts pré-agregados.
-É também onde a geocodificação acontece, a partir do Plus Code, sem serviço
-externo.
-
-Testes (não tocam a rede, rodam em segundos):
-
-```bash
-pytest
-```
-
-O pipeline inteiro de uma vez:
-
-```bash
-make pipeline      # extract -> transform -> validate
-```
-
-Deixei uma MAKEFILE para facilitar rodar o código. `make help` lista tudo
-(`setup`, `info`, `extract`, `transform`, `validate`, `pipeline`, `test`,
-`test-dag`, `lint`, `fmt`, `clean`).
-
-### Orquestração
-
-A DAG vive em `dags/cno_pipeline_dag.py` e encadeia as três etapas. Para rodar
-localmente é preciso um venv separado com o Airflow:
-
-```bash
-python3 -m venv ~/.venvs/airflow
-~/.venvs/airflow/bin/pip install "apache-airflow==3.3.2"   --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
-
-export AIRFLOW_HOME=~/airflow
-export AIRFLOW__CORE__DAGS_FOLDER=$PWD/dags
-export CNO_BIN=$PWD/.venv/bin/cno
-~/.venvs/airflow/bin/airflow db migrate
-~/.venvs/airflow/bin/airflow dags test cno_pipeline
-```
-
-Os testes da DAG rodam com `make test-dag`.
-
-### Em container
-
-Se a ideia for só ver tudo funcionando, sem instalar Python, Airflow nem
-Postgres, tem Docker:
+### Com Docker (não precisa de Python nem Airflow)
 
 ```bash
 make up
 ```
 
-Isso constrói a imagem, sobe Airflow 3.3.2 com LocalExecutor sobre Postgres e
-deixa duas coisas no ar:
+Sobe Airflow 3.3.2 + Postgres + o dashboard, e a DAG **começa a rodar sozinha**:
+baixa os ~315 MB, trata, valida e cura. Primeira execução ~6,5 min.
 
 | Onde | O quê |
 |---|---|
-| <http://localhost:8080> | a UI do Airflow (usuário `airflow`, senha `airflow`) |
-| <http://localhost:8501> | o **dashboard narrativo**, lendo o mesmo volume |
+| <http://localhost:8080> | Airflow (`airflow` / `airflow`) |
+| <http://localhost:8501> | o dashboard da análise |
 
-O dashboard sobe junto e não espera a DAG: enquanto a primeira execução não
-termina, ele mostra qual comando rodar; quando a camada curada aparece no volume,
-ele passa a responder sozinho, sem reiniciar nada. O volume é montado nele como
-**somente leitura** — quem publica número não escreve dado.
+`make down` derruba preservando os dados; `make down-tudo` apaga os volumes.
 
-A DAG sobe despausada e **começa a rodar sozinha**, sem nenhum passo a mais:
-baixa os ~315 MB da Receita, trata as 12,5 M de linhas e valida o resultado.
-Medido nesta stack, a primeira execução leva 2m13s (1m37s só de download) e as
-seguintes 31s, porque a extração reaproveita o snapshot. Para disparar de novo:
-`make dag-run`, ou o botão na UI.
-
-Se preferir que nada rode até você mandar, ponha
-`AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'` no `docker-compose.yml`.
+### Sem Docker
 
 ```bash
-make logs        # acompanha a execução
-make ps          # estado dos serviços
-make down        # derruba, preservando os dados já materializados
-make down-tudo   # derruba e apaga os volumes também
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,dashboard]"
+
+make pipeline     # extract -> transform -> validate -> curate
+make dashboard    # http://localhost:8501
 ```
 
-Para rodar o pipeline sem orquestrador nenhum, em containers efêmeros que
-escrevem no mesmo volume:
+Ou etapa por etapa, que é como a DAG as invoca:
 
 ```bash
-make docker-pipeline                      # extract -> transform -> validate
-docker compose run --rm cno info          # ou uma etapa isolada
+cno info        # compara com a fonte sem baixar nada (só um HEAD)
+cno extract     # camada raw (~315 MB comprimidos, 1,4 GB extraídos)
+cno transform   # camada staging em parquet tipado e particionado  (~20s)
+cno validate    # 19 regras + reconciliação com os totais da Receita (~6s)
+cno curate      # camada curada: tabela analítica e três marts      (~35s)
 ```
 
-As camadas de dados ficam num volume Docker (`cno-dados`), não no repositório.
-Isso mantém o clone limpo e evita o custo de I/O de escrever 1,4 GB numa pasta
-montada do host.
+`cno extract` é idempotente: se o ETag da fonte bate com o do manifesto local e
+os arquivos conferem, não baixa nada. `cno validate` sai com código 1 se houver
+divergência — é o que faz a task falhar no orquestrador.
 
-O container é o empacotamento da entrega, não o ambiente de desenvolvimento —
-para desenvolver, `make pipeline` roda direto e sem esperar build.
+**Configuração** é opcional: sem nada, o pipeline usa `./data`. Para mudar, copie
+`.env.exemplo` para `.env`. A variável que mais importa é `CNO_DATA_DIR`, útil em
+WSL para manter os 1,4 GB fora de `/mnt/c`.
 
-### Camada de análise e a tabela do IBGE
-
-O pipeline processa **uma fonte só**: o CNO da Receita. Município, população e
-malha territorial vêm do IBGE e ficam **fora** do pipeline, em `analise/`, como
-tabela de referência versionada:
-
-```
-analise/
-├── construir_municipios.py     gera os arquivos abaixo a partir das APIs do IBGE
-├── municipios.csv              5.571 municípios: código, UF, região, população, centroide
-├── correcoes_municipios.csv    as 17 divergências de nome, escritas à mão
-├── malha_municipios.geojson.gz malha municipal para o mapa (792 KB)
-└── referencias.py              a junção, usada igual pelo notebook e pelo dashboard
-```
-
-> ### ⚠️ Regerar uma vez por ano
->
-> A população é a estimativa anual do IBGE, publicada por volta de **agosto**.
-> Os arquivos declaram a própria validade em `municipios.meta.json`, e a partir
-> dela **nada depende da memória de ninguém**:
->
-> ```bash
-> python analise/construir_municipios.py --verificar   # falha se a safra venceu
-> python analise/construir_municipios.py               # regera e atualiza a validade
-> ```
->
-> A DAG **`referencias_ibge`** vigia a mesma validade mensalmente e falha
-> quando a safra vence — e falha no Airflow é o que dispara o alerta. Ela não
-> executa o script: carrega `analise/referencias.py` e chama
-> `dias_ate_vencer()`, a **mesma** função que o `--verificar` usa. A conta
-> existia em três cópias que já discordavam entre si (avisavam com 60 e com 30
-> dias, em relógios diferentes); agora é uma só. Ela é uma DAG **separada** de
-> propósito: pode ficar vermelha sem afetar a `cno_pipeline`.
->
-> Enquanto não for regerada, todo número per capita usa um denominador vencido.
-
-**Por que fora do pipeline:** uma indisponibilidade do IBGE não pode derrubar uma
-esteira que não precisa do IBGE para nada; a DAG roda diariamente e o IBGE
-publica uma vez por ano; e trocar a safra é trocar um arquivo de 400 KB em vez de
-reprocessar 3,6 M de linhas. Ver [Fronteira de dados externos](#fronteira-de-dados-externos).
-
-### A análise: um dashboard narrativo e um caderno
-
-A entrega da análise **é o dashboard**. Ele não é um painel de filtros: é uma
-história em seis seções, na ordem em que as decisões de engenharia foram tomadas.
+### Testes
 
 ```bash
-make dashboard      # http://localhost:8501
+make test       # 232 testes, offline, em segundos
+make test-dag   # 15 testes das DAGs (exige o venv do Airflow — veja abaixo)
+make lint
 ```
 
-| Seção | O argumento |
+Nenhum teste toca a rede: eles montam camada sintética e, quando precisam de
+HTTP, sobem um servidor local. O CI roda os três a cada push, em Python 3.11 e
+3.12.
+
+Para as DAGs, o Airflow vive num venv separado porque suas pinagens conflitam
+com as do pipeline:
+
+```bash
+python3 -m venv ~/.venvs/airflow
+~/.venvs/airflow/bin/pip install "apache-airflow==3.3.2" \
+  --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
+AIRFLOW_HOME=~/airflow ~/.venvs/airflow/bin/airflow db migrate
+```
+
+---
+
+## O que a solução faz
+
+```
+        Receita Federal (.zip, 315 MB)
+                 │
+   extract  ─────┤  HTTP com ETag, download resumível, sha256 por arquivo
+                 ▼
+            data/raw/          o zip e os CSVs originais, por snapshot
+                 │
+   transform ────┤  cp1252 → UTF-8, tipos, duplicatas, sentinelas de data
+                 ▼
+            data/staging/      parquet tipado, particionado por snapshot
+                 │
+   validate  ────┤  19 regras + reconciliação contra os totais da fonte
+                 ▼
+   curate    ────┤  uma linha por obra, geocodificação, 3 marts
+                 ▼
+            data/curated/  ──▶  notebook  +  dashboard
+```
+
+**Duas DAGs.** `cno_pipeline` encadeia as quatro etapas, diariamente.
+`referencias_ibge` é separada e só vigia a validade da tabela do IBGE — pode
+ficar vermelha sem afetar a esteira.
+
+**Três camadas.** `raw` preserva o artefato original; `staging` é o parquet
+tratado e validado; `curated` é o que a análise consome, com uma linha por obra
+e três marts pré-agregados.
+
+### A análise
+
+```bash
+make dashboard    # a entrega: seis seções, na ordem em que as decisões surgiram
+make notebook     # o caminho: reexecuta analise/exploracao.ipynb com as saídas
+```
+
+O dashboard não é painel de filtros: é a história do que o dado ensinou sobre
+como construir o sistema. Cada seção tem um gráfico que faz o argumento, um
+bloco *o que eu vi → o que quebraria → o que mudei no sistema*, e só então os
+controles para explorar.
+
+| Seção | O achado |
 |---|---|
-| 1. O dado como ele chega | 315 MB, cinco CSVs, cp1252 — e a fonte publicando o próprio gabarito |
-| 2. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas, não lacunas |
+| 1. O dado como ele chega | 315 MB, cp1252 — e a fonte publicando o próprio gabarito |
+| 2. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas |
 | 3. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
-| 4. O endereço vem em Plus Code | cobertura honesta de 41,2%, não os 59% que o campo sugere |
-| 5. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar, não construção |
+| 4. O endereço vem em Plus Code | cobertura honesta de **41,2%**, não os 59% aparentes |
+| 5. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar |
 | 6. O que dá para afirmar | e, explicitamente, o que **não** dá |
 
-Cada seção tem a mesma anatomia: um parágrafo com o que foi visto, **um gráfico
-fixo que faz o argumento** — o mesmo que vai para a apresentação, e que filtro
-nenhum altera —, um bloco declarando *o que quebraria se eu ignorasse* e *o que
-mudou no sistema*, e só então um expander com os controles para explorar.
-Storytelling e BI puxam em direções opostas; separar os dois em camadas é o que
-permite os dois no mesmo app.
+O caderno (`analise/exploracao.ipynb`) está versionado **com as saídas**, para
+ser lido sem ser executado.
 
-O topo de toda página mostra a **data do snapshot da Receita**. É o que separa um
-dashboard de um extrato: o número na tela veio de uma publicação identificada, e
-a esteira sabe qual.
+---
 
-O **caderno** é o caminho, não o destino:
+## Decisões técnicas
 
-```bash
-make notebook       # reexecuta e regrava as saídas
-```
+O porquê de cada uma, com as medições, está em **[ARQUITETURA.md](ARQUITETURA.md)**.
+Em resumo:
 
-`analise/exploracao.ipynb` está versionado **com as saídas**, para ser lido sem
-ser executado. Ele segue duas regras: lê de `data/curated` sem redefinir regra de
-negócio nenhuma, e roda de ponta a ponta de cima para baixo.
+| Decisão | Por quê, em uma linha |
+|---|---|
+| **DuckDB**, não pandas | 3,6 M de linhas cabem com folga e ele escreve parquet particionado nativamente — [detalhes](ARQUITETURA.md#tratamento) |
+| **cp1252**, não latin-1 | 4.881 bytes na faixa C1; latin-1 decodifica todos **sem erro**, e o defeito só aparece no relatório — [detalhes](ARQUITETURA.md#tratamento) |
+| Nulo do responsável **não é imputado** | 66,39% de ausência é pessoa física, não lacuna; virou `responsavel_tipo` — [detalhes](ARQUITETURA.md#tratamento) |
+| Área implausível é **marcada, não excluída** | quem plota filtra, quem investiga tem o caso — [detalhes](ARQUITETURA.md#curadoria) |
+| `area_m2` só existe em m² e sem suspeita | dois defeitos independentes; cada filtro sozinho ainda erra por uma ordem de grandeza — [detalhes](ARQUITETURA.md#curadoria) |
+| Geocodificação **offline**, via Plus Code | 2,1 M de registros, sem serviço pago; 3,7% são válidos e apontam errado, daí `geo_plausivel` — [detalhes](ARQUITETURA.md#curadoria) |
+| Série comparável **a partir de 2019** | o CNO não existia antes de nov/2018: o passado é subcontado e instável entre snapshots — [detalhes](ARQUITETURA.md#curadoria) |
+| **Validação derruba a execução** | publicar número sobre dado reprovado é pior que não publicar — [detalhes](ARQUITETURA.md#validação) |
+| **IBGE fica fora do pipeline** | o pipeline processa uma fonte só e reconcilia contra ela; o IBGE entra como tabela de referência versionada, com validade vigiada por DAG — [detalhes](ARQUITETURA.md#fronteira-de-dados-externos) |
+| **A DAG é fina** | encadeia os mesmos comandos que se roda na mão; nenhuma regra de negócio mora nela — [detalhes](ARQUITETURA.md#orquestração) |
+| **Trava por snapshot dentro da etapa** | duas execuções simultâneas corromperiam a partição **sem levantar erro**; a garantia não pode depender do orquestrador — [detalhes](ARQUITETURA.md#orquestração) |
+| **Uma camada de consultas, dois consumidores** | o caderno e o app chamam as mesmas funções; nenhum dos dois escreve SQL — [detalhes](ARQUITETURA.md#análise-e-visualização) |
 
-**O que impede o caderno e o dashboard de divergirem:** os dois chamam as mesmas
-funções, em `analise/dados.py`. Nenhum dos dois escreve SQL próprio, e nenhum dos
-dois recalcula `area_m2`, `geo_plausivel` ou `serie_comparavel` — isso chega
-decidido da camada curada. Se os dois discordassem de um número, seria falha de
-arquitetura, não diferença de opinião.
-
-### Configuração local opcional
-
-Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
-mudar, copie `.env.exemplo` para `.env` — ele não é versionado. A variável mais
-útil é `CNO_DATA_DIR`, que move as camadas de dados para fora do repositório:
-
-```bash
-CNO_DATA_DIR=/caminho/para/dados
-```
-
-Isso importa quando o repositório está numa pasta montada — em WSL, com o código
-em `/mnt/c`, apontar os dados para um caminho nativo do Linux acelera bastante o
-processamento dos 1,4 GB de CSV.
+---
 
 ## Estrutura
 
 ```
-src/cno_pipeline/
-├── config.py            parâmetros, todos sobrescrevíveis por variável de ambiente
-├── cli.py               comandos `cno extract`, `cno transform` e `cno info`
-├── logging_conf.py      log em texto ou JSON (CNO_LOG_JSON=1)
-├── extract/
-│   ├── source.py        HTTP: HEAD, sonda de Range, download resumível com retry
-│   ├── cno.py           orquestração, descompactação validada, totais de controle
-│   └── manifest.py      proveniência e controle de idempotência
-├── transform/
-│   ├── schema.py        contrato de dados: domínios, tipos e regras de limpeza
-│   ├── sql.py           o SQL do tratamento, montado a partir do contrato
-│   ├── encoding.py      transcodificação cp1252 → UTF-8, só onde é preciso
-│   └── staging.py       carga no DuckDB e escrita em parquet particionado
-├── validate/
-│   ├── regras.py        19 regras, cada uma um SELECT do que está errado
-│   └── executor.py      avalia, reconcilia com a fonte e emite o relatório
-└── curate/
-    ├── dominios.py      seções e divisões da CNAE, faixas de área, limites
-    ├── geocodificacao.py  Plus Code offline, com recuperação dos códigos curtos
-    ├── sql.py           a tabela analítica e os três marts
-    └── curated.py       orquestração e métricas de cobertura
+src/cno_pipeline/     o pipeline: extract, transform, validate, curate
+├── config.py         parâmetros, todos sobrescrevíveis por variável de ambiente
+├── bloqueio.py       trava por snapshot, para duas execuções não se atropelarem
+├── extract/          HTTP resumível, descompactação validada, manifesto
+├── transform/        contrato de dados, transcodificação, carga em parquet
+├── validate/         19 regras + reconciliação com os totais da fonte
+└── curate/           tabela analítica, geocodificação e os três marts
 
-dags/
-├── cno_pipeline_dag.py     encadeia extract -> transform -> validate -> curate
-└── referencias_ibge_dag.py vigia a validade da tabela do IBGE (DAG separada)
-
-analise/                 camada de análise, fora do pipeline
-├── construir_municipios.py  gera a tabela de referência do IBGE
-├── municipios.csv           5.571 municípios com população e centroide
-├── correcoes_municipios.csv as 17 divergências de nome, à mão
-├── malha_municipios.geojson.gz  malha municipal, para o mapa
-├── amostra_bruta.csv        7 linhas do cno.csv com os bytes cp1252 originais
-├── referencias.py           a junção com o IBGE, idêntica nos dois consumidores
-├── dados.py                 as consultas — o caderno e o app chamam estas funções
-├── estilo.py                paleta e tipografia, iguais no matplotlib e no Altair
-├── malha.py                 GeoJSON sem GIS: recorte, orientação e enquadramento
-└── exploracao.ipynb         o caderno, versionado com as saídas
-
-app/                     o dashboard narrativo (Streamlit)
-├── dashboard.py         ponto de entrada: as seis seções e a navegação
-├── dados_app.py         a única porta para a camada curada, e o único cache
-├── graficos.py          construtores de gráfico em Altair
-├── componentes.py       cabeçalho, bloco de decisão, expander de exploração
-└── secoes/              uma seção por arquivo, na ordem da narrativa
-
-Dockerfile               imagem única: Airflow oficial + pipeline em /opt/cno/.venv
-docker-compose.yml       stack de entrega: Airflow LocalExecutor + Postgres
-
-data/                    gerado, nunca versionado
-├── raw/
-│   ├── _manifests/      um JSON por snapshot + ponteiro latest.json
-│   └── snapshot_date=AAAA-MM-DD/
-│       ├── cno.zip      artefato original, preservado
-│       └── csv/         os cinco CSVs extraídos
-└── staging/
-    ├── _manifests/      métricas de cada execução do tratamento
-    ├── _validacao/      relatório de validação por snapshot
-    ├── obras/snapshot_date=.../uf=SC/*.parquet
-    ├── areas/snapshot_date=.../*.parquet
-    ├── cnaes/snapshot_date=.../*.parquet
-    └── vinculos/snapshot_date=.../*.parquet
-└── curated/
-    ├── _manifests/      cobertura da geocodificação e tamanho de cada tabela
-    ├── obras_analitico/ uma linha por obra, para drill-down
-    ├── mart_municipio_ano/   133 mil linhas
-    ├── mart_setor_ano/        12 mil linhas
-    └── mart_destinacao_ano/   59 mil linhas
+dags/                 cno_pipeline (as quatro etapas) e referencias_ibge
+analise/              camada de análise: consultas, estilo, malha e o caderno
+app/                  o dashboard narrativo (Streamlit), uma seção por arquivo
+tests/                247 testes, todos offline
+data/                 raw / staging / curated — gerado, nunca versionado
 ```
 
-## Decisões técnicas
-
-**O snapshot é identificado pela data de publicação da fonte**, lida do
-`Last-Modified`, não pela data em que o pipeline rodou. Reprocessar amanhã não
-cria um snapshot novo para os mesmos dados.
-
-**A idempotência é controlada por ETag local.** O share da Receita
-**não respeita `If-None-Match`** — responde `200` e reenvia os 315 MB inteiros.
-Um `HEAD` retorna o ETag, que é comparado com o último snapshot para saber se precisa baixar hoje.
-
-**O suporte a `Range` é detectado por sondagem, não pelo cabeçalho.** O `HEAD`
-desta fonte não devolve `Accept-Ranges`, embora o servidor responda `206` a um
-`GET` com `Range`. Acreditar no cabeçalho faria o pipeline rebaixar tudo do zero
-a cada falha de rede, então uma requisição de 1 byte resolve a dúvida e habilita
-download resumível.
-
-**Os dados são baixados para `.part` e só promovidos ao nome final após
-conferência de tamanho**, de modo que uma interrupção nunca deixa um arquivo
-truncado parecendo completo.
-
-**A descompactação valida o pacote antes de escrever**: rejeita membros com
-caminho (`zip-slip`) e falha explicitamente se algum dos cinco arquivos
-esperados sumir, em vez de produzir uma camada raw silenciosamente incompleta.
-
-**Os totais oficiais da Receita viram parte do manifesto.** O `cno_totais.csv`
-publica as contagens de cada tabela (3.604.156 obras, 4.553.076 áreas,
-3.942.713 cnaes, 431.211 vínculos). Registrá-los na extração dá à etapa de
-validação um oráculo externo para reconciliar, em vez de o pipeline conferir
-apenas contra si mesmo.
-
-### Tratamento
-
-**Só o arquivo que precisa é transcodificado para UTF-8.**
-
-cp1252 e ISO-8859-1 são idênticos em `0x00-0x7F` e `0xA0-0xFF`. Divergem
-*somente* em `0x80-0x9F` — onde cp1252 põe tipografia e ISO-8859-1 deixa
-controles indefinidos. Um arquivo sem nenhum byte nessa faixa, portanto,
-decodifica exatamente igual nos dois, e o DuckDB pode lê-lo direto como
-`latin-1`, sem intermediário. Na base atual isso vale para 4 dos 5 arquivos; só
-o `cno.csv` tem os tais bytes, e só ele é convertido. A decisão é tomada por
-varredura de conteúdo, não por lista de nomes, então uma publicação futura que
-introduza tipografia em outra tabela se resolve sozinha.
-
-A conversão em si é trabalho inevitável: bytes cp1252 precisam virar texto
-Unicode em algum momento, e todo engine faz isso. A diferença é só *onde*.
-pandas e polars convertem em memória a cada leitura; aqui convertemos uma vez em
-disco e reaproveitamos, invalidando pelo sha256 da origem.
-
-A alternativa de carregar tudo como `latin-1` e corrigir os caracteres em SQL foi
-descartada: exigiria aplicar a correção coluna a coluna, e esquecer uma seria
-corrupção invisível.
-
-**Por que DuckDB e não pandas ou polars.** Medido na leitura completa do
-`cno.csv` (884 MB, 3,6 M linhas), cada abordagem em processo isolado:
-
-| | tempo | pico de RAM |
-|---|---|---|
-| DuckDB no UTF-8 | **0,8s** | **457 MB** |
-| Polars `windows-1252` | 4,3s | 2.641 MB |
-| pandas `cp1252` | 19,6s | 4.031 MB |
-
-Polars lê cp1252 nativamente, o que eliminaria o passo de conversão — mas só na
-API eager: `scan_csv` aceita apenas `utf8`, então a execução lazy fica
-indisponível e a tabela inteira precisa caber na memória. Como o pipeline vai
-rodar em worker de orquestrador com memória limitada, 457 MB contra 2,6 GB
-decide a escolha.
-
-Vale registrar que o DuckDB é também o mais rigoroso dos três: ele **recusa** um
-arquivo declarado como `latin-1` que contenha bytes da faixa C1. pandas e polars
-aceitariam calados e produziriam caracteres de controle. Foi essa recusa que
-revelou o encoding real da base.
-
-**Tudo é lido como texto e convertido com `TRY_CAST`.** Deixar o `read_csv`
-inferir tipos faria a carga inteira falhar num único valor ruim. Assim, um valor
-inconversível vira `NULL` e as 3,6 M de linhas continuam carregando.
-
-**Identificadores são texto, não número.** `cno`, `cep`, `ni_responsavel` e os
-códigos de município e qualificação têm zeros à esquerda que um tipo numérico
-destruiria (`010010092278` viraria `10010092278`).
-
-**Flags booleanas nunca são nulas.** Em SQL, `NULL LIKE '%+%'` devolve `NULL`, e
-uma flag de três valores é armadilha: `WHERE NOT tem_plus_code` descartaria em
-silêncio os 40,78% de registros sem código de localização. Todas as flags passam
-por `coalesce(..., false)`.
-
-**Nada é excluído por suspeita.** As 323 obras com área implausível em m² recebem
-`area_suspeita = true` e permanecem na tabela. Quem analisa decide o que fazer
-com elas; o pipeline não decide por ele.
-
-**Os 66,39% de nulos em `ni_responsavel` viram `responsavel_tipo`.** Não são
-dados faltantes: a Receita deixa o campo em branco quando o responsável é pessoa
-física. Imputar destruiria a informação.
-
-**O particionamento é por `snapshot_date` e `uf`.** Uma consulta restrita a Santa
-Catarina lê só 239 mil linhas em vez de 3,6 milhões.
-
-### Validação
-
-**Reconciliação contra a fonte.** O `cno_totais.csv` publica as contagens
-oficiais de cada tabela, e a validação as confronta com o que foi carregado.
-É a única checagem que olha para fora do pipeline: todas as outras comparam o
-dado com regras que nós mesmos escrevemos e, por isso, não detectariam uma
-extração que perdeu metade do arquivo.
-
-A comparação usa a contagem **antes** da deduplicação, porque é isso que a
-Receita conta — confrontar o número pós-dedup acusaria divergência justamente
-onde o pipeline funcionou.
-
-**Cada regra é um SELECT do que está errado.** Conjunto vazio significa regra
-cumprida; o executor conta, amostra exemplos e decide o código de saída.
-Acrescentar uma regra é escrever uma consulta, sem tocar em mecânica nenhuma.
-
-**Erro reprova, aviso não.** `ERRO` é violação de contrato — chave duplicada,
-órfão, valor fora de domínio — e derruba a execução. `AVISO` é sujeira conhecida
-da fonte que queremos medir e acompanhar. Marcar tudo como erro tornaria a
-validação inútil, já que um cadastro público de 3,6 milhões de registros sempre
-tem sujeira; marcar tudo como aviso a tornaria decorativa.
-
-**Regra que não roda falha alto.** Se o SQL de uma regra quebrar, a validação
-levanta erro em vez de contabilizar zero violações — o modo de falha mais
-perigoso seria uma regra silenciosamente não avaliada passando por aprovada.
-
-Resultado no snapshot atual: reconciliação exata nas quatro tabelas, 17 das 19
-regras cumpridas, 2 avisos (323 áreas implausíveis e 2 obras sem UF).
-
-### Orquestração
-
-**A DAG é fina de propósito.** Ela encadeia os mesmos comandos que se roda na
-mão e não contém regra de negócio nenhuma. Isso mantém a lógica testável fora do
-Airflow — os 65 testes das etapas rodam sem subir scheduler — e faz com que
-reproduzir uma falha de produção seja copiar e colar um comando do log.
-
-**Duas execuções sobre o mesmo snapshot não se atropelam, e a garantia não é do
-Airflow.** `cno transform` e `cno curate` reescrevem a partição em dois passos —
-`shutil.rmtree(particao)` e, logo depois, um `COPY ... PARTITION_BY`. Entre os
-dois há uma janela, e duas execuções dentro dela produzem uma partição pela
-metade. O modo de falha é o pior possível: **não levanta exceção**, o `COPY`
-termina bem, o parquet é legível, e só a contagem denuncia. Não é hipótese — uma
-task órfã já deixou duas execuções se sobreporem aqui; não mordeu por sorte de
-escalonamento.
-
-O `max_active_runs=1` da DAG resolve para quem passa pelo Airflow. A trava tem
-de valer também para dois terminais abertos, para um `airflow tasks run` avulso
-e para o container, então mora **dentro da etapa** (`cno_pipeline/bloqueio.py`),
-não no orquestrador.
-
-É um `flock` do sistema operacional, por snapshot, e não um arquivo-sentinela.
-A diferença é o que acontece quando o processo morre sem limpar: um sentinela
-criado com `O_EXCL` vira lixo permanente, e a próxima execução legítima é
-recusada até alguém apagar à mão; o bloqueio do kernel é liberado sozinho
-quando o descritor fecha, **inclusive num `SIGKILL` ou numa queda do
-container**. Não existe trava órfã.
-
-`transform` e `curate` disputam a **mesma** trava, de propósito: além de cada um
-poder atropelar a si mesmo, a curadoria lê a staging que o tratamento reescreve.
-Snapshots diferentes têm travas diferentes e seguem em paralelo. A etapa recusa
-na hora, com mensagem dizendo quem detém a trava, em vez de esperar — uma task
-pendurada é mais difícil de diagnosticar do que uma que falha explicando.
-
-**O pipeline é invocado como subprocesso, não importado.** Os dois pacotes até
-convivem no mesmo ambiente (`pip check` passa limpo), mas a fronteira de
-processo dá o que a de import não dá: o pipeline pode ser atualizado sem
-reinstalar o Airflow, e a etapa que falha devolve um código de saída em vez de
-uma exceção que a DAG teria de saber interpretar. O contrato entre os dois é a
-linha de comando e um JSON.
-
-**Não há sensor de novidade, e é deliberado.** A tentação seria um
-`ShortCircuitOperator` checando o ETag antes de baixar — mas o `cno extract` já
-faz exatamente isso e responde em menos de um segundo quando não há publicação
-nova. Um gate na DAG duplicaria a regra em dois lugares e criaria o risco de
-pular etapas a jusante que ainda não rodaram. A idempotência vive nas etapas.
-
-**Retry só onde ele ajuda.** `extract` tem 3 tentativas com backoff exponencial,
-porque depende de rede e o download é resumível — a retentativa continua de onde
-parou. `transform` e `validate` são determinísticos: se falharam, falharão de
-novo, e retentar só multiplicaria o mesmo erro no log.
-
-**O `snapshot_id` viaja entre as etapas.** A extração devolve qual snapshot
-processou e as etapas seguintes o recebem, em vez de cada uma resolver "o mais
-recente" sozinha — assim uma publicação da Receita no meio da execução não faz a
-DAG misturar dois snapshots.
-
-### Curadoria
-
-**A staging é fiel à origem e é isso que a impede de responder perguntas.** Ela
-tem quatro tabelas e uma linha por registro publicado — ótimo para auditar,
-inútil para perguntar "quantos m² Joinville construiu em 2023". A camada curada
-toma as decisões que a fonte não toma, e as toma num lugar só, explicitamente.
-
-**`area_m2` só existe quando a unidade é metro quadrado e a área não é
-suspeita.** São **dois** defeitos independentes, e nenhum filtro resolve
-sozinho. Primeiro, a base mistura unidades no mesmo campo: 3.404.652 obras em
-m², mas 21.328 em km, 14.539 em m³, 3.580 em kW e 156.712 em "Outra" — são
-dutos, rodovias, subestações. Segundo, 323 obras declaram área impossível, a
-maior com 555.555.555.555 m².
-
-Somar a coluna e ver o que cada filtro tira:
-
-| Critério | km² |
-|---|---:|
-| `SUM(area_total)` cru | **887.114** |
-| só tirando as áreas implausíveis | 49.286 |
-| só pegando o que está em m² | 840.668 |
-| m² **e** sem implausíveis (`area_m2`) | **2.839** |
-
-**Um `SUM(area_total)` desavisado publicaria um número 312 vezes maior que o
-certo.** As duas linhas do meio mostram por que é preciso aplicar os dois
-filtros: cada um sozinho ainda deixa uma ordem de grandeza de erro.
-
-A área declarada continua na tabela ao lado da unidade; o que muda é que existe
-uma coluna segura de somar.
-
-**A geocodificação não usa serviço externo, e recupera mais do que parecia.** O
-`Código de localização` é Plus Code em parte da base, mas só 36,4% dos registros
-trazem um código completo. Outros 6,2% vêm na forma curta (`RF8J+VH`), a que
-faltam os 4 caracteres do bloco de 1° — e a recuperação desses normalmente exige
-um centroide municipal, ou seja, dado externo. Aqui a âncora sai da própria base:
-a **mediana dos pontos já decodificados do mesmo município**. Isso cobre 226.854
-dos 227.074 códigos curtos, e 5.516 dos 5.572 municípios têm âncora própria.
-
-**Um Plus Code pode ser válido e estar errado, e 3,7% estão.** Medidos 48.436
-pontos que decodificam perfeitamente e caem a mais de 150 km do município
-declarado — 39 mil deles a mais de 500 km, alguns no Japão. Por isso a tabela
-grava `geo_distancia_municipio_km` e `geo_plausivel`, e os marts contam só o
-ponto plausível. A coordenada crua fica gravada para auditoria, como
-`area_suspeita` faz na staging: marcar, não apagar. **A cobertura honesta é
-41,2%**, não os 42,5% brutos nem os 59% que "contém um `+`" sugeririam.
-
-**O recorte setorial é por divisão da CNAE, não por seção.** O CNO é cadastro de
-obra: 100% da base cai na seção F, então agrupar por seção daria uma linha só. As
-três divisões que ocorrem são 41 Construção de edifícios (1,9 M), 43 Serviços
-especializados (1,4 M) e 42 Obras de infraestrutura (283 mil) — e é aí que a
-diferença aparece: infraestrutura é 7% das obras e 29% dos metros quadrados.
-
-**Os marts existem por causa do dashboard.** Um Streamlit não pode varrer 3,6 M
-de linhas a cada clique num filtro. As três tabelas agregadas têm de 12 mil a 133
-mil linhas, respondem instantaneamente e carregam as mesmas definições da tabela
-analítica — o app não recalcula regra de negócio, que é o que impede o dashboard
-e o notebook de divergirem com o tempo. Há um teste que confere que os três marts
-somam exatamente o mesmo que `obras_analitico`.
-
-**A curadoria roda depois da validação.** É ela que alimenta gráfico e relatório,
-e publicar número em cima de dado reprovado é pior do que não publicar número
-nenhum. Como a validação derruba a execução quando reprova, chegar na curadoria
-já significa que a camada tratada reconcilia com a fonte.
-
-**Dado externo não entra aqui.** População, PIB e malha municipal ficam na camada
-de análise, fora do pipeline. O pipeline reconcilia contra a fonte, e um dado que
-a fonte não publica não tem como ser reconciliado; além disso, misturar safras
-(snapshot de 2026, população de 2022) dentro da mesma linha é o tipo de erro que
-não dá sintoma. Se um dia precisar entrar, a forma é uma dimensão `municipios`
-separada, nunca colunas na tabela de obras.
-
-**`serie_comparavel` corta em 2019, e o motivo não é o que parecia.** Obras por
-ano de início saltam de 87.574 (2016) para 307.530 (2019) e depois estabilizam
-perto de 300 mil. Triplicar em dois anos e parar não é assinatura de atividade
-econômica.
-
-A explicação intuitiva — *o CNO absorveu de uma vez o estoque da matrícula CEI*
-— é falsa, e foi a coluna `data_registro` que a derrubou. Se tivesse havido
-migração em bloco, as obras iniciadas antes de 2019 teriam entrado no cadastro
-em 2019. Entraram espalhadas por todos os anos, e **mais em 2021 (215.759) do
-que em 2019 (191.059)**. Registro atrasado não é evento, é rotina: 1,6 M de
-obras — 45% da base — foram cadastradas mais de um ano depois de começarem.
-
-O mecanismo real é mais simples e mais forte: **antes de nov/2018 o cadastro não
-existia.** O CNO foi criado pela IN RFB 1.845, de 22/11/2018, e passou a valer
-em 21/01/2019; a `data_registro` mais antiga da base é 19/11/2018, e 2018
-inteiro tem 385 registros contra 366 mil em 2019. Obra anterior a 2019 só
-aparece se alguém a cadastrou depois, o que é parcial e continua acontecendo.
-
-Duas consequências, e as duas mandam cortar em 2019: o passado é **subcontado**,
-não inflado, e **não é estável entre snapshots** — uma série que comece em 2016
-muda de valor a cada atualização sem que nada tenha sido construído. As
-consultas `entrada_no_cadastro`, `registro_de_obras_antigas` e
-`atraso_de_registro` deixam essa evidência à vista no dashboard e no caderno,
-para que a afirmação não dependa de acreditar na leitura de uma norma.
-
-### Fronteira de dados externos
-
-**O pipeline processa uma fonte só, e isso é uma decisão, não uma limitação.**
-Toda a camada curada é derivável do snapshot do CNO e reconciliável contra os
-totais que a própria Receita publica. No momento em que uma coluna de
-`obras_analitico` viesse de outra fonte, com outra data de referência, a frase
-"esta camada reconcilia com a fonte" deixaria de ser verdadeira para a tabela.
-
-Município, população e malha do IBGE entram na **camada de análise**, e os
-motivos, em ordem de peso:
-
-**Acoplamento de falha.** Como task da DAG, uma indisponibilidade do IBGE
-derrubaria o pipeline do CNO — que não usa o IBGE para nada. Seria deixar um
-terceiro que não contribui para o produto principal poder quebrá-lo.
-
-**Cadências incompatíveis.** A DAG roda diariamente; o IBGE publica uma vez por
-ano. Seriam 365 buscas do mesmo arquivo, ou lógica condicional para evitá-las —
-complexidade para benefício zero.
-
-**Assimetria de custo.** Como tabela separada, trocar a safra da população é
-trocar um arquivo. Como coluna na tabela de obras, é reprocessar 3,6 M de linhas
-para mudar um dado que nem veio da Receita.
-
-**O resultado não é processo rodando por fora — é tabela de referência
-versionada.** A mesma categoria dos nomes das seções da CNAE, que são constantes
-em `dominios.py` e ninguém espera que sejam buscados da CONCLA toda noite. O
-script ao lado existe para regerar quando vencer, e a DAG `referencias_ibge`
-avisa quando esse momento chega.
-
-**A junção é por nome normalizado, não por código.** A Receita usa TOM de 4
-dígitos, o IBGE usa código de 7, e a de-para entre os dois não tem fonte
-canônica estável. Medido na base real: normalizar (maiúscula, sem acento, sem
-hífen e apóstrofo) casa **5.555 de 5.572 (99,7%)**. Os 17 restantes são o
-conjunto clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do
-Livramento`, `BOA SAÚDE`/`Januário Cicco` — e viram uma tabela de correção
-auditável linha a linha, com o motivo de cada uma. Importar a tabela TOM de
-5.570 linhas de um terceiro não evitaria esse trabalho: só o esconderia num
-arquivo que não dá para revisar. **Não se evita a de-para; escolhe-se o tamanho
-dela.**
-
-Com as correções, o casamento é de **5.570 de 5.570**. E o efeito no resultado é
-o esperado: em SC, o ranking por obras por mil habitantes não tem nenhum dos
-municípios do topo absoluto — aparecem Itapoá (58,0), Maravilha (49,4) e
-Balneário Piçarras (48,3), separando litoral de Oeste. Sem denominador, todo
-ranking municipal é um ranking populacional disfarçado.
-
-### Containerização
-
-**Uma imagem só, com dois ambientes Python dentro.** O Airflow vem da imagem
-oficial e o pipeline é instalado num venv separado, em `/opt/cno/.venv`, que a
-DAG invoca pelo caminho absoluto em `CNO_BIN`. Poderiam dividir o mesmo
-ambiente — `pip check` passa limpo com os dois juntos —, mas aí toda subida de
-versão do `requests` ou do `urllib3` no pipeline passaria pelo resolvedor de
-dependências do Airflow, que fixa versões por necessidade. Dois venvs custam
-uns poucos MB e removem esse acoplamento; a fronteira entre eles continua sendo
-a mesma que já existia em desenvolvimento, a linha de comando.
-
-**A DAG vai embutida na imagem, não montada do host.** Bind mount de `./dags`
-dá edição ao vivo, mas traz o problema de UID do compose oficial (arquivos
-criados como root no host) e abre a janela em que scheduler e dag-processor leem
-versões diferentes do arquivo. Como o container aqui é entrega e não ambiente de
-desenvolvimento, embutir sai mais barato: `docker compose up` funciona a partir
-de um clone recém-feito, sem nenhum passo de preparação. Mexer na DAG pede um
-`make build`.
-
-**O volume de dados é criado na imagem, com dono `airflow`.** Um volume nomeado
-herda dono e permissão do diretório que existe na imagem sob o ponto de
-montagem. Criar `/opt/cno/data` já com o dono certo no `Dockerfile` é o que
-dispensa a variável `AIRFLOW_UID` e o passo de `chown -R` que o compose oficial
-precisa executar como root antes de tudo.
-
-**LocalExecutor, não Celery.** O compose oficial monta Redis, worker e Flower
-para dar execução distribuída. Esta DAG tem três tasks em linha reta, e o
-gargalo é I/O de rede e disco num processo só — uma fila distribuída
-acrescentaria dois serviços e nenhum paralelismo aproveitável. Pelo mesmo
-critério ficou de fora o triggerer: nenhuma task aqui é deferrable. São cinco
-serviços, cada um com motivo.
-
-**No container, o pipeline não guarda os intermediários.** `CNO_MANTER_ZIP=0` e
-`CNO_MANTER_INTERMEDIARIOS=0` economizam ~1,7 GB por snapshot. O que eles
-aceleram é o reprocessamento do mesmo snapshot, que é raro; a idempotência não
-depende deles, porque a extração confere os CSVs contra o manifesto, não o zip.
-
-### Análise e visualização
-
-**Uma camada de consultas, dois consumidores.** `analise/dados.py` tem uma função
-por pergunta, e é o único lugar com SQL fora do pipeline. O notebook e o
-dashboard chamam as mesmas funções — se escrevessem o próprio SQL, bastaria um
-`WHERE` diferente para divergirem num número, e os dois continuariam rodando sem
-erro.
-
-**O app lê marts, não a tabela analítica.** Um Streamlit não pode varrer 3,6 M de
-linhas a cada clique. As exceções são as consultas de perfilamento (distribuição
-de unidade, quantis de área, distância dos pontos), que são perguntas sobre a
-distribuição de uma coluna e não cabem num agregado — e a docstring de cada
-função diz qual das duas ela toca.
-
-**Mediana de medianas não é mediana.** O mart guarda a mediana de cada grupo;
-somar contagens a partir dele é exato, tirar quantil não é. Onde a mediana é o
-argumento, a consulta varre a tabela analítica e paga o preço.
-
-**Matplotlib no caderno, Altair no app, uma paleta só.** O caderno precisa de
-imagem embutida no `.ipynb` — é o que faz o avaliador ler sem executar, e é o que
-o GitHub renderiza. O app precisa de *hover*. As cores, a grade e a tipografia
-saem de `analise/estilo.py` nos dois casos, senão o mesmo achado teria duas caras.
-A paleta são os três primeiros slots de uma escala categórica validada para
-daltonismo; barra maior não ganha cor mais forte, e o que o gráfico defende fica
-azul enquanto o resto fica cinza.
-
-**Mapa sem GIS.** Um polígono do GeoJSON é uma lista de pares de coordenadas, e a
-junção com o CNO é por código de município — não por geometria. Trazer geopandas
-custaria GEOS, PROJ e uma cadeia de binários na imagem para comprar o que `json`
-já entrega. Duas surpresas ficaram documentadas em `analise/malha.py`: o Vega não
-enquadra a projeção sozinho quando a geometria vem numa camada junto com pontos,
-e a convenção de sentido de giro do D3 é **o contrário** da do RFC 7946 — com o
-sentido "certo", o mapa vira uma mancha chapada, sem erro nenhum no console.
-
-**O dashboard é testado sem navegador — e `AppTest` não basta.** `AppTest`, do
-próprio Streamlit, executa o app e devolve os elementos produzidos; as seis
-seções são exercitadas sobre a camada sintética. Foi isso que pegou uma divisão
-por zero (num recorte sem área em m²) e um `iloc[0]` numa seleção vazia (numa
-série com um ano só) antes de qualquer um dos dois chegar à tela.
-
-Mas ele responde *"a página subiu"*, não *"o gráfico apareceu"* — e nesta base
-gráfico que some em silêncio é a regra, não a exceção: `alt.Step` em spec com
-camadas devolve um gráfico vazio, barra em escala logarítmica não desenha, e a
-malha municipal vira uma mancha chapada se o sentido de giro dos anéis seguir o
-RFC 7946 em vez da convenção do D3. Nenhum levanta exceção, e `AppTest` passou
-verde em todos.
-
-Por isso há um segundo grupo de testes que **compila o spec pelo mesmo
-Vega-Lite do navegador e mede o PNG**. Junto com eles, `tests/test_contratos_analise.py`
-trava as invariantes que não são contas e que já erodiram uma vez: que o app e o
-caderno não contenham SQL, que cada chamada a `analise/dados.py` bata com a
-assinatura real (é o que testa o caderno **sem executá-lo**, já que reexecutá-lo
-exige os 3 GB), e que as constantes da análise sejam **o mesmo objeto** das do
-pipeline — `is`, não `==`, porque dois inteiros iguais passariam num `==` e
-continuariam sendo duas fontes de verdade.
-
-**Número em português é parte do contrato, e quase não era.** O tema carimbava
-`formatLocale` em `usermeta.embedOptions`, que é como o vega-embed troca o
-locale do d3. O Streamlit **filtra** esse objeto — mantém `theme`, `renderer` e
-`padding` e descarta o resto —, então o carimbo saía do Python e morria no
-frontend: todo eixo do dashboard vinha com vírgula de milhar, sem nada acusando.
-A troca passou a ser expressão Vega dentro do spec, que ninguém filtra, com duas
-sutilezas que só apareceram renderizando: sem o `/g` o `replace` do Vega troca
-apenas a primeira ocorrência (1.000.000 sai como "1.000,000"), e `labelExpr`
-existe em `Legend` mas não em `LegendConfig`, então a legenda do mapa declara a
-sua. Eixo de ano opta por sair, senão 2019 viraria "2.019".
-
-## Sobre os dados
-
-Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
-Características apuradas por perfilamento completo da base, que orientam o
-tratamento:
-
-- Os CSVs são **cp1252** (Windows-1252), não UTF-8 e **não ISO-8859-1**. O
-  `cno.csv` tem 4.881 bytes na faixa `0x80-0x9F`, que em cp1252 são tipografia
-  (travessão, aspas curvas, bullet) e em ISO-8859-1 são controles indefinidos.
-  Ler como `latin-1` não dá erro — produz caracteres de controle no lugar do
-  texto, corrompendo em silêncio.
-- `CNO` é chave primária limpa na tabela principal (zero duplicatas em 3,6 M).
-  As tabelas filhas têm duplicatas exatas reais: 21.449 em áreas, 10.873 em
-  vínculos.
-- Integridade referencial perfeita: nenhum órfão nas três tabelas filhas.
-- **`NI do responsável` e `Nome empresarial` nulos em 66,39% não são dados
-  faltantes.** Por definição da Receita, ficam em branco quando o responsável é
-  pessoa física. Serão modelados como flag PF/PJ, nunca imputados.
-- `Código de localização` é **Plus Code** em 2,11 M registros (59%), o que
-  permite geocodificação sem serviço externo.
-- Sujeira conhecida: `1970-01-01` e `1900-01-01` como sentinelas de data
-  desconhecida; áreas absurdas (máximo de 555.555.555.555 m²); campo `Estado`
-  com 35 valores distintos, incluindo lixo como `'CHILE'` e `'estado'`.
-
-## Roadmap
-
-- [x] Extração programática, idempotente e resumível
-- [x] Camada raw versionada por snapshot, com manifesto de proveniência
-- [x] Testes automatizados da extração (offline)
-- [x] Tratamento: CSV → parquet tipado e particionado
-- [x] Funções de validação, com reconciliação contra os totais oficiais
-- [x] Orquestração em DAG
-- [x] Camada curada, com geocodificação e marts
-- [x] Tabela de referência do IBGE, com validade vigiada por DAG
-- [x] Containerização
-- [x] Análise descritiva: dashboard narrativo e notebook versionado
-- [x] Integração contínua: lint e a suíte inteira a cada push, em 3.11 e 3.12,
-      mais os testes da DAG com Airflow em venv próprio
-- [x] Lock por snapshot dentro das etapas, para o caso de duas execuções se
-      sobreporem — não depende do `max_active_runs` do orquestrador
+`analise/` traz também a tabela de referência do IBGE já gerada
+(`municipios.csv`, a malha e as 17 correções de nome), então o dashboard
+funciona num clone limpo sem buscar nada. Para regerá-la —
+`python analise/construir_municipios.py`. Ela declara a própria validade, e a
+DAG `referencias_ibge` falha quando a safra vence.
+
+---
+
+## Limitações conhecidas
+
+Declaradas de propósito, e também visíveis na seção 6 do dashboard:
+
+- **O CNO mede o cadastro da construção, não o setor.** Serve para *onde há obra
+  cadastrada*; não serve para PIB setorial.
+- **58,8% das obras não têm ponto no mapa**, e a ausência não é aleatória. Todo
+  mapa aqui é de um subconjunto.
+- **A área é autodeclarada** e não há como validá-la contra nada externo.
+- **A população é de 2026 e as obras são de todos os anos** — a taxa por mil
+  habitantes compara municípios entre si, não serve como série histórica.
