@@ -8,6 +8,10 @@ da Receita Federal.
 ## Requisitos
 
 Python 3.11+  (por enquanto, em construção). Utilizar o pyproject.toml para baixar as libs necessárias.
+
+Para rodar em container, só Docker com Compose v2 — nem Python nem Airflow
+precisam existir na máquina. Veja [Em container](#em-container).
+
 ## Como executar
 
 ```bash
@@ -81,6 +85,49 @@ export CNO_BIN=$PWD/.venv/bin/cno
 
 Os testes da DAG rodam com `make test-dag`.
 
+### Em container
+
+Se a ideia for só ver tudo funcionando, sem instalar Python, Airflow nem
+Postgres, tem Docker:
+
+```bash
+make up
+```
+
+Isso constrói a imagem, sobe Airflow 3.3.2 com LocalExecutor sobre Postgres e
+deixa a UI em <http://localhost:8080> (usuário `airflow`, senha `airflow`).
+
+A DAG sobe despausada e **começa a rodar sozinha**, sem nenhum passo a mais:
+baixa os ~315 MB da Receita, trata as 12,5 M de linhas e valida o resultado.
+Medido nesta stack, a primeira execução leva 2m13s (1m37s só de download) e as
+seguintes 31s, porque a extração reaproveita o snapshot. Para disparar de novo:
+`make dag-run`, ou o botão na UI.
+
+Se preferir que nada rode até você mandar, ponha
+`AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'` no `docker-compose.yml`.
+
+```bash
+make logs        # acompanha a execução
+make ps          # estado dos serviços
+make down        # derruba, preservando os dados já materializados
+make down-tudo   # derruba e apaga os volumes também
+```
+
+Para rodar o pipeline sem orquestrador nenhum, em containers efêmeros que
+escrevem no mesmo volume:
+
+```bash
+make docker-pipeline                      # extract -> transform -> validate
+docker compose run --rm cno info          # ou uma etapa isolada
+```
+
+As camadas de dados ficam num volume Docker (`cno-dados`), não no repositório.
+Isso mantém o clone limpo e evita o custo de I/O de escrever 1,4 GB numa pasta
+montada do host.
+
+O container é o empacotamento da entrega, não o ambiente de desenvolvimento —
+para desenvolver, `make pipeline` roda direto e sem esperar build.
+
 ### Configuração local opcional
 
 Sem nenhuma configuração o pipeline usa `./data` e defaults sensatos. Para
@@ -117,6 +164,9 @@ src/cno_pipeline/
 
 dags/
 └── cno_pipeline_dag.py  encadeia extract -> transform -> validate
+
+Dockerfile               imagem única: Airflow oficial + pipeline em /opt/cno/.venv
+docker-compose.yml       stack de entrega: Airflow LocalExecutor + Postgres
 
 data/                    gerado, nunca versionado
 ├── raw/
@@ -288,6 +338,43 @@ processou e as etapas seguintes o recebem, em vez de cada uma resolver "o mais
 recente" sozinha — assim uma publicação da Receita no meio da execução não faz a
 DAG misturar dois snapshots.
 
+### Containerização
+
+**Uma imagem só, com dois ambientes Python dentro.** O Airflow vem da imagem
+oficial e o pipeline é instalado num venv separado, em `/opt/cno/.venv`, que a
+DAG invoca pelo caminho absoluto em `CNO_BIN`. Poderiam dividir o mesmo
+ambiente — `pip check` passa limpo com os dois juntos —, mas aí toda subida de
+versão do `requests` ou do `urllib3` no pipeline passaria pelo resolvedor de
+dependências do Airflow, que fixa versões por necessidade. Dois venvs custam
+uns poucos MB e removem esse acoplamento; a fronteira entre eles continua sendo
+a mesma que já existia em desenvolvimento, a linha de comando.
+
+**A DAG vai embutida na imagem, não montada do host.** Bind mount de `./dags`
+dá edição ao vivo, mas traz o problema de UID do compose oficial (arquivos
+criados como root no host) e abre a janela em que scheduler e dag-processor leem
+versões diferentes do arquivo. Como o container aqui é entrega e não ambiente de
+desenvolvimento, embutir sai mais barato: `docker compose up` funciona a partir
+de um clone recém-feito, sem nenhum passo de preparação. Mexer na DAG pede um
+`make build`.
+
+**O volume de dados é criado na imagem, com dono `airflow`.** Um volume nomeado
+herda dono e permissão do diretório que existe na imagem sob o ponto de
+montagem. Criar `/opt/cno/data` já com o dono certo no `Dockerfile` é o que
+dispensa a variável `AIRFLOW_UID` e o passo de `chown -R` que o compose oficial
+precisa executar como root antes de tudo.
+
+**LocalExecutor, não Celery.** O compose oficial monta Redis, worker e Flower
+para dar execução distribuída. Esta DAG tem três tasks em linha reta, e o
+gargalo é I/O de rede e disco num processo só — uma fila distribuída
+acrescentaria dois serviços e nenhum paralelismo aproveitável. Pelo mesmo
+critério ficou de fora o triggerer: nenhuma task aqui é deferrable. São cinco
+serviços, cada um com motivo.
+
+**No container, o pipeline não guarda os intermediários.** `CNO_MANTER_ZIP=0` e
+`CNO_MANTER_INTERMEDIARIOS=0` economizam ~1,7 GB por snapshot. O que eles
+aceleram é o reprocessamento do mesmo snapshot, que é raro; a idempotência não
+depende deles, porque a extração confere os CSVs contra o manifesto, não o zip.
+
 ## Sobre os dados
 
 Aqui fiz uma análise inicial dos dados antes de montar a pipeline. Isso serve para evitar erros em produção.
@@ -320,5 +407,5 @@ tratamento:
 - [x] Tratamento: CSV → parquet tipado e particionado
 - [x] Funções de validação, com reconciliação contra os totais oficiais
 - [x] Orquestração em DAG
-- [ ] Containerização
+- [x] Containerização
 - [ ] Análise descritiva

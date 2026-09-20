@@ -16,13 +16,14 @@ CNO := $(VENV)/bin/cno
 AIRFLOW_VENV ?= $(HOME)/.venvs/airflow
 
 .PHONY: help setup info extract extract-force transform validate pipeline \
-        test test-dag lint fmt clean clean-data
+        test test-dag lint fmt clean clean-data \
+        build up down down-tudo logs ps dag-run docker-pipeline
 
 # O -h é necessário porque o `-include .env` acrescenta um segundo arquivo ao
 # MAKEFILE_LIST, e sem ele o grep prefixaria cada linha com o nome do arquivo.
 help:  ## Lista os alvos disponíveis
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 $(VENV):
 	python3 -m venv $(VENV)
@@ -81,3 +82,44 @@ clean:  ## Remove artefatos de build e cache
 
 clean-data:  ## Apaga a camada de dados (ela é reproduzível com 'make extract')
 	rm -rf data/raw data/staging data/curated
+
+# -- container ------------------------------------------------------------
+# A stack de entrega. Desenvolvimento continua rodando direto no host, com os
+# alvos acima; estes existem para quem clona o repositório e quer ver tudo de
+# pé sem instalar Airflow, Postgres nem Python na mão.
+
+COMPOSE := docker compose
+
+build:  ## Constrói a imagem (Airflow + pipeline em venv próprio)
+	$(COMPOSE) build
+
+up:  ## Sobe a stack completa em container e deixa a UI do Airflow no ar
+	$(COMPOSE) up -d --build
+	@echo
+	@echo "Airflow em http://localhost:$(or $(AIRFLOW_PORTA),8080)  (usuário airflow / senha airflow)"
+	@echo "A DAG cno_pipeline sobe despausada e ja comeca a rodar: primeira"
+	@echo "execucao baixa ~315 MB da Receita e leva ~2min. Acompanhe com 'make logs'."
+	@echo "Para disparar outra: 'make dag-run'."
+
+down:  ## Derruba os containers, preservando os dados já materializados
+	$(COMPOSE) down
+
+down-tudo:  ## Derruba e apaga também os volumes (dados, logs e banco do Airflow)
+	$(COMPOSE) down --volumes
+
+logs:  ## Acompanha os logs da stack
+	$(COMPOSE) logs -f
+
+ps:  ## Mostra o estado dos serviços
+	$(COMPOSE) ps
+
+dag-run:  ## Dispara uma execução da DAG no Airflow em container
+	$(COMPOSE) exec airflow-scheduler airflow dags trigger cno_pipeline
+
+# Roda as três etapas em containers efêmeros, sem orquestrador nenhum. Escreve
+# no mesmo volume que a DAG usa, então serve tanto de demonstração rápida
+# quanto de pré-aquecimento antes de subir o Airflow.
+docker-pipeline:  ## Roda extract -> transform -> validate em container, sem Airflow
+	$(COMPOSE) run --rm cno extract
+	$(COMPOSE) run --rm cno transform
+	$(COMPOSE) run --rm cno validate

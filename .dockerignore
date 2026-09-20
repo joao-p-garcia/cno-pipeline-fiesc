@@ -1,0 +1,29 @@
+# O contexto de build tem 2 GB de coisas que não pertencem à imagem: a camada de
+# dados, o venv de desenvolvimento (que é Linux, mas do host) e os caches. Sem
+# este arquivo o `docker build` copiaria tudo isso antes de executar a primeira
+# instrução — minutos de espera para nada.
+
+# Dados: reproduzíveis com `cno extract`, nunca embarcados.
+data/
+dados_raw/
+
+# Ambientes e caches locais
+.venv/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Configuração da máquina de quem builda. Em especial o `.env`, que aponta
+# CNO_DATA_DIR para um caminho do host — dentro do container ele seria mentira.
+.env
+.vscode/
+ESTADO.md
+
+# Notebooks e saídas de análise exploratória
+*.ipynb
+.ipynb_checkpoints/
