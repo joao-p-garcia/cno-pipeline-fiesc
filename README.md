@@ -86,14 +86,14 @@ WSL para manter os 1,4 GB fora de `/mnt/c`.
 
 ### Testes
 
-```bash
-make test       # 233 testes, offline, em segundos
-make test-dag   # 15 testes das DAGs (exige o venv do Airflow — veja abaixo)
-make lint
-```
+| O que roda | Linux / WSL | Windows (sem `make`) |
+|---|---|---|
+| a suíte: 233 testes, offline, em segundos | `make test` | `pytest` |
+| estilo e erros estáticos | `make lint` | `ruff check src tests dags analise app` |
+| 15 testes das DAGs | `make test-dag` | exige o venv do Airflow — veja abaixo |
 
-Sem `make` (Windows), os mesmos três: `pytest`, `ruff check src tests dags
-analise app` e `ruff format --check src tests dags analise app`.
+As duas colunas rodam a mesma coisa: os alvos do Makefile são atalhos para os
+comandos da direita.
 
 Nenhum teste toca a rede: eles montam camada sintética e, quando precisam de
 HTTP, sobem um servidor local. O CI roda os três a cada push, em Python 3.11 e
@@ -108,6 +108,54 @@ python3 -m venv ~/.venvs/airflow
   --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
 AIRFLOW_HOME=~/airflow ~/.venvs/airflow/bin/airflow db migrate
 ```
+
+---
+
+## Fontes
+
+| Fonte | O quê | Frequência |
+|---|---|---|
+| **CNO — Receita Federal** | a base do desafio: 3,6 M de obras | extração **diária**, 04:00 (`cno_pipeline`) |
+| **IBGE** | municípios, UF, região, população e malha | safra **anual**; fora do pipeline |
+
+A do desafio é a primeira. A segunda eu acrescentei para poder agregar por
+município e comparar por porte — e ela fica **fora do pipeline** de propósito:
+é tabela de referência versionada no repositório, não dado que a esteira busca.
+Como muda uma vez por ano, o que existe é vigilância: a DAG `referencias_ibge`
+roda mensalmente, não acessa a rede e **falha quando a safra vence**.
+
+A extração diária do CNO é idempotente: se o ETag da fonte não mudou, não baixa
+nada.
+
+---
+
+## Stack
+
+| | |
+|---|---|
+| **DuckDB** | todo o processamento — transform, validate e curate, em SQL sobre parquet |
+| **Parquet** | formato das camadas staging e curated, particionado por snapshot |
+| **Airflow 3.3.2** | orquestração: duas DAGs, LocalExecutor sobre Postgres |
+| **Docker Compose** | a entrega: seis serviços, um comando |
+| **Streamlit + Altair** | o dashboard narrativo |
+| **pytest + ruff** | 248 testes offline, lint e formatação |
+
+Python 3.11+, empacotado como CLI (`cno`). Sem Spark, sem data warehouse: os
+12,5 M de linhas cabem com folga no DuckDB de uma máquina só — o porquê está no
+[ARQUITETURA.md](ARQUITETURA.md).
+
+---
+
+## CI/CD
+
+**CI**, hoje: a cada push e a cada PR, o GitHub Actions roda lint e a suíte em
+Python 3.11 e 3.12, e num job separado sobe o Airflow 3.3.2 para os testes das
+DAGs. Como nenhum teste toca a rede, a CI não depende de a Receita estar no ar.
+
+**CD** ainda não existe — é o próximo passo. O caminho é publicar a imagem
+`cno-pipeline` num registry a cada tag e aplicar a stack num ambiente
+gerenciado; a parte difícil já está feita, porque a imagem é autossuficiente
+(sem bind mount e sem dependência do host).
 
 ---
 
