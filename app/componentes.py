@@ -31,7 +31,18 @@ from . import dados_app
 # seções já eram doze lugares para desencontrar; a primeira mudança de ordem
 # deixaria metade do app mentindo sobre onde o leitor está — e mentira de
 # navegação é do tipo que ninguém reporta, só desorienta.
-ORDEM = ("fonte", "tabelas", "nulos", "area", "geo", "tempo", "camadas", "conclusoes")
+ORDEM = (
+    "fonte",
+    "tabelas",
+    "arquitetura",
+    "dags",
+    "nulos",
+    "area",
+    "geo",
+    "tempo",
+    "camadas",
+    "conclusoes",
+)
 
 
 def _titulo_de(modulo: str) -> str:
@@ -78,7 +89,7 @@ def cabecalho() -> None:
 
     A data do snapshot fica visível o tempo todo porque é ela que separa um
     dashboard de um extrato: o número que está na tela veio de uma publicação
-    identificada da Receita, e a esteira sabe qual.
+    identificada da Receita, e a pipeline sabe qual.
     """
     curada = dados_app.conexao()
     meta = dados_app.metadados_referencia()
@@ -112,12 +123,16 @@ def titulo(numero: str, texto: str, resumo: str) -> None:
     st.markdown(resumo)
 
 
-def decisao(vi: str, quebraria: str, mudou: str) -> None:
-    """O bloco que transforma um gráfico numa decisão de engenharia."""
+def decisao(achado: str, risco: str, decisao: str) -> None:
+    """O bloco que transforma um gráfico numa decisão de engenharia.
+
+    Os três rótulos são curtos de propósito: quem apresenta lê a tela enquanto
+    fala, e título comprido rouba a atenção do conteúdo.
+    """
     with st.container(border=True):
-        st.markdown(f"**O que eu vi.** {vi}")
-        st.markdown(f"**O que quebraria se eu ignorasse.** {quebraria}")
-        st.markdown(f"**O que mudou no sistema.** {mudou}")
+        st.markdown(f"**Achado.** {achado}")
+        st.markdown(f"**Risco.** {risco}")
+        st.markdown(f"**Decisão.** {decisao}")
 
 
 def numeros(itens: list[tuple[str, str, str | None]]) -> None:

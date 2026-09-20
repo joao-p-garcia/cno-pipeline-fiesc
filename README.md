@@ -12,6 +12,8 @@ somando as quatro tabelas.
 ## Rodar
 
 Caso seu sistema operacional não seja Linux, recomendo usar Docker Desktop.
+Pra rodar esse repositório basta apenas Docker, sem necessidade de instalar mais nada.
+O Docker, por ser solução de container, garante que rode igual em qualquer ambiente.
 
 | Sua máquina | Comando |
 |---|---|
@@ -54,8 +56,9 @@ docker` antes de subir a stack.
 
 ### Sem Docker
 
-Precisa de Python 3.11+. O `cno` é o mesmo executável que a DAG invoca, então
-esta via roda exatamente as mesmas quatro etapas:
+Precisa de Python 3.11+. O `cno` é o mesmo executável que a DAG invoca, ou seja,
+montei o código de forma que não necessita do Airflow necessariamente. Então
+esta via roda exatamente as mesmas etapas:
 
 ```
 python3 -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
@@ -70,9 +73,9 @@ cno curate      # camada curada: tabela analítica e três marts      (~35s)
 streamlit run app/dashboard.py                        # http://localhost:8501
 ```
 
-Em Linux e WSL2, `make pipeline` encadeia as quatro e `make dashboard` sobe o
+Em Linux e WSL2, `make pipeline` encadeia a pipeline e `make dashboard` sobe o
 app. Esta via nativa foi exercitada em Linux e WSL2; **no Windows, prefira o
-Docker** — os alvos do Makefile assumem o layout POSIX do venv (`.venv/bin`).
+Docker**,  os alvos do Makefile assumem o layout POSIX do venv (`.venv/bin`).
 
 `cno extract` é idempotente: se o ETag da fonte bate com o do manifesto local e
 os arquivos conferem, não baixa nada. `cno validate` sai com código 1 se houver
@@ -86,19 +89,15 @@ WSL para manter os 1,4 GB fora de `/mnt/c`.
 
 | O que roda | Linux / WSL | Windows (sem `make`) |
 |---|---|---|
-| a suíte: 233 testes, offline, em segundos | `make test` | `pytest` |
+| a suíte: 256 testes, offline, em segundos | `make test` | `pytest` |
 | estilo e erros estáticos | `make lint` | `ruff check src tests dags analise app` |
 | 15 testes das DAGs | `make test-dag` | exige o venv do Airflow — veja abaixo |
 
-As duas colunas rodam a mesma coisa: os alvos do Makefile são atalhos para os
-comandos da direita.
-
-Nenhum teste toca a rede: eles montam camada sintética e, quando precisam de
-HTTP, sobem um servidor local. O CI roda os três a cada push, em Python 3.11 e
+Os testes montam camada sintética e, quando precisam de
+HTTP, sobem um servidor local, sem contato com a rede em si. O CI roda os três a cada push, em Python 3.11 e
 3.12.
 
-Para as DAGs, o Airflow vive num venv separado porque suas pinagens conflitam
-com as do pipeline:
+Para as DAGs, o Airflow tem venv própria, porque as bibliotecas podem conflitar com a pipeline.
 
 ```bash
 python3 -m venv ~/.venvs/airflow
@@ -113,17 +112,17 @@ AIRFLOW_HOME=~/airflow ~/.venvs/airflow/bin/airflow db migrate
 
 | Fonte | O quê | Frequência |
 |---|---|---|
-| **CNO — Receita Federal** | a base do desafio: 3,6 M de obras | extração **diária**, 04:00 (`cno_pipeline`) |
-| **IBGE** | municípios, UF, região, população e malha | safra **anual**; fora do pipeline |
+| **CNO — Receita Federal** | dados de 3,6 M obras | extração **diária**, 04:00 (`cno_pipeline`) |
+| **IBGE** | municípios, UF, região, população e malha | extração **anual**; por fora do pipeline |
 
-A do desafio é a primeira. A segunda eu acrescentei para poder agregar por
-município e comparar por porte — e ela fica **fora do pipeline** de propósito:
-é tabela de referência versionada no repositório, não dado que a esteira busca.
-Como muda uma vez por ano, o que existe é vigilância: a DAG `referencias_ibge`
-roda mensalmente, não acessa a rede e **falha quando a safra vence**.
+Acrescentei os dados do IBGE para poder agregar por 
+município e comparar por porte. Deixei ela de **fora do pipeline** como uma 
+tabela de referência versionada no repositório. A DAG `referencias_ibge`
+roda mensalmente para verificar se o dado versionado atual do IBGE ainda está válido. 
+Não acessa a rede e **falha quando a safra vence**. Existe um script
+no código `construir_municipios.py` para extrair esses dados do IBGE de novo.
 
-A extração diária do CNO é idempotente: se o ETag da fonte não mudou, não baixa
-nada.
+A extração diária do CNO é idempotente, se o ETag da fonte não mudou, não baixa de novo.
 
 ---
 
@@ -134,12 +133,12 @@ nada.
 | **DuckDB** | todo o processamento — transform, validate e curate, em SQL sobre parquet |
 | **Parquet** | formato das camadas staging e curated, particionado por snapshot |
 | **Airflow 3.3.2** | orquestração: duas DAGs, LocalExecutor sobre Postgres |
-| **Docker Compose** | a entrega: seis serviços, um comando |
-| **Streamlit + Altair** | o dashboard narrativo |
+| **Docker Compose** | para abrir a entrega em qualquer ambiente |
+| **Streamlit + Altair** | analise exploratória em formato de dash interativo |
 | **pytest + ruff** | 248 testes offline, lint e formatação |
 
 Python 3.11+, empacotado como CLI (`cno`). Sem Spark, sem data warehouse: os
-12,5 M de linhas cabem com folga no DuckDB de uma máquina só — o porquê está no
+12,5 M de linhas cabem com folga no DuckDB de uma máquina só. Ler mais em
 [ARQUITETURA.md](ARQUITETURA.md).
 
 ---
@@ -188,25 +187,28 @@ e três marts pré-agregados.
 ### A análise
 
 ```bash
-make dashboard    # a entrega: oito seções, na ordem em que as decisões surgiram
+make dashboard    # a entrega: dez seções, na ordem em que as decisões surgiram
 make notebook     # o caminho: reexecuta analise/exploracao.ipynb com as saídas
 ```
 
-O dashboard não é painel de filtros: é a história do que o dado ensinou sobre
-como construir o sistema. Cada seção tem um gráfico que faz o argumento, um
+O dashboard não tem o objetivo de ser um painel de filtros,  
+mas de contar a motivação da arquitetura conforme as análises de dados.
+Cada seção tem um gráfico que faz o argumento, um
 bloco *o que eu vi → o que quebraria → o que mudei no sistema*, e só então os
-controles para explorar.
+controles para explorar. Basicamente, o Streamlit é a própria apresentação.
 
 | Seção | O achado |
 |---|---|
-| 1. O dado como ele chega | 315 MB em cp1252 — e ler com o encoding errado **não dá erro** |
-| 2. As quatro tabelas | 1 linha por obra em `cno.csv`, N nas outras três — e a fonte publicando o próprio gabarito |
-| 3. O nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas |
-| 4. A soma que mente | `SUM(area_total)` erra por um fator de **312** |
-| 5. O endereço vem em Plus Code | cobertura honesta de **41,2%**, não os 59% aparentes |
-| 6. A série que triplica | o degrau de 2018-2019 é o cadastro entrando no ar |
-| 7. Das tabelas às camadas | onde cada decisão das seções anteriores foi parar |
-| 8. O que dá para afirmar | e, explicitamente, o que **não** dá |
+| 1. A fonte e o encoding | 315 MB em cp1252, e ler com o encoding errado **não dá erro** |
+| 2. As quatro tabelas | 1 linha por obra em `cno.csv`, N nas outras três, e a fonte publicando o próprio gabarito |
+| 3. Arquitetura e stack | DuckDB e não Spark, e os três serviços que saíram do compose |
+| 4. As duas DAGs | duas DAGs que não se tocam, e a validação como portão |
+| 5. O campo nulo que não é dado faltante | 66% sem NI do responsável são pessoas físicas |
+| 6. O erro de somar a área | `SUM(area_total)` erra por um fator de **312** |
+| 7. O endereço vem em Plus Code | cobertura honesta de **41,2%**, não os 59% aparentes |
+| 8. O salto de 2019 | o degrau de 2018-2019 é o cadastro entrando no ar |
+| 9. As três camadas | onde cada decisão das seções anteriores foi parar |
+| 10. O que dá para afirmar | e, explicitamente, o que **não** dá |
 
 O caderno (`analise/exploracao.ipynb`) está versionado **com as saídas**, para
 ser lido sem ser executado.
@@ -250,12 +252,12 @@ dags/                 cno_pipeline (as quatro etapas) e referencias_ibge
 analise/              camada de análise: consultas, estilo, malha e o caderno
 app/                  o dashboard narrativo (Streamlit), uma seção por arquivo
 tests/                248 testes, todos offline
-data/                 raw / staging / curated — gerado, nunca versionado
+data/                 raw / staging / curated
 ```
 
 `analise/` traz também a tabela de referência do IBGE já gerada
 (`municipios.csv`, a malha e as 17 correções de nome), então o dashboard
-funciona num clone limpo sem buscar nada. Para regerá-la —
+funciona num clone limpo sem buscar nada. Para regerá-la, use
 `python analise/construir_municipios.py`. Ela declara a própria validade, e a
 DAG `referencias_ibge` falha quando a safra vence.
 

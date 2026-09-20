@@ -21,8 +21,8 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "Com as cinco decisões anteriores no lugar, os números abaixo são defensáveis. "
-        "**Nenhum deles seria, sem elas.**",
+        "Com as decisões anteriores no lugar, os números abaixo são defensáveis. "
+        "**Sem elas, nenhum deles seria.**",
     )
 
     _setor()

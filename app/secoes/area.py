@@ -10,7 +10,7 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-TITULO = "A soma que mente"
+TITULO = "O erro de somar a área"
 
 
 def render() -> None:
@@ -18,9 +18,9 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "Pergunta de primeiro slide: *quantos metros quadrados esta base soma?* "
-        "`SUM(area_total)` responde na hora — e responde errado, por **dois motivos "
-        "independentes**, cada um capaz de estragar o número sozinho.",
+        "Quantos metros quadrados esta base soma? Somar a coluna `area_total` "
+        "responde na hora, e responde errado. São **dois problemas "
+        "independentes**, e cada um sozinho já estraga o número.",
     )
 
     decomposicao = dados_app.consultar("decomposicao_area")
@@ -58,23 +58,23 @@ def render() -> None:
     )
 
     ui.decisao(
-        vi=(
-            "Primeiro: **a coluna mistura unidades** — metro quadrado em 94% das linhas, e "
-            "quilômetro, metro cúbico, quilowatt e kVA no resto. Segundo: **323 obras "
-            "declaram área impossível**, a maior com 555.555.555.555 m², cerca de 65 vezes "
-            "a área do Brasil."
+        achado=(
+            "Primeiro, **a coluna mistura unidades**: metro quadrado em 94% das linhas "
+            "e quilômetro, metro cúbico, quilowatt e kVA no resto. Segundo, **323 "
+            "obras declaram área impossível**, sendo a maior 555.555.555.555 m², "
+            "umas 65 vezes a área do Brasil."
         ),
-        quebraria=(
-            "Nenhum dos filtros resolve sozinho: só tirar as implausíveis ainda deixa "
-            "49.286 km² (soma de unidades diferentes); só pegar o que está em m² ainda "
-            "deixa 840.668 km² (a digitação continua lá). Um `SUM` desavisado publicaria "
-            "um número 312 vezes maior que o certo."
+        risco=(
+            "Nenhum dos filtros resolve sozinho. Só tirar as implausíveis ainda deixa "
+            "49.286 km², porque soma unidades diferentes. Só pegar o que está em m² "
+            "ainda deixa 840.668 km², porque o erro de digitação continua lá. "
+            "Somando sem cuidado, o número sai 312 vezes maior que o certo."
         ),
-        mudou=(
-            "A camada curada tem uma coluna `area_m2` que **só existe quando a unidade é "
-            "metro quadrado e a área não é suspeita**. A área declarada continua ao lado, "
-            "intacta, com a unidade — marcar, nunca apagar. Só `area_m2` é agregável, e é "
-            "a única que os marts somam."
+        decisao=(
+            "Criei na camada curada a coluna `area_m2`, que **só é preenchida quando a "
+            "unidade é metro quadrado e a área não é suspeita**. A área declarada "
+            "continua ao lado, com a unidade original: eu marco, não apago. Só "
+            "`area_m2` pode ser somada, e é a única que os marts usam."
         ),
     )
 

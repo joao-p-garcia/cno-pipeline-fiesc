@@ -82,6 +82,16 @@ def _tooltips(df: pd.DataFrame, casas: dict[str, int] | None = None) -> tuple[pd
 ALTURA_MOLDURA = 70
 
 
+def _altura_fixa(area_de_plotagem: int) -> int:
+    """Altura a pedir para obter `area_de_plotagem` de área útil.
+
+    Mesma correção de `_altura`, para os gráficos cuja altura não depende do
+    número de categorias: o número escrito na chamada é a área de plotagem
+    desejada, e o que se pede ao Vega é ela mais a moldura.
+    """
+    return area_de_plotagem + ALTURA_MOLDURA
+
+
 def _altura(categorias: int, por_categoria: int) -> int:
     """Altura fixa a partir do número de categorias.
 
@@ -178,7 +188,8 @@ def decomposicao_log(df: pd.DataFrame, *, titulo: str, subtitulo: str) -> alt.La
         align="left", dx=14, fontSize=11, color=estilo.TINTA_SECUNDARIA
     ).encode(text="_rotulo:N")
     return alt.layer(reguas, pontos, rotulos).properties(
-        title=_titulo(titulo, subtitulo), height=150
+        title=_titulo(titulo, subtitulo),
+        height=_altura(len(tabela), ALTURA_BARRA + ESPACO_BARRA),
     )
 
 
@@ -276,7 +287,9 @@ def serie_temporal(
             .mark_text(align="right", dx=-8, color=estilo.LARANJA, fontSize=11, fontWeight="bold")
             .encode(x=alt.X(f"{x}:O"), y=alt.value(12), text="rotulo:N")
         )
-    return alt.layer(*camadas).properties(title=_titulo(titulo, subtitulo), height=300)
+    return alt.layer(*camadas).properties(
+        title=_titulo(titulo, subtitulo), height=_altura_fixa(300)
+    )
 
 
 def _anos_ticks(serie: pd.Series) -> list[int]:
@@ -322,7 +335,9 @@ def histograma(
             )
             .encode(x="x:Q", y=alt.value(10), text="rotulo:N")
         )
-    return alt.layer(*camadas).properties(title=_titulo(titulo, subtitulo), height=280)
+    return alt.layer(*camadas).properties(
+        title=_titulo(titulo, subtitulo), height=_altura_fixa(280)
+    )
 
 
 def mapa(

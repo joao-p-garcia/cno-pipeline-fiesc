@@ -69,20 +69,19 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "O pacote traz **cinco** CSVs. Quatro viram tabela; o quinto é o gabarito "
-        "com que a Receita confere o próprio arquivo. Antes de discutir qualquer "
-        "problema do dado, vale saber o que é cada coisa — e que elas **não têm o "
-        "mesmo tamanho**.",
+        "O pacote traz **cinco** CSVs. Quatro viram tabela e o quinto traz as "
+        "contagens que a Receita declara. Antes de falar dos problemas do dado, "
+        "vale saber o que é cada tabela e que elas **não têm o mesmo tamanho**.",
     )
 
     st.dataframe(pd.DataFrame(ARQUIVOS), hide_index=True, width="stretch")
 
-    st.markdown("### A fonte publica o próprio gabarito")
+    st.markdown("### A fonte declara as próprias contagens")
     st.markdown(
-        "O quinto arquivo, `cno_totais.csv`, não vira tabela: são quatro números — "
-        "quantas obras, CNAEs, áreas e vínculos aquela publicação tem. É pequeno o "
-        "bastante para passar despercebido e é a coisa mais valiosa do pacote: "
-        "**sem oráculo externo, validação é o pipeline conferindo contra si mesmo**."
+        "O quinto arquivo, `cno_totais.csv`, não vira tabela. São quatro números: "
+        "quantas obras, CNAEs, áreas e vínculos aquela publicação tem. É contra "
+        "eles que o `cno validate` reconcilia o que foi tratado. **Sem uma fonte "
+        "externa para comparar, é o que permite validar o dado.**"
     )
     volumetria = dados_app.consultar("volumetria")
     st.dataframe(
@@ -91,28 +90,27 @@ def render() -> None:
         width="stretch",
     )
     st.caption(
-        "As três últimas linhas somam o 1:N depois do tratamento: 4.531.627 áreas contra "
-        "4.553.076 publicadas, 420.338 vínculos contra 431.211. A diferença são 21.449 e "
-        "10.873 **linhas exatamente duplicadas** na origem — e o número bate ao registro."
+        "As três últimas linhas somam o 1:N depois do tratamento: 4.531.627 áreas "
+        "contra 4.553.076 publicadas, e 420.338 vínculos contra 431.211. A diferença "
+        "são 21.449 e 10.873 **linhas duplicadas** na origem, e o número bate exato."
     )
 
     ui.decisao(
-        vi=(
-            "As quatro tabelas somam **12,5 M de linhas**, mas só 3,6 M de obras. "
-            "`areas` tem **mais linhas que `obras`** — uma obra declara a área "
-            "principal e quantas complementares quiser."
+        achado=(
+            "As quatro tabelas somam **12,5 M de linhas**, mas são só 3,6 M de obras. "
+            "A tabela `areas` tem **mais linhas que `obras`**, porque uma obra "
+            "declara a área principal e quantas complementares quiser."
         ),
-        quebraria=(
-            "Juntar as quatro num `JOIN` e contar. Cada obra com três áreas e dois "
-            "CNAEs vira **seis linhas**, e a partir daí toda contagem, soma e média "
-            "está multiplicada por um fator que varia de obra para obra. O `JOIN` "
-            "não dá erro; dá um número maior."
+        risco=(
+            "Juntar as quatro tabelas e contar. Uma obra com três áreas e dois CNAEs "
+            "vira **seis linhas**, e daí toda contagem, soma e média fica "
+            "multiplicada por um fator diferente em cada obra. A junção não dá "
+            "erro, só devolve um número maior."
         ),
-        mudou=(
-            "A camada curada colapsa o 1:N para **uma linha por obra** e guarda o "
-            "que foi colapsado em `n_areas`, `n_cnaes` e `n_vinculos`. A perda é "
-            "declarada e auditável, não silenciosa — e há teste dedicado só a essa "
-            "propriedade."
+        decisao=(
+            "A camada curada reduz o 1:N para **uma linha por obra** e guarda o que "
+            "foi agrupado em `n_areas`, `n_cnaes` e `n_vinculos`. Assim dá para "
+            "auditar o que se perdeu, e tem um teste só para garantir isso."
         ),
     )
 
@@ -124,7 +122,7 @@ def render() -> None:
             hide_index=True,
             width="stretch",
         )
-        st.markdown("**Quanta informação o colapso para uma linha por obra teve que guardar**")
+        st.markdown("**Quanto o agrupamento para uma linha por obra teve que guardar**")
         cardinalidade = dados_app.consultar("cardinalidade")
         st.dataframe(
             cardinalidade.assign(obras=cardinalidade["obras"].map(estilo.numero)),
