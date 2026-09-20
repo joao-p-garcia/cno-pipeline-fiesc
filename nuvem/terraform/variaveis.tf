@@ -56,3 +56,9 @@ locals {
     terraform = "true"
   }
 }
+
+variable "email_alerta" {
+  description = "Destino dos avisos de orçamento. O dono da assinatura."
+  type        = string
+  default     = "joaopedrogarciaufsc@gmail.com"
+}
