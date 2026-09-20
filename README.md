@@ -149,10 +149,22 @@ Python 3.11+, empacotado como CLI (`cno`). Sem Spark, sem data warehouse: os
 Python 3.11 e 3.12, e num job separado sobe o Airflow 3.3.2 para os testes das
 DAGs. Como nenhum teste toca a rede, a CI não depende de a Receita estar no ar.
 
-**CD** ainda não existe — é o próximo passo. O caminho é publicar a imagem
-`cno-pipeline` num registry a cada tag e aplicar a stack num ambiente
-gerenciado; a parte difícil já está feita, porque a imagem é autossuficiente
-(sem bind mount e sem dependência do host).
+**CD** existe, e publica na nuvem. A cada push na branch `cloud/azure`, o
+GitHub Actions constrói a imagem, envia para um Azure Container Registry e
+reaponta os dois recursos que a consomem. A autenticação é OIDC com credencial
+federada: **nenhum segredo fica guardado no repositório** — o runner emite um
+token na hora e a Azure só aceita trocá-lo se ele vier daquela branch.
+
+Do outro lado do deploy, a mesma esteira roda gerenciada: um **Container Apps
+Job** com cron diário no lugar dos cinco contêineres do Airflow, **ADLS Gen2**
+no lugar do volume, e o dashboard num endereço público. A infraestrutura
+inteira é **Terraform** com estado remoto.
+
+Isso é uma trilha paralela, não a entrega: o que o desafio pede roda com
+`docker compose up`, do começo ao fim, sem conta em nuvem nenhuma. O pipeline
+não mudou uma linha para ir para lá — ele já era um CLI configurado por
+variável de ambiente, sem estado fora de `CNO_DATA_DIR`, e foi isso que tornou
+a mudança barata. Detalhes e medições em [nuvem/PLANO.md](nuvem/PLANO.md).
 
 ---
 
