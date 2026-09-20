@@ -1,0 +1,21 @@
+# Plugins e módulos baixados pelo `terraform init`. ~300 MB, reproduzíveis.
+.terraform/
+
+# O state nunca é local neste projeto — mora no Azure Storage, criado pelo
+# bootstrap. Se algum destes arquivos aparecer aqui, algo rodou sem backend e
+# a cópia é lixo perigoso: contém tudo que a infraestrutura sabe.
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Valores de variável específicos de quem roda.
+*.tfvars
+*.auto.tfvars
+!exemplo.tfvars
+
+crash.log
+crash.*.log
+
+# O .terraform.lock.hcl NÃO está aqui de propósito: ele fixa as versões exatas
+# dos providers e precisa ser versionado, pelo mesmo motivo que um lock de
+# dependências de aplicação precisa.

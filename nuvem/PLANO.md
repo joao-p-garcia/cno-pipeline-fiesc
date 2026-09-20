@@ -20,7 +20,7 @@ editar `src/cno_pipeline/`, o desenho está errado.**
         │
         │  OIDC, sem segredo guardado
         ▼
-   GitHub Actions ──▶ az acr build ──▶ ACR  (a imagem, construída na nuvem)
+   GitHub Actions ──▶ docker build ──▶ ACR  (a imagem, construída no runner)
                                         │
                         ┌───────────────┴───────────────┐
                         ▼                               ▼
@@ -42,7 +42,7 @@ editar `src/cno_pipeline/`, o desenho está errado.**
 |---|---|---|
 | DAG Airflow + scheduler + api-server + dag-processor + Postgres | **Container Apps Job**, trigger cron | 5 serviços viram 1 recurso que escala a zero |
 | volume `cno-dados` | **ADLS Gen2** (storage com HNS) | só o `curated/` sobe; raw e staging são efêmeros |
-| `make build` na máquina | **ACR** + `az acr build` | é o "CD ainda não existe" do README, resolvido |
+| `make build` na máquina | **ACR** + `docker build` no runner | é o "CD ainda não existe" do README, resolvido |
 | serviço `dashboard` | **Container App** | mesma imagem, entrypoint diferente |
 | `airflow-logs` | **Log Analytics** | histórico de execução visível no portal |
 
@@ -97,9 +97,25 @@ sustentando, e não a boa vontade do processo.
 resolvedor de dependências dele. O venv do pipeline já é isolado em
 `/opt/cno/.venv`, então é trocar a base e manter o resto do Dockerfile.
 
-**`az acr build`, e não build local.** Constrói dentro da Azure: dispensa
-buildx para `linux/amd64` a partir do Windows e não sobe 1 GB de imagem pela
-conexão de casa.
+**`docker build`, porque `az acr build` não está disponível.** A primeira
+escolha era construir dentro da Azure com ACR Tasks: dispensaria cross-build
+para `linux/amd64` e não subiria a imagem pela conexão de casa. Mas esta
+assinatura recusa:
+
+```
+ERROR: (TasksOperationsNotAllowed) ACR Tasks requests for the registry
+acrcnofiesc and a473d0e0-… are not permitted.
+```
+
+É uma restrição de assinatura nova, não do registry nem do plano Basic, e
+levantá-la exige chamado na Microsoft. O contorno custa pouco: a máquina é
+amd64 e o runner do GitHub também, então `docker build` nos dois lugares produz
+a arquitetura certa sem buildx. O que se paga é o push da imagem pela conexão
+local, uma vez — no CD quem empurra é o runner.
+
+Efeito colateral bom: a identidade de deploy fica com menos permissão. Com ACR
+Tasks seria preciso `Container Registry Tasks Contributor`, que é control
+plane; com push basta `AcrPush` mais `Reader`.
 
 **Estado do Terraform remoto, num bootstrap à parte.** O backend precisa de um
 storage account que ainda não existe — o ouroboros clássico. Resolvido por um
@@ -328,7 +344,8 @@ apply em dois tempos:
 
 ```bash
 terraform apply -target=azurerm_container_registry.cno
-az acr build --registry <acr> --image cno-pipeline:latest --file nuvem/Dockerfile .
+docker build --platform linux/amd64 -f nuvem/Dockerfile -t acrcnofiesc.azurecr.io/cno-pipeline:latest .
+az acr login --name acrcnofiesc && docker push acrcnofiesc.azurecr.io/cno-pipeline:latest
 terraform apply
 ```
 
@@ -380,7 +397,8 @@ Fica registrado; começar pelo azcopy.
    `subscription-id` — em `vars`, não em `secrets`, porque nenhum deles é
    segredo; o que autentica é o token OIDC do próprio runner
    (`permissions: id-token: write`).
-2. `az acr build --image cno-pipeline:${{ github.sha }}` — build na nuvem.
+2. `az acr login`, depois `docker build` e `docker push` com duas tags: o sha
+   do commit e `latest`.
 3. `az containerapp job update` e `az containerapp update` com a nova tag.
 
 O CI atual (`.github/workflows/ci.yml`) continua como está: os 256 testes não
@@ -453,7 +471,7 @@ O que abrir, na ordem, depois que o Streamlit local terminar:
 - [x] 0.3 registrar providers, região definida (`brazilsouth`); cota fica para o apply
 - [ ] 1 `bootstrap.sh` e o backend
 - [ ] 2 `base.tf`, `lake.tf`, `identidades.tf`
-- [ ] 3 `nuvem/Dockerfile` e os dois entrypoints; `az acr build` na mão
+- [x] 3 `nuvem/Dockerfile` e os dois entrypoints; build e push na mão
 - [ ] 2b `apps.tf` e o apply completo
 - [ ] 3b disparar o job na mão (`az containerapp job start`) e ver o lake encher
 - [ ] 4 o workflow de CD

@@ -1,0 +1,87 @@
+# CD da trilha de nuvem.
+#
+# É o "CD ainda não existe" que o README registra como próximo passo, resolvido
+# para o lado da Azure: a cada push nesta branch a imagem é reconstruída e o job
+# e o dashboard passam a apontar para ela.
+#
+# Nenhum segredo é guardado no repositório. A autenticação é OIDC: o runner
+# emite um token, a credencial federada da identidade `id-cno-deploy` só aceita
+# trocá-lo se o `subject` bater com esta branch, e a Azure devolve um token de
+# acesso de curta duração. Os cinco valores abaixo são Variables, não Secrets,
+# porque nenhum deles é segredo — são identificadores públicos.
+#
+# A imagem é construída no runner com `docker build`, e não com `az acr build`:
+# esta assinatura tem ACR Tasks bloqueado (restrição de conta nova). O runner
+# é amd64, que é a arquitetura do Container Apps, então não há cross-build.
+name: nuvem
+
+on:
+  push:
+    branches: [cloud/azure]
+    paths:
+      - src/**
+      - app/**
+      - analise/**
+      - pyproject.toml
+      - nuvem/Dockerfile
+      - nuvem/entrypoint-*.sh
+      - .github/workflows/nuvem.yml
+  workflow_dispatch:
+
+# id-token: write é o que permite ao runner emitir o token OIDC. Sem isto o
+# azure/login falha com uma mensagem que não explica nada.
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: nuvem
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    env:
+      IMAGEM: cno-pipeline
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: autenticar na Azure por OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: autenticar no registry
+        run: az acr login --name ${{ vars.AZURE_REGISTRY }}
+
+      - name: construir e empurrar a imagem
+        run: |
+          set -euo pipefail
+          REG="${{ vars.AZURE_REGISTRY }}.azurecr.io"
+          docker build \
+            --file nuvem/Dockerfile \
+            --tag "$REG/$IMAGEM:${{ github.sha }}" \
+            --tag "$REG/$IMAGEM:latest" \
+            .
+          docker push "$REG/$IMAGEM:${{ github.sha }}"
+          docker push "$REG/$IMAGEM:latest"
+
+      # A tag imutável do commit, e não `latest`: assim a revisão do Container
+      # App fica amarrada a um commit exato, e dá para dizer qual código está no
+      # ar olhando o portal. O `latest` existe só para o primeiro apply do
+      # Terraform ter o que referenciar.
+      - name: apontar o job e o dashboard para a nova imagem
+        run: |
+          set -euo pipefail
+          REG="${{ vars.AZURE_REGISTRY }}.azurecr.io"
+          az containerapp job update \
+            --name job-cno-pipeline \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "$REG/$IMAGEM:${{ github.sha }}"
+          az containerapp update \
+            --name ca-cno-dashboard \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "$REG/$IMAGEM:${{ github.sha }}"
