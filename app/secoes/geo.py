@@ -20,12 +20,13 @@ UF_PADRAO = "SC"
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 4 de 6",
+        ui.posicao(__name__),
         TITULO,
-        "`Código de localização` traz um **Plus Code** (Open Location Code, do Google) em "
-        "2,1 milhões de registros. Dá para geocodificar a base inteira sem nenhum serviço "
-        "pago — a decodificação é aritmética e roda offline. A tentação é anunciar *59% da "
-        "base geocodificada*. **O caminho até o número honesto tem três degraus.**",
+        "O campo `Código de localização` traz um **Plus Code** (Open Location Code, "
+        "do Google) em 2,1 milhões de registros. Dá para geocodificar a base inteira "
+        "sem serviço pago, porque a decodificação é aritmética e roda offline. "
+        "Seria fácil anunciar 59% de cobertura, mas **o número honesto é menor, e "
+        "por três motivos**.",
     )
 
     # Os três degraus vêm de `dados.funil_geocodificacao`, não de três contagens
@@ -62,22 +63,23 @@ def render() -> None:
     )
 
     ui.decisao(
-        vi=(
+        achado=(
             "**48.436 Plus Codes (3,7% dos decodificados) são válidos e apontam para o "
-            "lugar errado** — 39 mil a mais de 500 km do município declarado, alguns no "
-            "Japão. O prefixo de área foi digitado trocado, e o código continua "
-            "sintaticamente perfeito."
+            "lugar errado.** São 39 mil a mais de 500 km do município declarado, "
+            "alguns no Japão. O prefixo de área foi digitado trocado e o código "
+            "continua sintaticamente perfeito."
         ),
-        quebraria=(
-            "Um mapa com obras catarinenses em Kyushu, e uma cobertura anunciada 43% maior "
-            "do que a real. Nada disso levanta exceção: o código **decodifica**."
+        risco=(
+            "Um mapa com obras catarinenses no Japão, e uma cobertura anunciada 43% "
+            "maior que a real. Nada disso levanta exceção, porque o código "
+            "**decodifica normalmente**."
         ),
-        mudou=(
-            "Existem duas colunas: `geo_distancia_municipio_km`, com a distância até a "
+        decisao=(
+            "Criei duas colunas: `geo_distancia_municipio_km`, com a distância até a "
             "mediana do município, e `geo_plausivel`, que corta em "
             f"{consultas.LIMITE_PLAUSIVEL_KM} km. O ponto errado "
-            "**continua gravado** — quem plota filtra por `geo_plausivel`, quem investiga "
-            "tem o caso na mão. A cobertura publicada é 41,2%."
+            "**continua gravado**. Quem plota filtra por `geo_plausivel` e quem quiser "
+            "investigar tem o caso na mão. A cobertura que publico é 41,2%."
         ),
     )
 
@@ -141,4 +143,4 @@ def render() -> None:
             width="stretch",
         )
 
-    ui.rodape(anterior="A soma que mente", proxima="A série que triplica")
+    ui.rodape(*ui.vizinhos(__name__))

@@ -24,6 +24,56 @@ from analise import estilo
 
 from . import dados_app
 
+# A ordem da narrativa, e a **única** fonte dela. A numeração do topo de cada
+# seção, os vizinhos do rodapé e as páginas do `st.navigation` saem daqui.
+#
+# Antes cada seção escrevia `"Seção 3 de 6"` e o nome do vizinho à mão. Com seis
+# seções já eram doze lugares para desencontrar; a primeira mudança de ordem
+# deixaria metade do app mentindo sobre onde o leitor está — e mentira de
+# navegação é do tipo que ninguém reporta, só desorienta.
+ORDEM = (
+    "fonte",
+    "tabelas",
+    "arquitetura",
+    "dags",
+    "nulos",
+    "area",
+    "geo",
+    "tempo",
+    "camadas",
+    "conclusoes",
+)
+
+
+def _titulo_de(modulo: str) -> str:
+    """O `TITULO` de uma seção, importada sob demanda.
+
+    O import é adiado de propósito: `componentes` é importado por toda seção no
+    topo, e importar as seções aqui em cima fecharia o ciclo. Dentro da função
+    ele só roda quando a página está sendo desenhada, com tudo já carregado.
+    """
+    from importlib import import_module
+
+    return import_module(f".secoes.{modulo}", package=__package__).TITULO
+
+
+def _nome_curto(modulo: str) -> str:
+    """`app.secoes.geo` -> `geo`. É o que as seções passam como `__name__`."""
+    return modulo.rsplit(".", 1)[-1]
+
+
+def posicao(modulo: str) -> str:
+    """ "Seção 4 de 8", calculado a partir de `ORDEM`."""
+    return f"Seção {ORDEM.index(_nome_curto(modulo)) + 1} de {len(ORDEM)}"
+
+
+def vizinhos(modulo: str) -> tuple[str | None, str | None]:
+    """Títulos da seção anterior e da próxima, ou `None` nas pontas."""
+    i = ORDEM.index(_nome_curto(modulo))
+    anterior = _titulo_de(ORDEM[i - 1]) if i > 0 else None
+    proxima = _titulo_de(ORDEM[i + 1]) if i < len(ORDEM) - 1 else None
+    return anterior, proxima
+
 
 def configurar_pagina() -> None:
     st.set_page_config(
@@ -39,7 +89,7 @@ def cabecalho() -> None:
 
     A data do snapshot fica visível o tempo todo porque é ela que separa um
     dashboard de um extrato: o número que está na tela veio de uma publicação
-    identificada da Receita, e a esteira sabe qual.
+    identificada da Receita, e a pipeline sabe qual.
     """
     curada = dados_app.conexao()
     meta = dados_app.metadados_referencia()
@@ -73,12 +123,16 @@ def titulo(numero: str, texto: str, resumo: str) -> None:
     st.markdown(resumo)
 
 
-def decisao(vi: str, quebraria: str, mudou: str) -> None:
-    """O bloco que transforma um gráfico numa decisão de engenharia."""
+def decisao(achado: str, risco: str, decisao: str) -> None:
+    """O bloco que transforma um gráfico numa decisão de engenharia.
+
+    Os três rótulos são curtos de propósito: quem apresenta lê a tela enquanto
+    fala, e título comprido rouba a atenção do conteúdo.
+    """
     with st.container(border=True):
-        st.markdown(f"**O que eu vi.** {vi}")
-        st.markdown(f"**O que quebraria se eu ignorasse.** {quebraria}")
-        st.markdown(f"**O que mudou no sistema.** {mudou}")
+        st.markdown(f"**Achado.** {achado}")
+        st.markdown(f"**Risco.** {risco}")
+        st.markdown(f"**Decisão.** {decisao}")
 
 
 def numeros(itens: list[tuple[str, str, str | None]]) -> None:

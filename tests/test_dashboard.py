@@ -6,7 +6,7 @@ código testável em vez de "abre e vê se aparece" — e o que pega a classe de
 mais comum aqui: uma coluna renomeada na camada curada que só quebraria quando
 alguém clicasse na quarta seção.
 
-As seis seções são exercitadas uma a uma, sobre a camada sintética.
+Cada seção é exercitada uma a uma, sobre a camada sintética.
 """
 
 from __future__ import annotations
@@ -27,7 +27,21 @@ streamlit = pytest.importorskip(
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 RAIZ = Path(__file__).resolve().parents[1]
-SECOES = ("fonte", "nulos", "area", "geo", "tempo", "conclusoes")
+# Espelha `componentes.ORDEM` de propósito: se alguém acrescentar uma seção e
+# esquecer o teste, a asserção logo abaixo falha em vez de a seção nova ficar
+# sem cobertura nenhuma.
+SECOES = (
+    "fonte",
+    "tabelas",
+    "arquitetura",
+    "dags",
+    "nulos",
+    "area",
+    "geo",
+    "tempo",
+    "camadas",
+    "conclusoes",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -76,6 +90,41 @@ def _rodar(secao: str, tmp_path):
     return app
 
 
+def test_secoes_do_teste_espelham_a_ordem_do_app():
+    """A lista acima não pode divergir de `componentes.ORDEM`.
+
+    Sem isto, acrescentar uma seção e esquecer de listá-la aqui deixaria a seção
+    nova **sem teste nenhum** — e o parametrize continuaria verde, porque ele só
+    sabe o que esta lista diz.
+    """
+    import sys
+
+    sys.path.insert(0, str(RAIZ))
+    from app import componentes
+
+    assert SECOES == componentes.ORDEM
+
+
+@pytest.mark.parametrize("secao", SECOES)
+def test_svg_nao_passa_pelo_markdown(secao, camada_curada, tmp_path):
+    """Diagrama inline vai por `st.html`, nunca por `st.markdown`.
+
+    Markdown fecha um bloco de HTML na primeira linha em branco e trata linha
+    indentada em quatro espaços como bloco de código — os dois existem num SVG
+    escrito de forma legível. Pelo `st.markdown(unsafe_allow_html=True)` o
+    Streamlit desenhava só a primeira caixa do diagrama e despejava o resto na
+    página como parágrafos soltos, um `<text>` por linha.
+
+    O teste de renderização não pega isso: a seção desenha sem exceção nos dois
+    casos. O que distingue é **onde** o fragmento sai — `st.html` não aparece em
+    `app.markdown`, então um `<svg>` visto aqui significa que alguém o entregou
+    pelo caminho errado.
+    """
+    app = _rodar(secao, tmp_path)
+    culpados = [bloco.value[:80] for bloco in app.markdown if "<svg" in bloco.value]
+    assert not culpados, f"{secao}: SVG entregue por st.markdown — use st.html. {culpados}"
+
+
 @pytest.mark.parametrize("secao", SECOES)
 def test_secao_renderiza_sem_excecao(secao, camada_curada, tmp_path):
     app = _rodar(secao, tmp_path)
@@ -84,7 +133,7 @@ def test_secao_renderiza_sem_excecao(secao, camada_curada, tmp_path):
 
 
 def test_app_inteiro_sobe(camada_curada, tmp_path):
-    """A navegação em si: seis páginas, e nenhuma pode colidir de URL."""
+    """A navegação em si: dez páginas, e nenhuma pode colidir de URL."""
     app = AppTest.from_file(str(RAIZ / "app" / "dashboard.py"), default_timeout=120)
     app.run()
     assert not app.exception, [str(e.value) for e in app.exception]

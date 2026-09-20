@@ -10,19 +10,20 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-TITULO = "A série que triplica"
+TITULO = "O salto de 2019"
 
 
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
-        "Seção 5 de 6",
+        ui.posicao(__name__),
         TITULO,
-        "Obras por ano de início, sem filtro nenhum: 87.574 em 2016, 187.432 em 2018, "
-        "**307.530 em 2019** — e então estabiliza em torno de 300 mil. **Triplicar em dois "
-        "anos e parar não é crescimento: é o cadastro entrando no ar.** O CNO substituiu a "
-        "matrícula CEI e passou a valer em 21/01/2019; antes disso ele não existia, e obra "
-        "antiga só aparece aqui se alguém a registrou depois.",
+        "Obras por ano de início, sem filtro: 87.574 em 2016, 187.432 em 2018 e "
+        "**307.530 em 2019**, estabilizando em torno de 300 mil depois disso. "
+        "**Esse salto não é crescimento do setor, é o cadastro entrando no ar.** O "
+        "CNO substituiu a matrícula CEI e passou a valer em 21/01/2019. Antes "
+        "disso ele não existia, e obra antiga só aparece aqui se alguém registrou "
+        "depois.",
     )
 
     serie = dados_app.consultar("obras_por_ano", desde=1995)
@@ -44,28 +45,28 @@ def render() -> None:
     )
 
     ui.decisao(
-        vi=(
-            "Um degrau de 3,5× entre 2016 e 2019, seguido de patamar estável. Nenhuma "
-            "série econômica se comporta assim; cadastro entrando no ar, sim. A própria "
-            "base confirma: o registro mais antigo é de **19/11/2018**, na mesma semana "
-            "da IN que criou o CNO (22/11/2018), e 2018 inteiro tem 385 registros contra "
-            "366 mil em 2019. **O passado não foi absorvido de uma vez** — as obras "
-            "iniciadas "
-            "antes de 2019 entraram espalhadas por todos os anos desde então, e 45% da "
-            "base foi registrada mais de um ano depois de a obra começar."
+        achado=(
+            "Um salto de 3,5× entre 2016 e 2019, seguido de patamar estável. Série "
+            "econômica não se comporta assim, cadastro novo sim. A base confirma: o "
+            "registro mais antigo é de **19/11/2018**, na mesma semana da IN que "
+            "criou o CNO, e 2018 inteiro tem 385 registros contra 366 mil em 2019. "
+            "**O passado não entrou de uma vez.** As obras iniciadas antes de 2019 "
+            "foram registradas ao longo de todos os anos seguintes, e 45% da base "
+            "entrou mais de um ano depois de a obra começar."
         ),
-        quebraria=(
-            "Qualquer frase do tipo *crescimento de X% desde 2016* estaria medindo entrada "
-            "em vigor de norma, não atividade econômica. É o erro que sobrevive à revisão, "
-            "porque o gráfico fica bonito e a conta está certa. Pior: o passado **não é "
-            "estável** — cada snapshot novo acrescenta obras antigas registradas com "
-            "atraso, então a mesma série muda de valor sem que nada tenha sido construído."
+        risco=(
+            "Dizer *crescimento de X% desde 2016* seria medir a entrada em vigor de uma "
+            "norma, não atividade econômica. É o tipo de erro que passa na revisão, "
+            "porque o gráfico fica bonito e a conta está certa. E tem outro "
+            "problema: o passado **não é estável**. Cada snapshot novo acrescenta "
+            "obras antigas registradas com atraso, então a mesma série muda de valor "
+            "sem nada ter sido construído."
         ),
-        mudou=(
-            "A coluna `serie_comparavel` marca o que começa em "
+        decisao=(
+            "Criei a coluna `serie_comparavel`, que marca o que começa em "
             f"{consultas.ANO_SERIE_COMPARAVEL} ou depois. O período anterior continua "
-            "acessível — com aviso, nunca apagado. A data saiu da norma: **IN RFB 1.845, "
-            "de 22/11/2018**, com o CNO em vigor a partir de **21/01/2019**."
+            "acessível, com aviso, e não apaguei nada. A data saiu da norma: **IN RFB "
+            "1.845, de 22/11/2018**, com o CNO em vigor a partir de **21/01/2019**."
         ),
     )
 
@@ -142,4 +143,4 @@ def render() -> None:
             "sentinela como 1900-01-01. Elas continuam na base, fora do recorte temporal."
         )
 
-    ui.rodape(anterior="O endereço vem em Plus Code", proxima="O que dá para afirmar")
+    ui.rodape(*ui.vizinhos(__name__))

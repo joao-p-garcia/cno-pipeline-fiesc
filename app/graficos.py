@@ -20,7 +20,18 @@ import pandas as pd
 
 from analise import estilo, malha
 
-ALTURA_BARRA = 26
+# Espessura da barra, com teto de 24px. Barra que preenche a faixa inteira faz o
+# gráfico virar uma parede: a sobra da banda é ar, e é o ar que separa uma barra
+# da seguinte — não um contorno desenhado em volta.
+ALTURA_BARRA = 20
+
+# O ar entre uma barra e a próxima. Somado à altura, dá a banda de cada
+# categoria. Era um 12 literal repetido em dois lugares.
+ESPACO_BARRA = 14
+
+# Nas barras agrupadas cada série divide a banda, então a barra é mais fina.
+# Proporcionalmente é o mesmo ar: duas de 12 numa banda de 34 por série.
+ALTURA_BARRA_AGRUPADA = 12
 
 
 def _titulo(titulo: str, subtitulo: str | None = None) -> alt.TitleParams:
@@ -60,6 +71,27 @@ def _tooltips(df: pd.DataFrame, casas: dict[str, int] | None = None) -> tuple[pd
     return tabela, tooltips
 
 
+# O Streamlit renderiza com `autosize: fit` — e o `width="stretch"` de cada
+# chamada é o que liga isso. Nesse modo a altura pedida é a do gráfico
+# **inteiro**: título, subtítulo e eixo x saem de dentro dela, não de fora.
+#
+# Sem reservar o espaço deles, a banda de cada categoria encolhe até a barra
+# encostar na vizinha — foi o que aconteceu com `situacao`, que tem cinco
+# categorias: 170px pedidos viravam ~100px de área útil, banda de 20px e barra
+# de 20px. Medido renderizando os dois modos com o vl-convert.
+ALTURA_MOLDURA = 70
+
+
+def _altura_fixa(area_de_plotagem: int) -> int:
+    """Altura a pedir para obter `area_de_plotagem` de área útil.
+
+    Mesma correção de `_altura`, para os gráficos cuja altura não depende do
+    número de categorias: o número escrito na chamada é a área de plotagem
+    desejada, e o que se pede ao Vega é ela mais a moldura.
+    """
+    return area_de_plotagem + ALTURA_MOLDURA
+
+
 def _altura(categorias: int, por_categoria: int) -> int:
     """Altura fixa a partir do número de categorias.
 
@@ -68,7 +100,7 @@ def _altura(categorias: int, por_categoria: int) -> int:
     tem pelo menos duas (a marca e o rótulo). O Vega-Lite não reclama: devolve um
     gráfico vazio. Calcular a altura aqui é feio e é o que funciona.
     """
-    return max(120, categorias * por_categoria)
+    return max(120, categorias * por_categoria) + ALTURA_MOLDURA
 
 
 def barras(
@@ -113,7 +145,7 @@ def barras(
         text="_rotulo:N"
     )
     return (marcas + rotulos).properties(
-        title=_titulo(titulo, subtitulo), height=_altura(len(dados), ALTURA_BARRA + 12)
+        title=_titulo(titulo, subtitulo), height=_altura(len(dados), ALTURA_BARRA + ESPACO_BARRA)
     )
 
 
@@ -156,7 +188,8 @@ def decomposicao_log(df: pd.DataFrame, *, titulo: str, subtitulo: str) -> alt.La
         align="left", dx=14, fontSize=11, color=estilo.TINTA_SECUNDARIA
     ).encode(text="_rotulo:N")
     return alt.layer(reguas, pontos, rotulos).properties(
-        title=_titulo(titulo, subtitulo), height=150
+        title=_titulo(titulo, subtitulo),
+        height=_altura(len(tabela), ALTURA_BARRA + ESPACO_BARRA),
     )
 
 
@@ -181,7 +214,7 @@ def barras_comparadas(
     longo, dicas = _tooltips(longo, casas={"valor": 1})
     return (
         alt.Chart(longo)
-        .mark_bar(height=ALTURA_BARRA / 2, cornerRadiusEnd=2)
+        .mark_bar(height=ALTURA_BARRA_AGRUPADA, cornerRadiusEnd=2)
         .encode(
             y=alt.Y(f"{categoria}:N", title=None, sort=None),
             yOffset=alt.YOffset("medida:N", sort=list(series.values())),
@@ -197,7 +230,7 @@ def barras_comparadas(
         )
         .properties(
             title=_titulo(titulo, subtitulo),
-            height=_altura(df[categoria].nunique(), (ALTURA_BARRA + 12) * len(series)),
+            height=_altura(df[categoria].nunique(), (ALTURA_BARRA + ESPACO_BARRA) * len(series)),
         )
     )
 
@@ -254,7 +287,9 @@ def serie_temporal(
             .mark_text(align="right", dx=-8, color=estilo.LARANJA, fontSize=11, fontWeight="bold")
             .encode(x=alt.X(f"{x}:O"), y=alt.value(12), text="rotulo:N")
         )
-    return alt.layer(*camadas).properties(title=_titulo(titulo, subtitulo), height=300)
+    return alt.layer(*camadas).properties(
+        title=_titulo(titulo, subtitulo), height=_altura_fixa(300)
+    )
 
 
 def _anos_ticks(serie: pd.Series) -> list[int]:
@@ -300,7 +335,9 @@ def histograma(
             )
             .encode(x="x:Q", y=alt.value(10), text="rotulo:N")
         )
-    return alt.layer(*camadas).properties(title=_titulo(titulo, subtitulo), height=280)
+    return alt.layer(*camadas).properties(
+        title=_titulo(titulo, subtitulo), height=_altura_fixa(280)
+    )
 
 
 def mapa(

@@ -199,7 +199,7 @@ def _instalar_referencias(diretorio: Path) -> None:
 
 
 def test_dag_do_ibge_e_separada_e_minima(dag_ibge):
-    """Separada da `cno_pipeline` de propósito: não pode derrubar a esteira.
+    """Separada da `cno_pipeline` de propósito: não pode derrubar a pipeline.
 
     Uma task só, sem rede, lendo um arquivo local. Se esta DAG ficar vermelha, o
     pipeline de dados continua verde — que é exatamente a divisão pretendida.
