@@ -64,12 +64,33 @@ resource "azurerm_user_assigned_identity" "deploy" {
 #
 # O `subject` amarra a confiança a uma branch específica: um push em qualquer
 # outra não consegue trocar token nenhum.
+locals {
+  dono_github = split("/", var.repositorio_github)[0]
+  repo_github = split("/", var.repositorio_github)[1]
+
+  # O formato **immutable** do claim `sub`, com os IDs numéricos embutidos.
+  #
+  # A forma óbvia — `repo:dono/repositorio:ref:refs/heads/branch` — é a que
+  # está em toda a documentação, e foi o que eu escrevi primeiro. Este
+  # repositório emite a outra, e a Azure recusou com:
+  #
+  #   AADSTS700213: No matching federated identity record found for presented
+  #   assertion subject 'repo:joao-p-garcia@67357644/cno-pipeline-fiesc@1373520143:...'
+  #
+  # Os números são o ID do dono e o ID do repositório, confirmados na API do
+  # GitHub e não copiados da mensagem de erro. Parece frágil, mas é o oposto:
+  # nome de dono e de repositório podem ser renomeados ou transferidos, e um
+  # subject preso ao nome seguiria valendo para quem assumisse o nome antigo.
+  # O ID numérico não se transfere.
+  subject_github = "repo:${local.dono_github}@${var.owner_id_github}/${local.repo_github}@${var.repo_id_github}:ref:refs/heads/${var.branch_github}"
+}
+
 resource "azurerm_federated_identity_credential" "github" {
   name                      = "github-actions"
   user_assigned_identity_id = azurerm_user_assigned_identity.deploy.id
   audience                  = ["api://AzureADTokenExchange"]
   issuer                    = "https://token.actions.githubusercontent.com"
-  subject                   = "repo:${var.repositorio_github}:ref:refs/heads/${var.branch_github}"
+  subject                   = local.subject_github
 }
 
 resource "azurerm_role_assignment" "deploy_empurra_imagem" {

@@ -27,6 +27,18 @@ variable "repositorio_github" {
   default     = "joao-p-garcia/cno-pipeline-fiesc"
 }
 
+variable "owner_id_github" {
+  description = "ID numerico do dono no GitHub. Ver o comentario em identidades.tf."
+  type        = string
+  default     = "67357644"
+}
+
+variable "repo_id_github" {
+  description = "ID numerico do repositorio no GitHub."
+  type        = string
+  default     = "1373520143"
+}
+
 variable "branch_github" {
   description = "Branch autorizada a publicar imagem e atualizar os apps."
   type        = string
