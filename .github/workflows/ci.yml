@@ -87,5 +87,16 @@ jobs:
       - name: Instalar o pipeline no venv do Airflow
         run: '"$HOME/.venvs/airflow/bin/pip" install -e . --quiet'
 
+      # Passo que o README documenta e que este job tinha pulado: nove dos
+      # quinze testes consultam o banco de metadados. Na máquina de
+      # desenvolvimento ele já existia de um `db migrate` antigo, então a falta
+      # só apareceu num runner limpo — `no such table: dag`.
+      #
+      # `AIRFLOW_HOME` tem de ser o mesmo que o Makefile usa em `test-dag`.
+      - name: Inicializar o banco de metadados do Airflow
+        env:
+          AIRFLOW_HOME: /home/runner/airflow
+        run: '"$HOME/.venvs/airflow/bin/airflow" db migrate'
+
       - name: Testes das DAGs
         run: make test-dag

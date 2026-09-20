@@ -89,10 +89,20 @@ notebook: $(ANALISE)  ## Reexecuta o notebook de exploração, gravando as saíd
 test: setup $(ANALISE)  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
 
+# Nove dos quinze testes consultam o banco de metadados. Sem ele o pytest
+# morre com `sqlite3.OperationalError: no such table: dag`, que não diz a
+# ninguém o que fazer — o alvo já conferia o venv, e passou a conferir o
+# banco pelo mesmo motivo. O `db migrate` fica de fora de propósito: ele
+# escreve em $(HOME)/airflow, e um alvo chamado `test` não deve criar
+# estado por conta própria.
 test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
 	@test -x "$(AIRFLOW_VENV)/bin/pytest" \
 		|| { echo "venv do Airflow não encontrado em $(AIRFLOW_VENV)"; \
 		     echo "defina AIRFLOW_VENV=<caminho> — veja o README"; exit 1; }
+	@test -f "$(HOME)/airflow/airflow.db" \
+		|| { echo "banco de metadados do Airflow não existe em $(HOME)/airflow"; \
+		     echo "rode:  AIRFLOW_HOME=$(HOME)/airflow $(AIRFLOW_VENV)/bin/airflow db migrate"; \
+		     exit 1; }
 	AIRFLOW_HOME=$(HOME)/airflow AIRFLOW__CORE__LOAD_EXAMPLES=False \
 		$(AIRFLOW_VENV)/bin/pytest tests/test_dag.py
 
