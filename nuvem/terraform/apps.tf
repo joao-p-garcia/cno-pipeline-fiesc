@@ -25,7 +25,7 @@ resource "azurerm_container_app_environment" "cno" {
   }
 }
 
-# --- a esteira ------------------------------------------------------------
+# --- o pipeline ------------------------------------------------------------
 #
 # Isto é o que substitui os cinco contêineres do Airflow. O cron é embutido no
 # recurso; não há scheduler para manter de pé, e entre uma execução e outra não
@@ -41,7 +41,7 @@ resource "azurerm_container_app_job" "pipeline" {
   resource_group_name          = azurerm_resource_group.cno.name
   container_app_environment_id = azurerm_container_app_environment.cno.id
 
-  # Localmente a esteira inteira leva ~6,5 min; uma hora é folga para uma
+  # Localmente o pipeline inteiro leva ~6,5 min; uma hora é folga para uma
   # publicação maior ou uma rede ruim, sem deixar um job pendurado para sempre.
   replica_timeout_in_seconds = 3600
   replica_retry_limit        = 1
@@ -75,7 +75,7 @@ resource "azurerm_container_app_job" "pipeline" {
       }
       # O zip fica, ao contrário do intermediário UTF-8: ele é o artefato
       # original, e o share da Receita não guarda histórico. É o único arquivo
-      # desta esteira que, uma vez perdido, não se reproduz — então sobrevive à
+      # deste pipeline que, uma vez perdido, não se reproduz — então sobrevive à
       # etapa para ser arquivado no lake no fim do job.
       env {
         name  = "CNO_MANTER_ZIP"

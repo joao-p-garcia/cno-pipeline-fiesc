@@ -155,7 +155,7 @@ reaponta os dois recursos que a consomem. A autenticação é OIDC com credencia
 federada: **nenhum segredo fica guardado no repositório** — o runner emite um
 token na hora e a Azure só aceita trocá-lo se ele vier daquela branch.
 
-Do outro lado do deploy, a mesma esteira roda gerenciada: um **Container Apps
+Do outro lado do deploy, o mesmo pipeline roda gerenciado: um **Container Apps
 Job** com cron diário no lugar dos cinco contêineres do Airflow, **ADLS Gen2**
 no lugar do volume, e o dashboard num endereço público. A infraestrutura
 inteira é **Terraform** com estado remoto.
@@ -190,7 +190,7 @@ a mudança barata. Detalhes e medições em [nuvem/PLANO.md](nuvem/PLANO.md).
 
 **Duas DAGs.** `cno_pipeline` encadeia as quatro etapas, diariamente.
 `referencias_ibge` é separada e só vigia a validade da tabela do IBGE — pode
-ficar vermelha sem afetar a esteira.
+ficar vermelha sem afetar o pipeline.
 
 **Três camadas.** `raw` preserva o artefato original; `staging` é o parquet
 tratado e validado; `curated` é o que a análise consome, com uma linha por obra

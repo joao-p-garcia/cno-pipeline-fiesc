@@ -2,7 +2,7 @@
 
 Esta branch (`cloud/azure`) é uma trilha paralela: ela **não altera** o pipeline,
 o dashboard, o README nem a apresentação. O objetivo é poder abrir o portal da
-Azure no fim da apresentação e mostrar a mesma esteira rodando gerenciada, com a
+Azure no fim da apresentação e mostrar o mesmo pipeline rodando gerenciado, com a
 camada curada num data lake.
 
 A propriedade que torna isso barato: o pipeline já é um CLI configurado
@@ -19,7 +19,7 @@ editar `src/cno_pipeline/`, o desenho está errado.**
 |---|---|
 | Assinatura | em `nuvem/terraform/terraform.tfvars`, fora do repositório |
 | Região | `brazilsouth` |
-| Grupos | `rg-cno-nuvem` (a esteira) · `rg-cno-tfstate` (o state) |
+| Grupos | `rg-cno-nuvem` (o pipeline) · `rg-cno-tfstate` (o state) |
 | Registry | `acrcnofiesc.azurecr.io` |
 | Lake | `https://stcnolakefiesc.dfs.core.windows.net/lake/curated` |
 | Dashboard | `ca-cno-dashboard`, ingress público — URL em `terraform output dashboard_url` |

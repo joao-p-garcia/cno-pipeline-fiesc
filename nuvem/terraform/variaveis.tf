@@ -42,7 +42,7 @@ variable "regiao" {
 }
 
 variable "grupo" {
-  description = "Grupo de recursos da esteira (o do state é outro, criado pelo bootstrap)."
+  description = "Grupo de recursos do pipeline (o do state é outro, criado pelo bootstrap)."
   type        = string
   default     = "rg-cno-nuvem"
 }

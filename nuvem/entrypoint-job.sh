@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 #
-# A esteira, no Container Apps Job.
+# O pipeline, no Container Apps Job.
 #
 # É a mesma sequência que a DAG encadeia e que qualquer pessoa roda na mão. A
 # DAG não veio junto de propósito: aqui quem orquestra é o cron do próprio
@@ -55,7 +55,7 @@ else
   echo "lake ainda não tem raw: esta é a primeira execução"
 fi
 
-# --- a esteira ------------------------------------------------------------
+# --- o pipeline ------------------------------------------------------------
 
 echo "=== cno extract ==="
 # O JSON no stdout é o contrato que a etapa publica para quem a orquestra —
