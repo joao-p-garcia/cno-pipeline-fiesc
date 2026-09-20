@@ -14,13 +14,15 @@
 set -eu
 
 echo "=== baixando a camada curada do lake ==="
-if azcopy login --identity --identity-client-id "$AZURE_CLIENT_ID"; then
-  mkdir -p "$CNO_DATA_DIR/curated"
-  azcopy sync "$CNO_LAKE_CURATED" "$CNO_DATA_DIR/curated" --recursive \
-    || echo "AVISO: sync falhou; subindo assim mesmo, o app se explica"
-else
-  echo "AVISO: login por identidade falhou; subindo sem dados"
-fi
+# Via ambiente, e não `azcopy login`: dentro de um container o login tenta
+# gravar o token num keyring do sistema que não existe, e falha com
+# "operation not permitted". Ver o comentário mais longo em entrypoint-job.sh.
+export AZCOPY_AUTO_LOGIN_TYPE=MSI
+export AZCOPY_MSI_CLIENT_ID="$AZURE_CLIENT_ID"
+
+mkdir -p "$CNO_DATA_DIR/curated"
+azcopy sync "$CNO_LAKE_CURATED" "$CNO_DATA_DIR/curated" --recursive \
+  || echo "AVISO: sync falhou; subindo assim mesmo, o app se explica"
 
 echo "=== subindo o streamlit ==="
 # enableCORS/enableXsrfProtection desligados porque o ingress do Container Apps

@@ -13,6 +13,26 @@ editar `src/cno_pipeline/`, o desenho está errado.**
 
 ---
 
+## O que já está no ar (20/09/2026)
+
+| | |
+|---|---|
+| Assinatura | `a473d0e0-3635-4fac-bf47-a55cc5cbd547` · tenant `b82ee7d5-…` |
+| Região | `brazilsouth` |
+| Grupos | `rg-cno-nuvem` (a esteira) · `rg-cno-tfstate` (o state) |
+| Registry | `acrcnofiesc.azurecr.io` |
+| Lake | `https://stcnolakefiesc.dfs.core.windows.net/lake/curated` |
+| Dashboard | https://ca-cno-dashboard.agreeablecoast-cf9edb1a.brazilsouth.azurecontainerapps.io |
+| Imagem | 231 MB (a da raiz, com Airflow, tem 3,88 GB) |
+
+Terraform: 21 recursos, state remoto. Tudo em `nuvem/terraform/`.
+
+**A única coisa que falta é manual e é sua:** cadastrar cinco *Variables*
+(não Secrets) no repositório do GitHub, para o CD funcionar. Os valores saem de
+`terraform output github_variaveis`.
+
+---
+
 ## O desenho
 
 ```

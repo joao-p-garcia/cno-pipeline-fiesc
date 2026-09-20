@@ -76,6 +76,10 @@ jobs:
       - name: apontar o job e o dashboard para a nova imagem
         run: |
           set -euo pipefail
+          # Parte do grupo `containerapp` mora numa extensão que o az instala
+          # sob demanda — e, sem isto, ele *pergunta* se pode, trava sem stdin
+          # e morre com EOFError. Custou uma execução aqui para descobrir.
+          az config set extension.use_dynamic_install=yes_without_prompt
           REG="${{ vars.AZURE_REGISTRY }}.azurecr.io"
           az containerapp job update \
             --name job-cno-pipeline \
