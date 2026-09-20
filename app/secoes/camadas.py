@@ -1,4 +1,4 @@
-"""Seção 7 — o que o pipeline construiu com tudo o que as seções anteriores mostraram.
+"""Seção 9 — o que o pipeline construiu com tudo o que as seções anteriores mostraram.
 
 Vem aqui, e não no começo, de propósito. Cada transformação desta seção é
 resposta a um problema que já foi visto: o encoding da seção 1, o 1:N da seção
@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+
+from cno_pipeline.validate import REGRAS, Severidade
 
 from .. import componentes as ui
 
@@ -90,6 +92,8 @@ def render() -> None:
         "cada página responde na hora."
     )
 
+    _validacao()
+
     ui.decisao(
         achado=(
             "Cada problema tinha duas saídas: corrigir no lugar onde apareceu, ou "
@@ -111,3 +115,58 @@ def render() -> None:
     )
 
     ui.rodape(*ui.vizinhos(__name__))
+
+
+def _validacao() -> None:
+    """As regras de validação, lidas do pacote que as executa.
+
+    A tabela vem de `cno_pipeline.validate.REGRAS`, o mesmo objeto que o
+    `cno validate` roda — não é lista copiada. Acrescentar ou remover uma regra
+    muda esta tela junto, e uma apresentação que descreve regra que o código não
+    roda é pior que nenhuma.
+    """
+    erros = sum(1 for r in REGRAS if r.severidade is Severidade.ERRO)
+
+    st.markdown("### Entre as duas, a validação")
+    st.markdown(
+        f"Roda **entre a staging e a curated**, com {len(REGRAS)} regras. Cada uma "
+        "é um `SELECT` que devolve as linhas que a violam: conjunto vazio significa "
+        "regra cumprida.\n\n"
+        f"**{erros} são `erro`** e reprovam a carga — o `cno validate` sai com "
+        f"código 1, a task falha e o `cno curate` não roda. **{len(REGRAS) - erros} "
+        "são `aviso`**: característica conhecida da fonte, que é medida e "
+        "registrada sem barrar. A divisão é o que mantém a validação útil — um "
+        "cadastro público de 3,6 milhões de registros sempre tem sujeira, e "
+        "reprovar tudo faria alguém desligar a validação em uma semana."
+    )
+
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Regra": regra.nome,
+                    "O que exige": regra.descricao,
+                    "Severidade": regra.severidade.value,
+                }
+                for regra in REGRAS
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+        height=460,
+    )
+    st.caption(
+        "Gerada a partir de `cno_pipeline.validate.REGRAS`, o mesmo objeto que o "
+        "pipeline executa. Quando uma regra falha, o relatório sai com exemplos "
+        "das linhas violadoras — a investigação começa com endereço."
+    )
+
+    st.markdown(
+        "**E uma checagem que olha para fora.** Todas as regras acima comparam o "
+        "dado com algo que eu escrevi. A reconciliação não: o pacote da Receita "
+        "traz um `cno_totais.csv` com a contagem oficial de cada tabela, a extração "
+        "grava esses números no manifesto e a validação os confronta com o que foi "
+        "carregado. **É o que separa *o pipeline está coerente consigo mesmo* de "
+        "*o pipeline carregou o que a fonte publicou*** — uma extração que perdesse "
+        "metade do arquivo passaria nas 19 regras e só cairia aqui."
+    )
