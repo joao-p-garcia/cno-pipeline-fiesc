@@ -68,7 +68,14 @@ pipeline: extract transform validate curate  ## Roda o pipeline inteiro, na orde
 ANALISE := $(VENV)/.analise
 
 # Sentinela própria: os extras da análise são pesados (Streamlit, JupyterLab) e
-# quem só quer rodar o pipeline não deve pagar por eles no `make test`.
+# quem só quer extrair e tratar não deve pagar por eles. `extract`, `transform`,
+# `validate` e `curate` dependem só de `setup`.
+#
+# `test`, porém, depende daqui: a suíte cobre a camada de análise, e `analise
+# /dados.py` importa pandas, que não é dependência base. Enquanto `test`
+# dependia só de `setup`, a suíte passava na minha máquina — onde os extras já
+# estavam instalados de um `make dashboard` anterior — e **falhava num clone
+# limpo**. Foi o CI que expôs isso.
 $(ANALISE): pyproject.toml | $(VENV)
 	$(PIP) install -e ".[dashboard,notebook]" --quiet
 	@touch $(ANALISE)
@@ -79,7 +86,7 @@ dashboard: $(ANALISE)  ## Sobe o dashboard narrativo em http://localhost:8501
 notebook: $(ANALISE)  ## Reexecuta o notebook de exploração, gravando as saídas
 	$(VENV)/bin/jupyter execute --inplace analise/exploracao.ipynb
 
-test: setup  ## Roda a suíte de testes (offline)
+test: setup $(ANALISE)  ## Roda a suíte de testes (offline)
 	$(VENV)/bin/pytest
 
 test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
