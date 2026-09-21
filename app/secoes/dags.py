@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from analise import estilo
 
@@ -32,7 +31,9 @@ TITULO = "As duas DAGs"
 # página do Streamlit falharam antes de o iframe funcionar.
 ALTURA_DIAGRAMA = 330
 
-_LARANJA = estilo.LARANJA
+# Apelido curto porque a cor aparece sete vezes no SVG abaixo, e `{estilo.DOURADO}`
+# repetido dentro da f-string esconde o desenho.
+_DOURADO = estilo.DOURADO
 
 DIAGRAMA = f"""
 <svg viewBox="0 0 860 296" role="img" width="860" height="296"
@@ -48,7 +49,7 @@ DIAGRAMA = f"""
     <rect x="245" y="48" width="170" height="56" rx="6"/>
     <rect x="645" y="48" width="170" height="56" rx="6"/>
   </g>
-  <rect x="445" y="48" width="170" height="56" rx="6" fill="none" stroke="{_LARANJA}"
+  <rect x="445" y="48" width="170" height="56" rx="6" fill="none" stroke="{_DOURADO}"
         stroke-width="2"/>
   <text x="130" y="72" text-anchor="middle" font-size="13" fill="{estilo.TINTA}"
         font-weight="600">extrair</text>
@@ -58,9 +59,9 @@ DIAGRAMA = f"""
         font-weight="600">tratar</text>
   <text x="330" y="90" text-anchor="middle" font-size="11" fill="{estilo.TINTA}"
         opacity="0.75">raw → staging, em parquet</text>
-  <text x="530" y="72" text-anchor="middle" font-size="13" fill="{_LARANJA}"
+  <text x="530" y="72" text-anchor="middle" font-size="13" fill="{_DOURADO}"
         font-weight="600">validar</text>
-  <text x="530" y="90" text-anchor="middle" font-size="11" fill="{_LARANJA}"
+  <text x="530" y="90" text-anchor="middle" font-size="11" fill="{_DOURADO}"
         opacity="0.85">19 regras + reconciliação</text>
   <text x="730" y="72" text-anchor="middle" font-size="13" fill="{estilo.TINTA}"
         font-weight="600">curar</text>
@@ -70,13 +71,13 @@ DIAGRAMA = f"""
   <polygon points="238,72 238,80 245,76" fill="{estilo.TINTA}"/>
   <line x1="415" y1="76" x2="438" y2="76" stroke="{estilo.TINTA}" stroke-width="1.5"/>
   <polygon points="438,72 438,80 445,76" fill="{estilo.TINTA}"/>
-  <line x1="615" y1="76" x2="638" y2="76" stroke="{_LARANJA}" stroke-width="2"/>
-  <polygon points="638,72 638,80 645,76" fill="{_LARANJA}"/>
+  <line x1="615" y1="76" x2="638" y2="76" stroke="{_DOURADO}" stroke-width="2"/>
+  <polygon points="638,72 638,80 645,76" fill="{_DOURADO}"/>
   <text x="130" y="126" text-anchor="middle" font-size="11" fill="{estilo.TINTA}"
         opacity="0.75">3 tentativas · backoff · retoma o download</text>
   <text x="330" y="126" text-anchor="middle" font-size="11" fill="{estilo.TINTA}"
         opacity="0.75">sem retry: é determinístico</text>
-  <text x="628" y="126" text-anchor="middle" font-size="11" fill="{_LARANJA}"
+  <text x="628" y="126" text-anchor="middle" font-size="11" fill="{_DOURADO}"
         font-weight="600">reprovou aqui → curar não roda</text>
   <text x="430" y="158" text-anchor="middle" font-size="11" fill="{estilo.TINTA}"
         opacity="0.75">o mesmo snapshot_id atravessa as quatro tarefas</text>
@@ -97,13 +98,6 @@ DIAGRAMA = f"""
 </svg>
 """
 
-PAGINA_DIAGRAMA = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-  html, body {{ margin: 0; padding: 0; background: {estilo.SUPERFICIE}; }}
-  body {{ font-family: {estilo.FONTE_CSS}; }}
-</style>
-</head><body>{DIAGRAMA}</body></html>"""
 
 # Retry é decisão, não default. Cada linha diz por que aquela política.
 POLITICA = [
@@ -142,7 +136,7 @@ def render() -> None:
         "duas para a segunda poder falhar sem derrubar a primeira.**",
     )
 
-    components.html(PAGINA_DIAGRAMA, height=ALTURA_DIAGRAMA)
+    ui.diagrama(DIAGRAMA, ALTURA_DIAGRAMA)
     st.caption(
         "O `snapshot_id` sai da extração e passa pelas outras três tarefas. Cada "
         "uma recebe **qual** snapshot processar, em vez de buscar o mais recente "

@@ -223,7 +223,7 @@ def barras_comparadas(
                 "medida:N",
                 title=None,
                 sort=list(series.values()),
-                scale=alt.Scale(range=[estilo.AZUL, estilo.LARANJA]),
+                scale=alt.Scale(range=[estilo.AZUL, estilo.DOURADO]),
                 legend=alt.Legend(orient="bottom", direction="horizontal"),
             ),
             tooltip=dicas,
@@ -276,7 +276,7 @@ def serie_temporal(
         regua = pd.DataFrame({x: [marcar_ano], "rotulo": [rotulo_marca]})
         camadas.append(
             alt.Chart(regua)
-            .mark_rule(color=estilo.LARANJA, strokeWidth=2)
+            .mark_rule(color=estilo.DOURADO, strokeWidth=2)
             .encode(x=alt.X(f"{x}:O"))
         )
         camadas.append(
@@ -284,7 +284,7 @@ def serie_temporal(
             # esquerda, um rótulo desses transborda a área do gráfico sempre que a
             # marca cai perto do fim da série — que é justamente o caso aqui.
             alt.Chart(regua)
-            .mark_text(align="right", dx=-8, color=estilo.LARANJA, fontSize=11, fontWeight="bold")
+            .mark_text(align="right", dx=-8, color=estilo.DOURADO, fontSize=11, fontWeight="bold")
             .encode(x=alt.X(f"{x}:O"), y=alt.value(12), text="rotulo:N")
         )
     return alt.layer(*camadas).properties(
@@ -326,12 +326,12 @@ def histograma(
     if mediana is not None:
         marca = pd.DataFrame({"x": [mediana], "rotulo": [f"mediana {estilo.numero(mediana)} m²"]})
         camadas.append(
-            alt.Chart(marca).mark_rule(color=estilo.LARANJA, strokeWidth=2).encode(x="x:Q")
+            alt.Chart(marca).mark_rule(color=estilo.DOURADO, strokeWidth=2).encode(x="x:Q")
         )
         camadas.append(
             alt.Chart(marca)
             .mark_text(
-                align="left", dx=8, dy=-4, color=estilo.LARANJA, fontSize=11, fontWeight="bold"
+                align="left", dx=8, dy=-4, color=estilo.DOURADO, fontSize=11, fontWeight="bold"
             )
             .encode(x="x:Q", y=alt.value(10), text="rotulo:N")
         )
@@ -362,7 +362,18 @@ def mapa(
     pontos, dicas = _tooltips(pontos, casas={"area_km2": 2, "latitude": 3, "longitude": 3})
     bolhas = (
         alt.Chart(pontos)
-        .mark_circle(color=estilo.AZUL, opacity=0.55, stroke=estilo.SUPERFICIE, strokeWidth=0.8)
+        .mark_circle(
+            color=estilo.AZUL,
+            # A transparência aqui codifica densidade: onde duas bolhas se
+            # sobrepõem o azul acumula. O valor mora em `estilo` porque ele é
+            # medido contra o fundo, e o fundo mudou — ver o comentário de
+            # `OPACIDADE_BOLHA`.
+            opacity=estilo.OPACIDADE_BOLHA,
+            # Contorno na cor do fundo: é o que separa duas bolhas encostadas
+            # sem gastar uma segunda cor.
+            stroke=estilo.SUPERFICIE,
+            strokeWidth=0.8,
+        )
         .encode(
             longitude="longitude:Q",
             latitude="latitude:Q",

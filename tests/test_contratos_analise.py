@@ -302,3 +302,22 @@ def test_ninguem_refaz_a_conta_de_validade():
     for arquivo in (DAG_IBGE, GERADOR):
         fonte = arquivo.read_text(encoding="utf-8")
         assert "DIAS_AVISO_VALIDADE" in fonte, f"{arquivo.name} redigitou o limiar de aviso"
+
+
+def test_ninguem_redigita_a_opacidade_das_bolhas():
+    """O mesmo mapa é desenhado duas vezes, em duas bibliotecas, e o número é um só.
+
+    A transparência das bolhas não é gosto: ela é medida contra o fundo, e o
+    fundo já mudou uma vez — na virada para o tema escuro, `0,55` deixou de dar
+    contraste e virou `0,65`. O caderno tinha o literal e o app tinha o literal;
+    quem trocasse um dos dois deixaria os dois mapas diferentes sem que nada
+    acusasse, porque as duas figuras nunca aparecem lado a lado.
+    """
+    from analise import estilo
+
+    literal = str(estilo.OPACIDADE_BOLHA)
+    for rotulo, fonte in _celulas_de_codigo() + _fontes_do_app():
+        for palavra in (f"alpha={literal}", f"opacity={literal}"):
+            assert palavra not in fonte, (
+                f"{rotulo}: opacidade redigitada — use `estilo.OPACIDADE_BOLHA`"
+            )
