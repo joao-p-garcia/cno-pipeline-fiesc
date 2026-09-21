@@ -1,0 +1,86 @@
+# Tema do dashboard — identidade visual do Observatório FIESC (brandbook 2025).
+#
+# **Por que existe um tema escuro fixo, e não "o que o sistema do visitante
+# preferir".** O brandbook é majoritariamente escuro, e é assim que o material
+# do Observatório é apresentado. Um app que muda de cor conforme o sistema
+# operacional de quem abre não tem identidade: tem duas.
+#
+# **Este arquivo e `analise/estilo.py` precisam concordar.** Aqui moram as cores
+# do chrome (fundo, texto, widget); lá moram as cores do dado, e é lá que estão
+# as medições de contraste que justificam cada uma. São duas superfícies do
+# mesmo tema, e há teste que quebra se elas divergirem — ver
+# `tests/test_dashboard.py::test_tema_do_streamlit_bate_com_o_do_grafico`.
+#
+# **Por que em `app/.streamlit/` e não na raiz do repositório.** O Streamlit
+# procura config em três lugares, e o da raiz só é achado quando o diretório de
+# trabalho *é* a raiz. No compose o dashboard sobe com `streamlit run
+# /opt/cno/app/dashboard.py` e CWD em `/opt/airflow`, herdado da imagem oficial
+# do Airflow: o arquivo na raiz seria simplesmente ignorado, e o app subiria
+# claro e sem as fontes — no container, e só no container. Ao lado do script
+# principal ele é achado a partir de qualquer CWD, e ainda tem a precedência
+# mais alta das três.
+
+[theme]
+base = "dark"
+
+# Nanquim e Chumbo: o fundo dos slides escuros do brandbook e o degrau acima
+# dele, que aqui é cartão, expander e barra lateral.
+backgroundColor = "#1e1e29"
+secondaryBackgroundColor = "#2e303d"
+
+# Gelo sobre Nanquim: 15,1:1.
+textColor = "#f4f5f9"
+
+# **Os dois azuis, e por que são dois.** Azul Observatório é a assinatura da
+# marca, e mede 3,96:1 sobre Nanquim — o bastante para uma área preenchida
+# (botão, slider, pílula de navegação), pouco para texto. Link é texto, e texto
+# pede 4,5:1; por isso o link é Azul piscina, da mesma família, a 8,6:1.
+primaryColor = "#0077fc"
+linkColor = "#6bc4fe"
+
+# Granito: 2,2:1. Borda é para delimitar, não para ser lida.
+borderColor = "#4a5567"
+
+# **Montserrat no título, Open Sans no corpo.** O brandbook rotula Montserrat
+# como primária e Open Sans como "subtítulos e textos pequenos". Esta é uma
+# leitura, não a letra: este app é uma narrativa, tem muito parágrafo, e
+# Montserrat em texto corrido longo é larga e cansa. A identidade fica onde ela
+# é vista — título, número, rótulo de gráfico — e o corpo fica legível.
+headingFont = "Montserrat"
+font = "Open Sans"
+
+# Rede de segurança. Todo gráfico deste app declara a própria cor, vinda de
+# `analise/estilo.py`, então na prática esta lista não é consultada. Ela existe
+# para o caso de um gráfico novo nascer sem cor declarada: o default do
+# Streamlit é o azul do Streamlit, e um azul que não é o da marca passaria
+# despercebido numa revisão.
+chartCategoricalColors = ["#6bc4fe", "#ffdf6f", "#ff7171"]
+
+# **Daqui para baixo é tabela, e ordem passa a importar.** Uma chave escrita
+# depois de um `[[theme.fontFaces]]` não pertence mais a `[theme]`: pertence
+# àquela fonte, em silêncio, e o tema perde a opção sem nenhum erro. Foi o que
+# aconteceu com a linha acima na primeira escrita deste arquivo, e quem acusou
+# foi o teste de acordo entre as duas metades do tema.
+#
+# As duas fontes viajam no repositório, em `app/static/fontes/`, servidas pelo
+# próprio app (`server.enableStaticServing`). Não vêm de CDN de propósito: numa
+# apresentação ao vivo, fonte que depende da rede é fonte que pode não chegar —
+# e o que chega no lugar dela é a fonte do sistema, que não é a da marca.
+#
+# Um arquivo só por família: são fontes variáveis, o eixo `wght` inteiro cabe
+# num woff2, e é por isso que `weight` declara uma faixa em vez de um número.
+[[theme.fontFaces]]
+family = "Montserrat"
+url = "app/static/fontes/Montserrat.woff2"
+weight = "400 700"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "Open Sans"
+url = "app/static/fontes/OpenSans.woff2"
+weight = "400 700"
+style = "normal"
+
+[server]
+# Serve `app/static/` — hoje, as duas fontes acima.
+enableStaticServing = true
