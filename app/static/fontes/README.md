@@ -38,16 +38,18 @@ from fontTools.varLib import instancer
 
 for peso, sufixo in ((400, "Regular"), (600, "SemiBold")):
     fonte = TTFont("Montserrat.woff2")
-    fonte.flavor = None                       # woff2 -> ttf
+    fonte.flavor = None  # woff2 -> ttf
     fonte = instancer.instantiateVariableFont(fonte, {"wght": peso}, inplace=True)
     fonte["OS/2"].usWeightClass = peso
-    for registro in fonte["name"].names:      # nameID 1 agrupa família no matplotlib
+    for registro in fonte["name"].names:  # nameID 1 agrupa família no matplotlib
         if registro.nameID == 1:
-            fonte["name"].setName("Montserrat", 1, registro.platformID,
-                                  registro.platEncID, registro.langID)
+            fonte["name"].setName(
+                "Montserrat", 1, registro.platformID, registro.platEncID, registro.langID
+            )
         elif registro.nameID == 2:
-            fonte["name"].setName(sufixo, 2, registro.platformID,
-                                  registro.platEncID, registro.langID)
+            fonte["name"].setName(
+                sufixo, 2, registro.platformID, registro.platEncID, registro.langID
+            )
     fonte.save(f"Montserrat-{sufixo}.ttf")
 ```
 
