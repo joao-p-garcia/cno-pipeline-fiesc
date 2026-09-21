@@ -19,6 +19,7 @@ de cima para baixo e nunca abre um expander; quem quiser explorar tem tudo ali.
 from __future__ import annotations
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from analise import estilo
 
@@ -43,6 +44,41 @@ ORDEM = (
     "camadas",
     "conclusoes",
 )
+
+
+def diagrama(svg: str, altura: int) -> None:
+    """Desenha um SVG num iframe, com a superfície e a tipografia do app.
+
+    **Por que iframe.** Está documentado em `secoes/arquitetura.py`, com as três
+    tentativas que falharam antes: markdown quebra o SVG em parágrafos e o
+    `st.html` o sanitiza para fora da página.
+
+    **Por que a moldura mora aqui.** O iframe é um documento à parte: não herda
+    fundo, não herda fonte e, em especial, **não herda `@font-face`** — a fonte
+    que a página carregou não existe lá dentro. Cada diagrama precisa declarar
+    tudo de novo, e com dois diagramas na narrativa a declaração duplicada seria
+    o lugar exato onde o tema começaria a divergir de si mesmo: alguém troca a
+    cor num arquivo, e o outro diagrama continua com a antiga por mais um mês.
+
+    O caminho da fonte começa com barra porque o `srcdoc` resolve URL relativa
+    contra o endereço da página, e a página muda de seção para seção; a raiz é o
+    único ponto fixo. Quem serve o arquivo é o próprio Streamlit, por
+    `server.enableStaticServing` — ver `app/.streamlit/config.toml`.
+    """
+    pagina = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  @font-face {{
+    font-family: 'Montserrat';
+    src: url('/app/static/fontes/{estilo.FONTE[0]}.woff2') format('woff2');
+    font-weight: 400 700;
+    font-display: swap;
+  }}
+  html, body {{ margin: 0; padding: 0; background: {estilo.SUPERFICIE}; }}
+  body {{ font-family: {estilo.FONTE_CSS}; }}
+</style>
+</head><body>{svg}</body></html>"""
+    components.html(pagina, height=altura)
 
 
 def _titulo_de(modulo: str) -> str:

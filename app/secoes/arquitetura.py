@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from analise import estilo
 
@@ -31,9 +30,10 @@ TITULO = "Arquitetura e stack"
 # controlamos.
 #
 # Cor fixa, e não `currentColor`, pelo mesmo motivo que todo gráfico daqui fixa
-# a paleta clara: este app não tem tema escuro. Herdar a tinta da página seria
-# elegante e acrescentaria um fator desconhecido a um desenho que já custou duas
-# tentativas para aparecer.
+# a paleta: o tema do app é um só, declarado em `analise/estilo.py`. Herdar a
+# tinta da página seria elegante e acrescentaria um fator desconhecido a um
+# desenho que já custou duas tentativas para aparecer — ainda mais aqui, onde a
+# página é um iframe e não herda quase nada.
 #
 # **Desenhado num iframe, por `components.html`, e isso é cicatriz.** Três
 # tentativas de embutir o SVG direto na página do Streamlit falharam, cada uma
@@ -51,8 +51,8 @@ TITULO = "Arquitetura e stack"
 #    removendo o fragmento.
 #
 # `components.html` renderiza num iframe: documento próprio, sem sanitizador e
-# sem CSS da página por cima. Custa a herança de tema — que este app não usa,
-# porque todo gráfico já fixa a paleta clara — e exige altura declarada, daí
+# sem CSS da página por cima. Custa a herança de tema — de que este app não
+# depende, porque todo gráfico já fixa a paleta — e exige altura declarada, daí
 # `ALTURA_DIAGRAMA`. Em troca, desenha.
 DIAGRAMA = f"""
 <svg viewBox="0 0 860 372" role="img" width="860" height="372"
@@ -144,15 +144,6 @@ DIAGRAMA = f"""
 # a página do iframe tem margem própria. 400 dá folga sem abrir barra de rolagem.
 ALTURA_DIAGRAMA = 400
 
-# O documento que vai dentro do iframe. Margem zerada e a mesma superfície do
-# app, para a moldura não aparecer como um retângulo branco no meio da página.
-PAGINA_DIAGRAMA = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-  html, body {{ margin: 0; padding: 0; background: {estilo.SUPERFICIE}; }}
-  body {{ font-family: {estilo.FONTE_CSS}; }}
-</style>
-</head><body>{DIAGRAMA}</body></html>"""
 
 # O que ficou de fora, e por quê. Dizer não é o que separa decisão de default —
 # e cada linha daqui tem um motivo medido, não uma preferência.
@@ -193,7 +184,7 @@ def render() -> None:
         "escolhi as ferramentas, e também o que decidi não usar.",
     )
 
-    components.html(PAGINA_DIAGRAMA, height=ALTURA_DIAGRAMA)
+    ui.diagrama(DIAGRAMA, ALTURA_DIAGRAMA)
     st.caption(
         "A Receita fica **fora** da caixa porque é a única parte que eu não "
         "controlo. Em azul está a separação entre o Airflow, que orquestra, e a "

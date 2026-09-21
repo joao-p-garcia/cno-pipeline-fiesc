@@ -146,3 +146,75 @@ def test_sem_camada_curada_o_app_explica_o_que_fazer(monkeypatch, tmp_path):
     app.run()
     assert not app.exception
     assert any("make pipeline" in bloco.value for bloco in app.code)
+
+
+# ---------------------------------------------------------------------------
+# O tema tem duas metades, e elas precisam concordar
+# ---------------------------------------------------------------------------
+
+
+# O caminho importa e é testado junto: o Streamlit acha config em três lugares,
+# e só este é independente do diretório de trabalho. Ver o cabeçalho do arquivo.
+CONFIG_TEMA = RAIZ / "app" / ".streamlit" / "config.toml"
+
+
+def _config_do_tema() -> dict:
+    import tomllib
+
+    assert CONFIG_TEMA.is_file(), (
+        f"{CONFIG_TEMA.relative_to(RAIZ)} não existe — se o arquivo voltar para a raiz "
+        "do repositório, o tema some dentro do container e só lá"
+    )
+    with CONFIG_TEMA.open("rb") as arquivo:
+        return tomllib.load(arquivo)
+
+
+def test_tema_do_streamlit_bate_com_o_do_grafico():
+    """As cores do chrome e as do dado saem do mesmo lugar.
+
+    `.streamlit/config.toml` pinta a página e `analise/estilo.py` pinta o
+    gráfico. São dois arquivos, duas linguagens e dois momentos de carga, e a
+    falha que isso produz é a pior de diagnosticar: o gráfico com um fundo e a
+    página com outro, um retângulo de tom ligeiramente diferente no meio da
+    tela, que ninguém reporta como bug porque parece de propósito.
+    """
+    from analise import estilo
+
+    tema = _config_do_tema()["theme"]
+
+    assert tema["base"] == "dark"
+    assert tema["backgroundColor"] == estilo.SUPERFICIE
+    assert tema["secondaryBackgroundColor"] == estilo.SUPERFICIE_ELEVADA
+    assert tema["textColor"] == estilo.TINTA
+    assert tema["borderColor"] == estilo.GRADE
+    # Os dois azuis: preenchimento é a marca, texto é a versão legível dela.
+    assert tema["primaryColor"] == estilo.AZUL_MARCA
+    assert tema["linkColor"] == estilo.AZUL
+    assert tema["chartCategoricalColors"] == list(estilo.CATEGORICAS)
+
+
+def test_fontes_da_marca_existem_no_repositorio():
+    """Fonte que não baixa não avisa: o navegador cai para a próxima da pilha.
+
+    O sintoma é o app inteiro renderizado numa fonte de sistema, que é
+    exatamente o que ele parecia antes de ter identidade — por isso passa
+    despercebido. Este teste confere que o arquivo apontado por cada
+    `[[theme.fontFaces]]` está mesmo no repositório, e que a família declarada é
+    a que `estilo` pede.
+    """
+    from analise import estilo
+
+    faces = {face["family"]: face for face in _config_do_tema()["theme"]["fontFaces"]}
+    assert set(faces) == {estilo.FONTE[0], estilo.FONTE_MIUDA[0]}
+
+    for familia, face in faces.items():
+        caminho = RAIZ / face["url"]
+        assert caminho.is_file(), f"{familia}: {face['url']} não existe"
+        assert caminho.stat().st_size > 10_000, (
+            f"{familia}: {caminho.name} tem {caminho.stat().st_size} bytes — "
+            "parece uma página de erro salva com nome de fonte"
+        )
+
+    # O app só serve `app/static/` se isto estiver ligado, e sem ele as duas
+    # URLs acima respondem 404 — com o mesmo silêncio de sempre.
+    assert _config_do_tema()["server"]["enableStaticServing"] is True
