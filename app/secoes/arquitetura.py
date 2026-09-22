@@ -217,6 +217,8 @@ def render() -> None:
     st.markdown("### O que eu não escolhi")
     st.dataframe(pd.DataFrame(NAO_ESCOLHIDOS), hide_index=True, width="stretch")
 
+    _pandas_ou_polars()
+
     with ui.explorar("Ver o stack completo e como ele é verificado"):
         st.markdown(
             "| Peça | Papel |\n"
@@ -227,7 +229,7 @@ def render() -> None:
             "| **Postgres 16** | metadados do Airflow, nada além disso |\n"
             "| **Docker Compose** | a entrega: um comando sobe tudo, em qualquer sistema |\n"
             "| **Streamlit + Altair** | esta apresentação |\n"
-            "| **pytest + ruff** | 233 testes offline e 15 das DAGs, mais lint e formatação |\n"
+            "| **pytest + ruff** | 272 testes offline e 15 das DAGs, mais lint e formatação |\n"
         )
         st.markdown(
             "**Nenhum teste toca a rede.** Eles montam camada sintética e, quando "
@@ -240,6 +242,38 @@ def render() -> None:
     ui.rodape(*ui.vizinhos(__name__))
 
 
+def _pandas_ou_polars() -> None:
+    """A medição que decidiu o engine, que é a pergunta mais previsível da seção.
+
+    Fica fora da tabela acima de propósito: as outras quatro linhas se defendem
+    com um argumento, esta se defende com três números. Misturar as duas coisas
+    na mesma tabela esconderia justamente o que ela tem de mais forte — que a
+    escolha foi medida, e não preferida.
+    """
+    st.markdown("*Comparação de desempenho entre pandas, polars e DuckDB*:")
+    st.markdown(
+        "| Engine | Tempo | Pico de RAM |\n"
+        "|---|---|---|\n"
+        "| **DuckDB**, no UTF-8 | **0,8 s** | **457 MB** |\n"
+        "| Polars, `windows-1252` | 4,3 s | 2.641 MB |\n"
+        "| pandas, `cp1252` | 19,6 s | 4.031 MB |\n"
+    )
+    st.markdown(
+        "*Decisão baseada na RAM utilizada.* "
+        "**Quase usei polars**, porque ele lê cp1252 "
+        "nativamente, o que eliminaria o passo de transcodificação inteiro. Só que "
+        "isso existe apenas na API *eager* , o `scan_csv`, que é a porta da "
+        "execução *lazy*, aceita só UTF-8. Para ler cp1252 eu abriria mão do "
+        "streaming e a tabela inteira teria de caber na memória, que era "
+        "exatamente o recurso em disputa."
+    )
+    st.caption(
+        "O DuckDB foi o único dos três que **recusou** o arquivo "
+        "declarado como latin-1 com bytes da faixa C1. Os outros dois aceitariam, "
+        "então por controle de qualidade de dados deixei o DuckDB."
+    )
+
+
 def _fronteira_externa() -> None:
     """Por que o IBGE não entra no pipeline.
 
@@ -247,54 +281,51 @@ def _fronteira_externa() -> None:
     de fronteira: define o que o pipeline aceita processar. Quem vê o ranking
     por mil habitantes mais adiante precisa saber de onde veio o divisor.
     """
-    st.markdown("### O dado que vem de fora, e por que ele fica de fora")
+    st.markdown("### IBGE como segunda fonte, mas fora da pipeline")
     st.markdown(
         "A análise usa **população, nome e região do IBGE** para dividir obras por "
-        "habitante e desenhar o mapa. É a segunda fonte do projeto — e ela **não "
-        "entra no pipeline**. Entra na análise, como tabela de referência "
+        "habitante e desenhar o mapa. É a segunda fonte do projeto, e decidi que "
+        "**ela não entra no pipeline**. Entra na análise, como tabela de referência "
         "versionada no repositório.\n\n"
-        "O motivo não é purismo. O pipeline tem uma garantia verificável: fonte "
+        "Isso porque a pipeline tem uma garantia verificável, fonte "
         "versionada por ETag e sha256, reconciliada contra os totais que a própria "
-        "Receita publica. **Dado externo não tem nada disso**, e misturar os dois "
-        "custa a garantia inteira:"
+        "Receita publica. **O Dado externo não tem nada disso**."
     )
     st.markdown(
         "- **Proveniência.** CSV commitado envelhece em silêncio.\n"
-        "- **Safras misturadas na mesma linha.** Snapshot de 2026 dividido por "
-        "população de 2022 não é erro se estiver declarado; é erro grave se não "
+        "- **Data dos Snapshots.** Snapshot do IBGE de 2026 dividido por "
+        "população de 2022 não é erro se estiver declarado, mas é erro se não "
         "estiver.\n"
         "- **Cadências diferentes.** A Receita publica de forma irregular, o IBGE "
         "anualmente e com defasagem. Acoplar sincroniza o que não precisa andar "
         "junto.\n"
         "- **Peso do stack.** Geometria pediria DuckDB spatial ou geopandas. Hoje "
-        "o pipeline depende de `requests` e `duckdb`, e essa magreza é qualidade."
+        "o pipeline depende apenas de `requests` e `duckdb`."
     )
 
     ui.decisao(
         achado=(
             "A Receita identifica município por **TOM de 4 dígitos** e o IBGE por "
             "**código de 7**. A de-para entre os dois não vem em nenhuma das duas "
-            "fontes — então juntar exige uma ponte."
+            "fontes."
         ),
         risco=(
-            "Importar uma tabela TOM↔IBGE de terceiro parece o caminho curto, mas "
-            "troca um problema conhecido por um desconhecido: mais uma fonte sem "
-            "proveniência, para resolver um casamento que eu ainda teria de "
+            "Importar uma tabela TOM↔IBGE de terceiro gera mais uma fonte sem "
+            "proveniência, para resolver um joint que eu ainda teria de "
             "conferir."
         ),
         decisao=(
             "Junção por **(UF, nome normalizado)**, medida antes de decidir: casa "
             "**5.555 de 5.572 municípios (99,7%)**. Os 17 que sobram são o conjunto "
-            "clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
+            "`PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
             "Livramento`, `BOA SAÚDE`/`Januário Cicco`, que foi renomeado. Viraram "
             "um CSV de correções auditável linha a linha, com o motivo de cada uma, "
-            "e o casamento final é de **5.570 de 5.570**."
+            "e a junção final é de **5.570 de 5.570**."
         ),
     )
 
     st.markdown(
-        "É também por isso que existe a **segunda DAG**. A `referencias_ibge` roda "
-        "mensalmente, não acessa a rede e só verifica se a safra versionada ainda "
-        "vale. **Ela pode ficar vermelha sem afetar o pipeline** — que é exatamente "
-        "o desacoplamento que a separação das fontes comprou."
+        "Existe uma segunda DAG, **referencias_ibge**, que roda mensalmente, "
+        "sem acessar a rede, e verifica se os dados do IBGE ainda são válidos. "
+        "Ela pode falhar sem afetar o resto da pipeline."
     )

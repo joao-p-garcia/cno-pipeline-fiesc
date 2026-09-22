@@ -24,7 +24,9 @@ def render() -> None:
         TITULO,
         "A Receita publica um `.zip` de 315 MB com cinco CSVs dentro. Não vem "
         "dicionário de tipos, nem chave declarada, nem contrato. São 12,5 milhões "
-        "de linhas. **Antes de modelar qualquer coisa, fui olhar os bytes.**",
+        "de linhas. Além disso, no site dizia que os dados atualizam diariamente. "
+        "Também confirmei que não havia API pública, apenas o link para download. "
+        "**Antes de modelar qualquer coisa, fui olhar os bytes dos dados.**",
     )
 
     ui.numeros(
@@ -109,7 +111,7 @@ def render() -> None:
             'Fixei `ENCODING_ORIGEM = "cp1252"` como constante em `config.py`. O '
             "tratamento converte para UTF-8 antes de entregar ao DuckDB, que não lê "
             "cp1252. E coloquei um byte dessa faixa no dado sintético dos testes, então "
-            "trocar o encoding quebra a suíte em vez de quebrar o relatório."
+            "trocar o encoding quebra os testes em vez de quebrar o relatório."
         ),
     )
 
