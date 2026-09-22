@@ -131,35 +131,32 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "São duas DAGs separadas. A de cima move o dado todo dia de madrugada e a "
-        "de baixo só verifica se a tabela do IBGE ainda está válida. **Separei as "
-        "duas para a segunda poder falhar sem derrubar a primeira.**",
+        "São duas DAGs separadas. A de cima roda a pipeline todo dia de madrugada "
+        "e a de baixo só verifica se a tabela do IBGE ainda está válida. **Separei "
+        "as duas para a segunda poder falhar sem derrubar a primeira.**",
     )
 
     ui.diagrama(DIAGRAMA, ALTURA_DIAGRAMA)
     st.caption(
         "O `snapshot_id` sai da extração e passa pelas outras três tarefas. Cada "
-        "uma recebe **qual** snapshot processar, em vez de buscar o mais recente "
-        "por conta própria. Se a Receita publicar no meio de uma execução, a "
-        "pipeline termina no mesmo dado em que começou."
+        "uma recebe **qual** snapshot processar, pra não quebrar a DAG caso a "
+        "Receita publique novos dados enquanto a pipeline é processada."
     )
 
     ui.decisao(
         achado=(
-            "A curadoria é o que alimenta este dashboard, e ela roda logo depois da "
+            "O dado curado é o final e alimenta o Streamlit. Roda logo depois da "
             "validação, que confere 19 regras e reconcilia as contagens com os "
-            "totais que a Receita publica."
+            "totais da CNO."
         ),
         risco=(
-            "Curar antes de validar, ou validar e seguir mesmo assim. O dashboard "
-            "publicaria número em cima de camada reprovada e **ninguém ia "
-            "perceber**, porque gráfico errado tem a mesma cara de gráfico certo."
+            "Curar antes de validar, ou validar e seguir mesmo assim, e fazer o "
+            "Streamlit exibir dados errados."
         ),
         decisao=(
             "A validação bloqueia: reprovar **derruba a execução** e o `curar` não "
-            "roda. A camada curada do dia anterior continua servindo o dashboard e "
-            "o alerta do Airflow avisa que mudou algo na fonte. Prefiro a pipeline "
-            "falhar de forma visível a entregar dado em que ninguém pode confiar."
+            "roda. A camada curada do dia anterior continua servindo o Streamlit e "
+            "o alerta do Airflow avisa que mudou algo na fonte."
         ),
     )
 
@@ -174,17 +171,14 @@ def render() -> None:
             "e do `curate`, para o caso de alguém rodar a CLI à mão enquanto a DAG "
             "roda.\n\n"
             "**Por que o Triggerer aparece vermelho na UI do Airflow.** Ele não existe "
-            "nesta stack. Nenhuma tarefa daqui é *deferrable*, então tirei o serviço "
-            "do compose junto com o Redis, o worker Celery e o Flower. O vermelho é "
-            "a ausência dele, não uma falha."
+            "nesta stack. Nenhuma tarefa daqui é *deferrable* (adiável), então tirei o "
+            "serviço do compose junto com o Redis, o worker Celery e o Flower."
         )
 
     st.markdown(
         "---\n\n"
-        "Com a pipeline rodando sozinha todo dia, passei a olhar o dado em si. As "
-        "próximas quatro seções são o que encontrei, e cada uma mudou alguma coisa "
-        "no sistema que você acabou de ver. A primeira começa com uma coluna vazia "
-        "em dois terços das linhas."
+        "Com a pipeline rodando todo dia o Streamlit é feito e é possível seguir "
+        "a análise."
     )
 
     ui.rodape(*ui.vizinhos(__name__))

@@ -69,19 +69,19 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "O pacote traz **cinco** CSVs. Quatro viram tabela e o quinto traz as "
-        "contagens que a Receita declara. Antes de falar dos problemas do dado, "
-        "vale saber o que é cada tabela e que elas **não têm o mesmo tamanho**.",
+        "O pacote traz cinco CSVs, sendo que quatro viram tabela e o quinto traz "
+        "as contagens que a Receita declara. Abaixo uma descrição de cada tabela:",
     )
 
     st.dataframe(pd.DataFrame(ARQUIVOS), hide_index=True, width="stretch")
 
-    st.markdown("### A fonte declara as próprias contagens")
+    st.markdown("### Arquivo de dados totais")
     st.markdown(
-        "O quinto arquivo, `cno_totais.csv`, não vira tabela. São quatro números: "
-        "quantas obras, CNAEs, áreas e vínculos aquela publicação tem. É contra "
-        "eles que o `cno validate` reconcilia o que foi tratado. **Sem uma fonte "
-        "externa para comparar, é o que permite validar o dado.**"
+        "O quinto arquivo, `cno_totais.csv`, possui quatro números: quantas obras, "
+        "CNAEs, áreas e vínculos aquela publicação tem. Esses dados são "
+        "posteriormente usados na camada de `cno validate` para reconciliar o que "
+        "foi tratado, pois sem uma fonte externa para comparar, é o que permite "
+        "validar o dado."
     )
     volumetria = dados_app.consultar("volumetria")
     st.dataframe(
@@ -92,23 +92,23 @@ def render() -> None:
     st.caption(
         "As três últimas linhas somam o 1:N depois do tratamento: 4.531.627 áreas "
         "contra 4.553.076 publicadas, e 420.338 vínculos contra 431.211. A diferença "
-        "são 21.449 e 10.873 **linhas duplicadas** na origem, e o número bate exato."
+        "são 21.449 e 10.873 linhas duplicadas na origem."
     )
 
     ui.decisao(
         achado=(
-            "As quatro tabelas somam **12,5 M de linhas**, mas são só 3,6 M de obras. "
-            "A tabela `areas` tem **mais linhas que `obras`**, porque uma obra "
-            "declara a área principal e quantas complementares quiser."
+            "As quatro tabelas somam 12,5 M de linhas, mas são só 3,6 M de obras. "
+            "A tabela `areas` tem mais linhas que `obras`, porque uma obra declara "
+            "a área principal e quantas complementares quiser."
         ),
         risco=(
             "Juntar as quatro tabelas e contar. Uma obra com três áreas e dois CNAEs "
-            "vira **seis linhas**, e daí toda contagem, soma e média fica "
-            "multiplicada por um fator diferente em cada obra. A junção não dá "
-            "erro, só devolve um número maior."
+            "vira seis linhas, e daí toda contagem, soma e média fica multiplicada "
+            "por um fator diferente em cada obra. A junção não dá erro, só devolve "
+            "um número maior."
         ),
         decisao=(
-            "A camada curada reduz o 1:N para **uma linha por obra** e guarda o que "
+            "A camada curada reduz o 1:N para uma linha por obra e guarda o que "
             "foi agrupado em `n_areas`, `n_cnaes` e `n_vinculos`. Assim dá para "
             "auditar o que se perdeu, e tem um teste só para garantir isso."
         ),
