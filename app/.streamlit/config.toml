@@ -1,9 +1,9 @@
-# Tema do dashboard — identidade visual do Observatório FIESC (brandbook 2025).
+# Tema do dashboard — a identidade visual do Observatório FIESC.
 #
 # **Por que existe um tema escuro fixo, e não "o que o sistema do visitante
-# preferir".** O brandbook é majoritariamente escuro, e é assim que o material
-# do Observatório é apresentado. Um app que muda de cor conforme o sistema
-# operacional de quem abre não tem identidade: tem duas.
+# preferir".** A identidade do Observatório é escura, e é assim que o material
+# dele é apresentado. Um app que muda de cor conforme o sistema operacional de
+# quem abre não tem identidade: tem duas.
 #
 # **Este arquivo e `analise/estilo.py` precisam concordar.** Aqui moram as cores
 # do chrome (fundo, texto, widget); lá moram as cores do dado, e é lá que estão
@@ -23,7 +23,7 @@
 [theme]
 base = "dark"
 
-# Nanquim e Chumbo: o fundo dos slides escuros do brandbook e o degrau acima
+# Nanquim e Chumbo: a superfície escura da identidade e o degrau acima
 # dele, que aqui é cartão, expander e barra lateral.
 backgroundColor = "#1e1e29"
 secondaryBackgroundColor = "#2e303d"
@@ -41,11 +41,12 @@ linkColor = "#6bc4fe"
 # Granito: 2,2:1. Borda é para delimitar, não para ser lida.
 borderColor = "#4a5567"
 
-# **Montserrat no título, Open Sans no corpo.** O brandbook rotula Montserrat
-# como primária e Open Sans como "subtítulos e textos pequenos". Esta é uma
-# leitura, não a letra: este app é uma narrativa, tem muito parágrafo, e
-# Montserrat em texto corrido longo é larga e cansa. A identidade fica onde ela
-# é vista — título, número, rótulo de gráfico — e o corpo fica legível.
+# **Montserrat no título, Open Sans no corpo.** Montserrat é a fonte primária da
+# identidade e Open Sans a secundária, de subtítulo e texto pequeno. Esta é uma
+# leitura da divisão, não a letra dela: este app é uma narrativa, tem muito
+# parágrafo, e Montserrat em texto corrido longo é larga e cansa. A identidade
+# fica onde ela é vista — título, número, rótulo de gráfico — e o corpo fica
+# legível.
 headingFont = "Montserrat"
 font = "Open Sans"
 

@@ -1,6 +1,6 @@
 # Fontes da marca
 
-Montserrat e Open Sans, as duas do brandbook do Observatório FIESC (2025), sob
+Montserrat e Open Sans, as duas da identidade visual do Observatório FIESC, sob
 licença SIL Open Font License 1.1 — ver `OFL.txt`, que vale para as duas.
 
 Estão versionadas em vez de vir de CDN por um motivo só: numa apresentação ao
