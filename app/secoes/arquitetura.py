@@ -251,9 +251,7 @@ def _pandas_ou_polars() -> None:
     escolha foi medida, e não preferida.
     """
     st.markdown(
-        "**E pandas ou polars?** É a pergunta mais comum, e ela merece número em "
-        "vez de opinião. Medi os três lendo o `cno.csv` inteiro — 884 MB, 3,6 M de "
-        "linhas —, cada um em processo isolado:"
+        "*Comparação de desempenho entre pandas, polars e DuckDB*:"
     )
     st.markdown(
         "| Engine | Tempo | Pico de RAM |\n"
@@ -263,22 +261,18 @@ def _pandas_ou_polars() -> None:
         "| pandas, `cp1252` | 19,6 s | 4.031 MB |\n"
     )
     st.markdown(
-        "**O que decidiu não foi o tempo, foi a coluna da direita.** Isto roda num "
-        "worker de orquestrador, dividindo a máquina com scheduler e banco. Pedir "
-        "4 GB de pico para ler um arquivo é o que funciona no notebook de quem "
-        "desenvolve e morre por falta de memória em produção, de madrugada.\n\n"
-        "**O polars quase ganhou**, e vale dizer por quê: ele lê cp1252 "
+        "*Decisão baseada na RAM utilizada.* "
+        "**Quase usei polars**, porque ele lê cp1252 "
         "nativamente, o que eliminaria o passo de transcodificação inteiro. Só que "
-        "isso existe apenas na API *eager* — o `scan_csv`, que é a porta da "
+        "isso existe apenas na API *eager* , o `scan_csv`, que é a porta da "
         "execução *lazy*, aceita só UTF-8. Para ler cp1252 eu abriria mão do "
         "streaming e a tabela inteira teria de caber na memória, que era "
-        "exatamente o recurso em disputa. A vantagem cancelava a si mesma."
+        "exatamente o recurso em disputa."
     )
     st.caption(
-        "De brinde, o DuckDB foi o único dos três que **recusou** o arquivo "
-        "declarado como latin-1 com bytes da faixa C1. Os outros dois aceitariam "
-        "calados e produziriam caracteres de controle dentro dos nomes — foi essa "
-        "recusa que revelou o encoding real da base, na seção 1."
+        "O DuckDB foi o único dos três que **recusou** o arquivo "
+        "declarado como latin-1 com bytes da faixa C1. Os outros dois aceitariam, "
+        "então por controle de qualidade de dados deixei o DuckDB."
     )
 
 
@@ -289,54 +283,51 @@ def _fronteira_externa() -> None:
     de fronteira: define o que o pipeline aceita processar. Quem vê o ranking
     por mil habitantes mais adiante precisa saber de onde veio o divisor.
     """
-    st.markdown("### O dado que vem de fora, e por que ele fica de fora")
+    st.markdown("### IBGE como segunda fonte, mas fora da pipeline")
     st.markdown(
         "A análise usa **população, nome e região do IBGE** para dividir obras por "
-        "habitante e desenhar o mapa. É a segunda fonte do projeto — e ela **não "
-        "entra no pipeline**. Entra na análise, como tabela de referência "
+        "habitante e desenhar o mapa. É a segunda fonte do projeto, e decidi que "
+        "**ela não entra no pipeline**. Entra na análise, como tabela de referência "
         "versionada no repositório.\n\n"
-        "O motivo não é purismo. O pipeline tem uma garantia verificável: fonte "
+        "Isso porque a pipeline tem uma garantia verificável, fonte "
         "versionada por ETag e sha256, reconciliada contra os totais que a própria "
-        "Receita publica. **Dado externo não tem nada disso**, e misturar os dois "
-        "custa a garantia inteira:"
+        "Receita publica. **O Dado externo não tem nada disso**."
     )
     st.markdown(
         "- **Proveniência.** CSV commitado envelhece em silêncio.\n"
-        "- **Safras misturadas na mesma linha.** Snapshot de 2026 dividido por "
-        "população de 2022 não é erro se estiver declarado; é erro grave se não "
+        "- **Data dos Snapshots.** Snapshot do IBGE de 2026 dividido por "
+        "população de 2022 não é erro se estiver declarado, mas é erro se não "
         "estiver.\n"
         "- **Cadências diferentes.** A Receita publica de forma irregular, o IBGE "
         "anualmente e com defasagem. Acoplar sincroniza o que não precisa andar "
         "junto.\n"
         "- **Peso do stack.** Geometria pediria DuckDB spatial ou geopandas. Hoje "
-        "o pipeline depende de `requests` e `duckdb`, e essa magreza é qualidade."
+        "o pipeline depende apenas de `requests` e `duckdb`."
     )
 
     ui.decisao(
         achado=(
             "A Receita identifica município por **TOM de 4 dígitos** e o IBGE por "
             "**código de 7**. A de-para entre os dois não vem em nenhuma das duas "
-            "fontes — então juntar exige uma ponte."
+            "fontes."
         ),
         risco=(
-            "Importar uma tabela TOM↔IBGE de terceiro parece o caminho curto, mas "
-            "troca um problema conhecido por um desconhecido: mais uma fonte sem "
-            "proveniência, para resolver um casamento que eu ainda teria de "
+            "Importar uma tabela TOM↔IBGE de terceiro gera mais uma fonte sem "
+            "proveniência, para resolver um joint que eu ainda teria de "
             "conferir."
         ),
         decisao=(
             "Junção por **(UF, nome normalizado)**, medida antes de decidir: casa "
             "**5.555 de 5.572 municípios (99,7%)**. Os 17 que sobram são o conjunto "
-            "clássico — `PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
+            "`PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
             "Livramento`, `BOA SAÚDE`/`Januário Cicco`, que foi renomeado. Viraram "
             "um CSV de correções auditável linha a linha, com o motivo de cada uma, "
-            "e o casamento final é de **5.570 de 5.570**."
+            "e a junção final é de **5.570 de 5.570**."
         ),
     )
 
     st.markdown(
-        "É também por isso que existe a **segunda DAG**. A `referencias_ibge` roda "
-        "mensalmente, não acessa a rede e só verifica se a safra versionada ainda "
-        "vale. **Ela pode ficar vermelha sem afetar o pipeline** — que é exatamente "
-        "o desacoplamento que a separação das fontes comprou."
+        "Existe uma segunda DAG, **referencias_ibge**, que roda mensalmente, "
+        "sem acessar a rede, e verifica se os dados do IBGE ainda são válidos. "
+        "Ela pode falhar sem afetar o resto da pipeline."
     )
