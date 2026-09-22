@@ -217,6 +217,8 @@ def render() -> None:
     st.markdown("### O que eu não escolhi")
     st.dataframe(pd.DataFrame(NAO_ESCOLHIDOS), hide_index=True, width="stretch")
 
+    _pandas_ou_polars()
+
     with ui.explorar("Ver o stack completo e como ele é verificado"):
         st.markdown(
             "| Peça | Papel |\n"
@@ -227,7 +229,7 @@ def render() -> None:
             "| **Postgres 16** | metadados do Airflow, nada além disso |\n"
             "| **Docker Compose** | a entrega: um comando sobe tudo, em qualquer sistema |\n"
             "| **Streamlit + Altair** | esta apresentação |\n"
-            "| **pytest + ruff** | 233 testes offline e 15 das DAGs, mais lint e formatação |\n"
+            "| **pytest + ruff** | 272 testes offline e 15 das DAGs, mais lint e formatação |\n"
         )
         st.markdown(
             "**Nenhum teste toca a rede.** Eles montam camada sintética e, quando "
@@ -238,6 +240,46 @@ def render() -> None:
         )
 
     ui.rodape(*ui.vizinhos(__name__))
+
+
+def _pandas_ou_polars() -> None:
+    """A medição que decidiu o engine, que é a pergunta mais previsível da seção.
+
+    Fica fora da tabela acima de propósito: as outras quatro linhas se defendem
+    com um argumento, esta se defende com três números. Misturar as duas coisas
+    na mesma tabela esconderia justamente o que ela tem de mais forte — que a
+    escolha foi medida, e não preferida.
+    """
+    st.markdown(
+        "**E pandas ou polars?** É a pergunta mais comum, e ela merece número em "
+        "vez de opinião. Medi os três lendo o `cno.csv` inteiro — 884 MB, 3,6 M de "
+        "linhas —, cada um em processo isolado:"
+    )
+    st.markdown(
+        "| Engine | Tempo | Pico de RAM |\n"
+        "|---|---|---|\n"
+        "| **DuckDB**, no UTF-8 | **0,8 s** | **457 MB** |\n"
+        "| Polars, `windows-1252` | 4,3 s | 2.641 MB |\n"
+        "| pandas, `cp1252` | 19,6 s | 4.031 MB |\n"
+    )
+    st.markdown(
+        "**O que decidiu não foi o tempo, foi a coluna da direita.** Isto roda num "
+        "worker de orquestrador, dividindo a máquina com scheduler e banco. Pedir "
+        "4 GB de pico para ler um arquivo é o que funciona no notebook de quem "
+        "desenvolve e morre por falta de memória em produção, de madrugada.\n\n"
+        "**O polars quase ganhou**, e vale dizer por quê: ele lê cp1252 "
+        "nativamente, o que eliminaria o passo de transcodificação inteiro. Só que "
+        "isso existe apenas na API *eager* — o `scan_csv`, que é a porta da "
+        "execução *lazy*, aceita só UTF-8. Para ler cp1252 eu abriria mão do "
+        "streaming e a tabela inteira teria de caber na memória, que era "
+        "exatamente o recurso em disputa. A vantagem cancelava a si mesma."
+    )
+    st.caption(
+        "De brinde, o DuckDB foi o único dos três que **recusou** o arquivo "
+        "declarado como latin-1 com bytes da faixa C1. Os outros dois aceitariam "
+        "calados e produziriam caracteres de controle dentro dos nomes — foi essa "
+        "recusa que revelou o encoding real da base, na seção 1."
+    )
 
 
 def _fronteira_externa() -> None:
