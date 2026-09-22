@@ -316,8 +316,8 @@ def test_categorias_se_separam_tambem_sob_daltonismo(visao):
 
     O limite de 30 é o que o trio anterior (azul, laranja, verde-água, medido em
     31,5 no pior par) entregava: o tema novo não pode piorar a leitura de quem
-    não distingue vermelho de verde só porque ficou mais parecido com o
-    brandbook.
+    não distingue vermelho de verde só porque ficou mais parecido com a
+    identidade do Observatório.
     """
     import itertools
 
