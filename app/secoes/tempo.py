@@ -117,9 +117,7 @@ def render() -> None:
                 width="stretch",
             )
         st.dataframe(dados_app.consultar("atraso_de_registro"), hide_index=True, width="stretch")
-        st.caption(
-            "Conclusão: 45% da base entrou mais de ano depois da obra começar."
-        )
+        st.caption("Conclusão: 45% da base entrou mais de ano depois da obra começar.")
 
         st.markdown("**O que fica fora de qualquer série**")
         st.dataframe(dados_app.consultar("datas_ausentes"), hide_index=True, width="stretch")

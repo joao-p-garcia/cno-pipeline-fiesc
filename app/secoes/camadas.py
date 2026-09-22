@@ -65,8 +65,7 @@ def render() -> None:
         "outras."
     )
     st.caption(
-        "O que **não** acontece aqui: nenhuma junção, nenhuma agregação e nenhuma "
-        "regra de negócio."
+        "O que **não** acontece aqui: nenhuma junção, nenhuma agregação e nenhuma regra de negócio."
     )
 
     st.markdown("### De staging para curated")
@@ -91,9 +90,7 @@ def render() -> None:
     _validacao()
 
     ui.decisao(
-        achado=(
-            "Corrigir o problema direto ou passar pra próxima camada com avisos."
-        ),
+        achado=("Corrigir o problema direto ou passar pra próxima camada com avisos."),
         risco=(
             "Tratar e interpretar na mesma etapa, se houver mudança nas regras de "
             "negócio, é necessário **baixar os 315 MB de novo e reprocessar tudo**."
