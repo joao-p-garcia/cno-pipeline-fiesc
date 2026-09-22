@@ -1,4 +1,4 @@
-"""Seção 4 — o endereço vem em Plus Code, e alguns apontam para o Japão."""
+"""Seção 7 — o endereço vem em Plus Code, e alguns apontam para o Japão."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from analise import estilo, malha
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-TITULO = "O endereço vem em Plus Code"
+TITULO = "Localização das obras"
 
 # Prefixo do código do IBGE para Santa Catarina — o mapa abre em SC porque é o
 # recorte que interessa à FIESC; o seletor troca para qualquer outra UF.
@@ -23,10 +23,8 @@ def render() -> None:
         ui.posicao(__name__),
         TITULO,
         "O campo `Código de localização` traz um **Plus Code** (Open Location Code, "
-        "do Google) em 2,1 milhões de registros. Dá para geocodificar a base inteira "
-        "sem serviço pago, porque a decodificação é aritmética e roda offline. "
-        "Seria fácil anunciar 59% de cobertura, mas **o número honesto é menor, e "
-        "por três motivos**.",
+        "do Google) em 2,1 milhões de registros. Porém, alguns não decodificam "
+        "(estão errados) e outros apontam para localizações erradas.",
     )
 
     # Os três degraus vêm de `dados.funil_geocodificacao`, não de três contagens
@@ -52,10 +50,10 @@ def render() -> None:
 
     ui.numeros(
         [
-            ("cobertura ingênua", estilo.percentual(com_mais / total), "tudo que contém um '+'"),
-            ("cobertura bruta", estilo.percentual(decodificaram / total), "tudo que decodifica"),
+            ("plus code", estilo.percentual(com_mais / total), "tudo que contém um '+'"),
+            ("decodifica", estilo.percentual(decodificaram / total), "tudo que decodifica"),
             (
-                "cobertura publicável",
+                "cobertura tratada",
                 estilo.percentual(plausiveis / total),
                 "só o ponto que cai no município declarado",
             ),
@@ -71,28 +69,26 @@ def render() -> None:
         ),
         risco=(
             "Um mapa com obras catarinenses no Japão, e uma cobertura anunciada 43% "
-            "maior que a real. Nada disso levanta exceção, porque o código "
+            "maior que a real. Nada disso levantaria exceção, porque o código "
             "**decodifica normalmente**."
         ),
         decisao=(
-            "Criei duas colunas: `geo_distancia_municipio_km`, com a distância até a "
-            "mediana do município, e `geo_plausivel`, que corta em "
-            f"{consultas.LIMITE_PLAUSIVEL_KM} km. O ponto errado "
-            "**continua gravado**. Quem plota filtra por `geo_plausivel` e quem quiser "
-            "investigar tem o caso na mão. A cobertura que publico é 41,2%."
+            "Coluna `geo_distancia_municipio_km`, com a distância até a mediana do "
+            "município, e `geo_plausivel`, que corta em "
+            f"{consultas.LIMITE_PLAUSIVEL_KM} km. Para plotar, filtra-se por "
+            "`geo_plausivel`. Dessa forma, 41,2% de cobertura."
         ),
     )
 
-    st.markdown("### O detalhe que inverte a intuição")
+    st.markdown("### Tratamento das áreas")
     st.dataframe(dados_app.consultar("perfil_geo"), hide_index=True, width="stretch")
     st.caption(
         "Os **códigos curtos recuperados são mais limpos que os completos**: todos os "
-        "226.854 são plausíveis, com distância máxima de 76 km — exatamente o limite "
-        "geométrico de um código de 4 caracteres. A recuperação ancorada na mediana do "
-        "município é mais confiável que o dado que veio 'bom'."
+        "226.854 são plausíveis, com distância máxima de 76 km, que é o limite "
+        "geométrico de um código de 4 caracteres."
     )
 
-    st.markdown("### O mapa que sobra depois disso")
+    st.markdown("### Mapa tratado das obras")
     uf = st.selectbox(
         "UF no mapa",
         dados_app.consultar("ufs_disponiveis"),

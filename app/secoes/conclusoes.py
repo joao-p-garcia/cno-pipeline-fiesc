@@ -54,10 +54,8 @@ def _setor() -> None:
     )
     st.markdown(
         "Um relatório que conta registros diz que o setor é **residencial pulverizado**; um "
-        "que soma área diz que há **um terço de obra pesada**. As duas frases são "
-        "verdadeiras, e citar uma sem a outra é meia verdade.\n\n"
-        "Vale registrar o que **não** funcionou: agrupar pela *seção* da CNAE daria uma "
-        "linha só — 100% da base é seção F (Construção). O recorte útil é a divisão."
+        "que soma área diz que há **um terço de obra pesada**.\n\n"
+        "Tentei fazer uma comparação por CNAE, mas toda a base possui o mesmo."
     )
 
 
@@ -88,12 +86,9 @@ def _situacao() -> None:
 
     st.markdown(
         f"Das {estilo.numero(total)} obras da base, **{estilo.numero(ativas)} estão "
-        f"ativas** — {estilo.percentual(ativas / total)} do total. É a diferença "
-        "entre *quantas obras existem em Santa Catarina* e *quantas estão "
-        "acontecendo em Santa Catarina*.\n\n"
-        "Os dois números servem, para coisas diferentes: atividade econômica quer "
-        "as ativas, estoque construído quer todas. Trocar um pelo outro sem dizer "
-        "é o mesmo erro de contar registro achando que mediu área."
+        f"ativas**, {estilo.percentual(ativas / total)} do total.\n\n"
+        "Um número auxilia a entender a atividade econômica das ativas e outro o "
+        "estoque construído."
     )
 
     with ui.explorar("Ver a situação cadastral por UF"):
@@ -113,7 +108,7 @@ def _situacao() -> None:
 
 
 def _denominador() -> None:
-    st.markdown("### O denominador reordena o mapa inteiro")
+    st.markdown("### Considerar população reordena conclusões")
     if not dados_app.metadados_referencia():
         st.info(
             "A tabela de referência do IBGE não está gerada, então não há denominador. "
@@ -160,9 +155,9 @@ def _denominador() -> None:
     st.markdown(
         f"**Das dez posições, {10 - len(repetidos)} trocam.** "
         + (f"Só {', '.join(repetidos)} sobrevive à mudança de denominador. " if repetidos else "")
-        + "O ranking por habitante mostra outra Santa Catarina — Itapoá, Passo de Torres, "
-        "Maravilha, Pinhalzinho, Balneário Piçarras: **litoral norte e Oeste catarinense**, "
-        "dois padrões que o número absoluto escondia por completo."
+        + "O ranking por habitante mostra outra Santa Catarina, com Itapoá, Passo de "
+        "Torres, Maravilha, Pinhalzinho, Balneário Piçarras: litoral norte e Oeste "
+        "catarinense."
     )
 
     regioes = dados_app.consultar("regioes", uf=UF_FOCO)
@@ -238,20 +233,18 @@ def _destinacao() -> None:
             width="stretch",
         )
         st.caption(
-            "A mediana aqui é calculada sobre as obras, não sobre o mart: mediana de "
-            "medianas não é mediana, e um número inventado por conveniência é exatamente "
-            "o que este projeto não publica."
+            "A mediana aqui é calculada sobre as obras, não sobre o mart."
         )
 
 
 def _limites() -> None:
     st.markdown("### O que **não** dá para afirmar")
-    st.markdown("Uma análise honesta declara os limites antes que alguém os descubra.")
+    st.markdown("Análise do que falta e erros nos dados:")
     limites = [
         (
-            "O CNO não mede o setor da construção; mede o cadastro dele.",
-            "Obra que não precisa de matrícula não está aqui. Serve para *onde há obra "
-            "cadastrada*, não para PIB setorial.",
+            "O CNO não mede o setor da construção e sim o cadastro dele.",
+            "Obra sem matrícula não está aqui. Não consigo tirar o PIB setorial por "
+            "exemplo.",
         ),
         (
             "O ano é o de início declarado, não o de execução.",
@@ -265,18 +258,18 @@ def _limites() -> None:
         ),
         (
             "58,8% das obras não têm ponto no mapa, e a ausência não é aleatória.",
-            "Depende de o cadastro ter sido preenchido com Plus Code, o que varia por época "
-            "e por município. Todo mapa aqui é de um subconjunto.",
+            "Depende de o cadastro ter sido preenchido com Plus Code, o que varia por "
+            "época e por município.",
         ),
         (
             "Área existe para 94% das obras e é autodeclarada.",
-            "323 registros impossíveis foram marcados; não há como validar os 3,4 milhões "
+            "323 registros impossíveis foram marcados, validei os 3,4 milhões "
             "plausíveis contra nada externo.",
         ),
         (
             "População é de 2026 e as obras são de todos os anos.",
-            "A taxa por mil habitantes compara municípios entre si no mesmo instante. Não é "
-            "série histórica.",
+            "A taxa por mil habitantes compara municípios entre si no mesmo instante. "
+            "Não consigo tirar uma série histórica.",
         ),
         (
             "Duas obras dizem estar no Brasil e num município chamado EXTERIOR.",
