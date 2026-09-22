@@ -5,12 +5,11 @@ avaliador lê sem rodar nada) e o dashboard desenha em Altair (interativo). São
 duas bibliotecas, mas **uma paleta só** — caso contrário o mesmo achado teria
 duas aparências e o leitor pensaria estar vendo duas coisas.
 
-As cores saem do brandbook do Observatório FIESC (2025), e o tema é **escuro**,
-que é a superfície dominante do brandbook. O que este módulo acrescenta ao
-brandbook é a medição: uma paleta de slide pode se dar ao luxo de ser toda azul,
-um gráfico não, porque ali a cor é o dado. Cada escolha abaixo traz o contraste
-WCAG contra o fundo e, quando separa categorias, a distância entre as cores
-simulada sob deuteranopia e protanopia.
+As cores e a tipografia seguem a identidade visual do Observatório FIESC, e o
+tema é **escuro**. O que este módulo acrescenta a ela é a medição: uma identidade
+pode se dar ao luxo de ser quase toda azul, um gráfico não, porque ali a cor é o
+dado. Cada escolha abaixo traz o contraste WCAG contra o fundo e, quando separa
+categorias, a distância entre as cores simulada sob deuteranopia e protanopia.
 
 As regras que seguimos, e o motivo de cada uma:
 
@@ -31,7 +30,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # --- Superfícies -----------------------------------------------------------
-# Nanquim é o fundo dos slides escuros do brandbook, e é o fundo do app. Chumbo
+# Nanquim é a superfície escura da identidade, e é o fundo do app. Chumbo
 # é o degrau acima: cartão, expander, e a terra no mapa. A diferença entre os
 # dois é 1,26:1 — de propósito. Superfície que disputa atenção com o dado é
 # ruído com aparência de organização.
@@ -85,10 +84,10 @@ FUNDO_MAPA = SUPERFICIE_ELEVADA
 OPACIDADE_BOLHA = 0.65
 
 # --- Tipografia ------------------------------------------------------------
-# Montserrat é a fonte primária do brandbook (títulos e corpo); Open Sans é a
-# secundária, para subtítulo e texto pequeno — que num gráfico é rótulo de eixo
-# e legenda. As duas vêm empacotadas no repositório, e não de CDN: numa
-# apresentação ao vivo, fonte que depende de rede é fonte que pode não chegar.
+# Montserrat é a fonte de título da identidade; Open Sans é a de texto corrido e
+# de miúdo — que num gráfico é rótulo de eixo e legenda. As duas vêm empacotadas
+# no repositório, e não de CDN: numa apresentação ao vivo, fonte que depende de
+# rede é fonte que pode não chegar.
 FONTE = ["Montserrat", "Segoe UI", "DejaVu Sans", "sans-serif"]
 FONTE_MIUDA = ["Open Sans", "Segoe UI", "DejaVu Sans", "sans-serif"]
 
@@ -311,8 +310,8 @@ def tema_altair() -> dict:
             "axis": {
                 "labelColor": CINZA,
                 "titleColor": TINTA_SECUNDARIA,
-                # Open Sans no miúdo, como manda o brandbook: Montserrat é fonte
-                # de título, e num rótulo de 11px ela fecha demais a contraforma.
+                # Open Sans no miúdo: Montserrat é fonte de título, e num rótulo
+                # de 11px ela fecha demais a contraforma.
                 "labelFont": FONTE_MIUDA_CSS,
                 "titleFont": FONTE_MIUDA_CSS,
                 "labelFontSize": 11,

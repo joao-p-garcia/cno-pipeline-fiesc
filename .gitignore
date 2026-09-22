@@ -226,6 +226,26 @@ dados_raw/
 /data/*
 !/data/.gitkeep
 
+# --- Identificadores da conta -----------------------------------------------
+# Este repositório é público, e o commit 023c847 tirou daqui, de propósito, o ID
+# da assinatura e o domínio do tenant. Os dois arquivos abaixo os têm, e estavam
+# **soltos**: não rastreados, mas também não ignorados. Um `git add -A` bastava
+# para desfazer aquele commit.
+#
+# Já existe um `.gitignore` dentro de `nuvem/terraform/`, e a `cloud/azure` já
+# ignora o roteiro — mas os dois só valem naquela branch. A branch onde o
+# descuido acontece é a outra, justamente onde ninguém espera olhar para um
+# arquivo de Terraform. Regra de raiz vale em todas, e a repetição na
+# `cloud/azure` é inofensiva.
+#
+# Ficam aqui, e não no fim do arquivo, para não conflitar com o bloco que a
+# `cloud/azure` acrescentou lá.
+/ROTEIRO-NUVEM.md
+*.tfvars
+*.auto.tfvars
+!exemplo.tfvars
+nuvem/terraform/.terraform/
+
 # Notas locais de trabalho, não fazem parte da entrega.
 # ESTADO.md   = onde paramos e qual o próximo passo.
 # DECISOES.md = registro das decisões de engenharia com o porquê e as medições,

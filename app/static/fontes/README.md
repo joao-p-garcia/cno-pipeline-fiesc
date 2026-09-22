@@ -1,6 +1,6 @@
 # Fontes da marca
 
-Montserrat e Open Sans, as duas do brandbook do Observatório FIESC (2025), sob
+Montserrat e Open Sans, as duas da identidade visual do Observatório FIESC, sob
 licença SIL Open Font License 1.1 — ver `OFL.txt`, que vale para as duas.
 
 Estão versionadas em vez de vir de CDN por um motivo só: numa apresentação ao
@@ -38,16 +38,18 @@ from fontTools.varLib import instancer
 
 for peso, sufixo in ((400, "Regular"), (600, "SemiBold")):
     fonte = TTFont("Montserrat.woff2")
-    fonte.flavor = None                       # woff2 -> ttf
+    fonte.flavor = None  # woff2 -> ttf
     fonte = instancer.instantiateVariableFont(fonte, {"wght": peso}, inplace=True)
     fonte["OS/2"].usWeightClass = peso
-    for registro in fonte["name"].names:      # nameID 1 agrupa família no matplotlib
+    for registro in fonte["name"].names:  # nameID 1 agrupa família no matplotlib
         if registro.nameID == 1:
-            fonte["name"].setName("Montserrat", 1, registro.platformID,
-                                  registro.platEncID, registro.langID)
+            fonte["name"].setName(
+                "Montserrat", 1, registro.platformID, registro.platEncID, registro.langID
+            )
         elif registro.nameID == 2:
-            fonte["name"].setName(sufixo, 2, registro.platformID,
-                                  registro.platEncID, registro.langID)
+            fonte["name"].setName(
+                sufixo, 2, registro.platformID, registro.platEncID, registro.langID
+            )
     fonte.save(f"Montserrat-{sufixo}.ttf")
 ```
 

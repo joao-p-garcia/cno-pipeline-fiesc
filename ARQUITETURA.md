@@ -397,19 +397,19 @@ imagem embutida no `.ipynb` — é o que faz o avaliador ler sem executar, e é 
 o GitHub renderiza. O app precisa de *hover*. As cores, a grade e a tipografia
 saem de `analise/estilo.py` nos dois casos, senão o mesmo achado teria duas caras.
 
-**A identidade é a do Observatório FIESC, e o tema é escuro.** As cores saem do
-brandbook de 2025 — Nanquim de fundo, Azul piscina na série, Dourado na
-anotação, Montserrat no título e Open Sans no miúdo. O que o projeto acrescenta
-ao brandbook é a medição: uma paleta de slide pode ser toda azul, um gráfico não,
-porque ali a cor é o dado. Cada escolha tem contraste WCAG contra o fundo e
-separação sob daltonismo anotados no módulo, e há teste que quebra se alguém
-trocar uma cor e derrubar a conta. Barra maior não ganha cor mais forte, e o que
-o gráfico defende fica azul enquanto o resto fica cinza.
+**A identidade visual é a do Observatório FIESC, e o tema é escuro.** Nanquim de
+fundo, Azul piscina na série, Dourado na anotação, Montserrat no título e Open
+Sans no miúdo. O que o projeto acrescenta a ela é a medição: uma identidade pode
+ser quase toda azul, um gráfico não, porque ali a cor é o dado. Cada escolha tem
+contraste WCAG contra o fundo e separação sob daltonismo anotados no módulo, e há
+teste que quebra se alguém trocar uma cor e derrubar a conta. Barra maior não
+ganha cor mais forte, e o que o gráfico defende fica azul enquanto o resto fica
+cinza.
 
-O tema tem duas metades que precisam concordar: `app/.streamlit/config.toml` pinta a
-página, `analise/estilo.py` pinta o gráfico. Um teste compara as duas — divergir
-ali produz o pior tipo de defeito visual, um retângulo de tom ligeiramente
-diferente que ninguém reporta porque parece intencional.
+O tema tem duas metades que precisam concordar: `app/.streamlit/config.toml`
+pinta a página, `analise/estilo.py` pinta o gráfico. Um teste compara as duas —
+divergir ali produz o pior tipo de defeito visual, um retângulo de tom
+ligeiramente diferente que ninguém reporta porque parece intencional.
 
 **Mapa sem GIS.** Um polígono do GeoJSON é uma lista de pares de coordenadas, e a
 junção com o CNO é por código de município — não por geometria. Trazer geopandas
