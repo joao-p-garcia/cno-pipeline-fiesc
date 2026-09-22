@@ -4,7 +4,7 @@
 
 **Por que uma narrativa e não um painel de filtros.** Um painel entrega liberdade
 e nenhuma conclusão; quem abre precisa já saber o que perguntar. Aqui a espinha é
-uma história em seis seções, na ordem em que as decisões de engenharia foram
+uma história em dez seções, na ordem em que as decisões de engenharia foram
 tomadas, e cada seção tem um gráfico fixo que faz um argumento. Os controles
 existem, mas ficam **abaixo** do argumento, dentro de um expander: quem quiser a
 história lê de cima para baixo; quem quiser explorar, explora.
