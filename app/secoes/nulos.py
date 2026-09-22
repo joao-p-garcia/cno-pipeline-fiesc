@@ -14,7 +14,6 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-
 TITULO = "Campos nulos"
 
 
