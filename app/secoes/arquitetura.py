@@ -250,9 +250,7 @@ def _pandas_ou_polars() -> None:
     na mesma tabela esconderia justamente o que ela tem de mais forte — que a
     escolha foi medida, e não preferida.
     """
-    st.markdown(
-        "*Comparação de desempenho entre pandas, polars e DuckDB*:"
-    )
+    st.markdown("*Comparação de desempenho entre pandas, polars e DuckDB*:")
     st.markdown(
         "| Engine | Tempo | Pico de RAM |\n"
         "|---|---|---|\n"
