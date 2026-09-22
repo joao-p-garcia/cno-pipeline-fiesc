@@ -172,6 +172,7 @@ NAO_ESCOLHIDOS = [
     },
 ]
 
+
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
@@ -192,8 +193,7 @@ def render() -> None:
 
     ui.decisao(
         achado=(
-            "A base inteira são **12,5 M de linhas e 1,4 GB de CSV**, que viram ~260 MB "
-            "em parquet."
+            "A base inteira são **12,5 M de linhas e 1,4 GB de CSV**, que viram ~260 MB em parquet."
         ),
         risco=(
             "Escolher uma ferramenta que trate o problema de forma condizente, sem "

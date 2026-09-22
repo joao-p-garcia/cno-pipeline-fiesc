@@ -26,7 +26,7 @@ def render() -> None:
         "sem documentação de tipos, nem chave declarada, nem contrato. São 12,5 milhões "
         "de linhas. Antes de modelar qualquer coisa, fui olhar os bytes, porque um "
         "simples pandas read_csv não funcionou no formato padrão.",
-       )
+    )
 
     ui.numeros(
         [
