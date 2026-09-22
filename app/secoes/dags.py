@@ -176,9 +176,7 @@ def render() -> None:
         )
 
     st.markdown(
-        "---\n\n"
-        "Com a pipeline rodando todo dia o Streamlit é feito e é possível seguir "
-        "a análise."
+        "---\n\nCom a pipeline rodando todo dia o Streamlit é feito e é possível seguir a análise."
     )
 
     ui.rodape(*ui.vizinhos(__name__))

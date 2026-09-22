@@ -232,9 +232,7 @@ def _destinacao() -> None:
             hide_index=True,
             width="stretch",
         )
-        st.caption(
-            "A mediana aqui é calculada sobre as obras, não sobre o mart."
-        )
+        st.caption("A mediana aqui é calculada sobre as obras, não sobre o mart.")
 
 
 def _limites() -> None:
@@ -243,8 +241,7 @@ def _limites() -> None:
     limites = [
         (
             "O CNO não mede o setor da construção e sim o cadastro dele.",
-            "Obra sem matrícula não está aqui. Não consigo tirar o PIB setorial por "
-            "exemplo.",
+            "Obra sem matrícula não está aqui. Não consigo tirar o PIB setorial por exemplo.",
         ),
         (
             "O ano é o de início declarado, não o de execução.",

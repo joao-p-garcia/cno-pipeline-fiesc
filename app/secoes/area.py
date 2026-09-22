@@ -35,8 +35,7 @@ def render() -> None:
         width="stretch",
     )
     st.caption(
-        "Utilizei escala logarítmica para ser mais perceptível as diferenças em "
-        "números pequenos."
+        "Utilizei escala logarítmica para ser mais perceptível as diferenças em números pequenos."
     )
 
     ui.numeros(
@@ -62,9 +61,7 @@ def render() -> None:
             "obras declaram área impossível**, sendo a maior 555.555.555.555 m², "
             "umas 65 vezes a área do Brasil."
         ),
-        risco=(
-            "Somando sem cuidado, o número sai 312 vezes maior que o certo."
-        ),
+        risco=("Somando sem cuidado, o número sai 312 vezes maior que o certo."),
         decisao=(
             "Criei na camada curada a coluna `area_m2`, que **só é preenchida quando a "
             "unidade é metro quadrado e a área não é suspeita**. A área declarada "

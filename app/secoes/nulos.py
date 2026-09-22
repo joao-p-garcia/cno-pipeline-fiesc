@@ -14,7 +14,6 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-
 TITULO = "Campos nulos"
 
 
@@ -47,12 +46,9 @@ def render() -> None:
     fatia_pf = perfil.loc[perfil["tipo"] == "PF", "obras"].sum() / perfil["obras"].sum()
     ui.decisao(
         achado=(
-            f"**{estilo.percentual(fatia_pf)}** das obras não têm NI do responsável "
-            "preenchido."
+            f"**{estilo.percentual(fatia_pf)}** das obras não têm NI do responsável preenchido."
         ),
-        risco=(
-            "Descartar a coluna pode jogar fora um recorte útil."
-        ),
+        risco=("Descartar a coluna pode jogar fora um recorte útil."),
         decisao=(
             "Criei a coluna `responsavel_tipo` (PF/PJ) na camada tratada. A regra "
             "`obras.responsavel_tipo_coerente` exige que o tipo continue refletindo a "
