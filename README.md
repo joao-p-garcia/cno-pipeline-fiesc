@@ -89,7 +89,7 @@ WSL para manter os 1,4 GB fora de `/mnt/c`.
 
 | O que roda | Linux / WSL | Windows (sem `make`) |
 |---|---|---|
-| a suíte: 256 testes, offline, em segundos | `make test` | `pytest` |
+| a suíte: 272 testes, offline, em segundos | `make test` | `pytest` |
 | estilo e erros estáticos | `make lint` | `ruff check src tests dags analise app` |
 | 15 testes das DAGs | `make test-dag` | exige o venv do Airflow — veja abaixo |
 
@@ -251,7 +251,9 @@ src/cno_pipeline/     o pipeline: extract, transform, validate, curate
 dags/                 cno_pipeline (as quatro etapas) e referencias_ibge
 analise/              camada de análise: consultas, estilo, malha e o caderno
 app/                  o dashboard narrativo (Streamlit), uma seção por arquivo
-tests/                248 testes, todos offline
+├── .streamlit/       o tema: as cores do chrome, que o `analise/estilo.py` espelha
+└── static/fontes/    Montserrat e Open Sans, versionadas em vez de vir de CDN
+tests/                272 testes offline, mais 15 das DAGs que pedem o Airflow
 data/                 raw / staging / curated
 ```
 
