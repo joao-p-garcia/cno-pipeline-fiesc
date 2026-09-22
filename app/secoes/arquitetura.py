@@ -172,38 +172,34 @@ NAO_ESCOLHIDOS = [
     },
 ]
 
-
 def render() -> None:
     ui.cabecalho()
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "As duas seções anteriores foram o **levantamento de requisitos**. 12,5 M "
-        "de linhas que cabem numa máquina, um encoding que engana, uma fonte que "
-        "republica sem aviso e quatro tabelas em 1:N. Foi a partir daí que "
-        "escolhi as ferramentas, e também o que decidi não usar.",
+        "As duas seções anteriores foram uma **análise inicial dos dados e da "
+        "extração dos dados**, que motivaram algumas decisões de arquitetura e "
+        "stack.",
     )
 
     ui.diagrama(DIAGRAMA, ALTURA_DIAGRAMA)
     st.caption(
-        "A Receita fica **fora** da caixa porque é a única parte que eu não "
-        "controlo. Em azul está a separação entre o Airflow, que orquestra, e a "
-        "pipeline, que faz o trabalho: são processos e ambientes Python "
-        "diferentes, e conversam por linha de comando e JSON. Vale notar que o "
-        "Postgres guarda **só metadados da DAG**, o dado fica em parquet."
+        "Na imagem acima, a arquitetura é representada com fonte de dados (CNO), "
+        "orquestração dos dados (Airflow), processamento (DuckDB) e entrega final "
+        "(Streamlit que estamos vendo). O repositório também tem CI (Integração "
+        "Contínua com Testes), mas o CD seria implementado somente para deploy."
     )
 
     ui.decisao(
         achado=(
             "A base inteira são **12,5 M de linhas e 1,4 GB de CSV**, que viram ~260 MB "
-            "em parquet. Cabe com folga na memória de uma máquina comum."
+            "em parquet."
         ),
         risco=(
-            "Escolher a ferramenta pelo tamanho que o dado *poderia* ter. Um cluster "
-            "Spark aqui custaria configuração, serialização e uma dependência de "
-            "infraestrutura para resolver uma agregação por município que o DuckDB "
-            "faz em segundos. **Complexidade que não se paga vira custo de "
-            "manutenção.**"
+            "Escolher uma ferramenta que trate o problema de forma condizente, sem "
+            "over-engineering (Spark pode ser muito pesado ou demais pra uma base de "
+            "dados pequenos), mas robusta para pegar inconsistências nos dados e "
+            "processar eles em formatos não usuais."
         ),
         decisao=(
             "Usei DuckDB embarcado, sem servidor e sem cluster, lendo parquet direto "
@@ -264,8 +260,7 @@ def _pandas_ou_polars() -> None:
         "nativamente, o que eliminaria o passo de transcodificação inteiro. Só que "
         "isso existe apenas na API *eager* , o `scan_csv`, que é a porta da "
         "execução *lazy*, aceita só UTF-8. Para ler cp1252 eu abriria mão do "
-        "streaming e a tabela inteira teria de caber na memória, que era "
-        "exatamente o recurso em disputa."
+        "streaming e a tabela inteira teria de caber na memória."
     )
     st.caption(
         "O DuckDB foi o único dos três que **recusou** o arquivo "
@@ -283,49 +278,39 @@ def _fronteira_externa() -> None:
     """
     st.markdown("### IBGE como segunda fonte, mas fora da pipeline")
     st.markdown(
-        "A análise usa **população, nome e região do IBGE** para dividir obras por "
-        "habitante e desenhar o mapa. É a segunda fonte do projeto, e decidi que "
-        "**ela não entra no pipeline**. Entra na análise, como tabela de referência "
-        "versionada no repositório.\n\n"
-        "Isso porque a pipeline tem uma garantia verificável, fonte "
-        "versionada por ETag e sha256, reconciliada contra os totais que a própria "
-        "Receita publica. **O Dado externo não tem nada disso**."
+        "Para enriquecer a análise, trouxe dados do IBGE de **população, nome e "
+        "região** para dividir obras por habitante e desenhar um mapa. Ela é "
+        "gerada por um código separado, versionado, e tem uma DAG própria para "
+        "avisar o usuário da validade desses dados.\n\n"
+        "O CNO tem uma garantia verificável, fonte versionada por ETag e sha256, "
+        "validável utilizando os dados totais publicados, por isso entra na "
+        "pipeline e o **IBGE não**. Abaixo outros motivos para o IBGE não entrar "
+        "na pipeline mas ter a DAG:"
     )
     st.markdown(
-        "- **Proveniência.** CSV commitado envelhece em silêncio.\n"
-        "- **Data dos Snapshots.** Snapshot do IBGE de 2026 dividido por "
-        "população de 2022 não é erro se estiver declarado, mas é erro se não "
-        "estiver.\n"
-        "- **Cadências diferentes.** A Receita publica de forma irregular, o IBGE "
-        "anualmente e com defasagem. Acoplar sincroniza o que não precisa andar "
-        "junto.\n"
-        "- **Peso do stack.** Geometria pediria DuckDB spatial ou geopandas. Hoje "
-        "o pipeline depende apenas de `requests` e `duckdb`."
+        "- **CSV pode depreciar sozinho** sem avisos.\n"
+        "- **População do IBGE e do CNO podem ser de anos diferentes.** Atualizar "
+        "sozinho pode quebrar análises ou criar métricas sem sentido. Do jeito "
+        "que está hoje, está bem documentado e avisado os anos.\n"
+        "- **Não quero colocar DuckDB spatial ou geopandas em produção**, que "
+        "pesaria a pipeline, que depende apenas de `requests` e `duckdb`."
     )
 
     ui.decisao(
         achado=(
             "A Receita identifica município por **TOM de 4 dígitos** e o IBGE por "
-            "**código de 7**. A de-para entre os dois não vem em nenhuma das duas "
-            "fontes."
+            "**código de 7**, sem de-para explícito."
         ),
         risco=(
-            "Importar uma tabela TOM↔IBGE de terceiro gera mais uma fonte sem "
-            "proveniência, para resolver um joint que eu ainda teria de "
-            "conferir."
+            "Não quero trazer mais uma tabela para converter esses dados entre si "
+            "para ter mais algo para versionar ou entrar na pipeline."
         ),
         decisao=(
-            "Junção por **(UF, nome normalizado)**, medida antes de decidir: casa "
-            "**5.555 de 5.572 municípios (99,7%)**. Os 17 que sobram são o conjunto "
-            "`PARATI`/`Paraty`, `SANTANA DO LIVRAMENTO`/`Sant'Ana do "
-            "Livramento`, `BOA SAÚDE`/`Januário Cicco`, que foi renomeado. Viraram "
-            "um CSV de correções auditável linha a linha, com o motivo de cada uma, "
-            "e a junção final é de **5.570 de 5.570**."
+            "Juntar por **UF** já resolve **5.555 de 5.572 municípios (99,7%)**. "
+            "Os 17 que sobram são o conjunto `PARATI`/`Paraty`, `SANTANA DO "
+            "LIVRAMENTO`/`Sant'Ana do Livramento`, `BOA SAÚDE`/`Januário Cicco`, "
+            "tem um CSV para corrigir isso no código caso seja necessário. A "
+            "segunda DAG, e testes de função no próprio código avisam quando algo "
+            "nessa conversão deprecia e o usuário pode alterar."
         ),
-    )
-
-    st.markdown(
-        "Existe uma segunda DAG, **referencias_ibge**, que roda mensalmente, "
-        "sem acessar a rede, e verifica se os dados do IBGE ainda são válidos. "
-        "Ela pode falhar sem afetar o resto da pipeline."
     )

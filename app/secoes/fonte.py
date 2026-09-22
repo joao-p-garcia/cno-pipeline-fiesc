@@ -22,12 +22,11 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "A Receita publica um `.zip` de 315 MB com cinco CSVs dentro. Não vem "
-        "dicionário de tipos, nem chave declarada, nem contrato. São 12,5 milhões "
-        "de linhas. Além disso, no site dizia que os dados atualizam diariamente. "
-        "Também confirmei que não havia API pública, apenas o link para download. "
-        "**Antes de modelar qualquer coisa, fui olhar os bytes dos dados.**",
-    )
+        "Os dados brutos da Receita são um `.zip` de 315 MB com cinco CSVs dentro, "
+        "sem documentação de tipos, nem chave declarada, nem contrato. São 12,5 milhões "
+        "de linhas. Antes de modelar qualquer coisa, fui olhar os bytes, porque um "
+        "simples pandas read_csv não funcionou no formato padrão.",
+       )
 
     ui.numeros(
         [
@@ -98,20 +97,19 @@ def render() -> None:
 
     ui.decisao(
         achado=(
-            "O `cno.csv` tem **4.881 bytes na faixa `0x80` a `0x9F`**. Em cp1252 esses "
-            "bytes são tipografia, tipo travessão e aspas curvas. Em ISO-8859-1 eles são "
-            "caractere de controle indefinido."
+            "O `cno.csv` tem 4.881 bytes na faixa 0x80 a 0x9F. Há uma incompatibilidade "
+            "desse formato no latin-1 que se propagaria no resto da pipeline."
         ),
         risco=(
-            "Nada na hora, e é isso que torna o erro perigoso. O `latin-1` decodifica "
-            "**qualquer** byte sem levantar exceção. A pipeline rodaria verde e o texto "
-            "corrompido apareceria num relatório três camadas depois."
+            "O latin-1 decodifica qualquer byte sem levantar exceção, a pipeline rodaria "
+            "verde e o texto corrompido apareceria num relatório três camadas depois."
         ),
         decisao=(
             'Fixei `ENCODING_ORIGEM = "cp1252"` como constante em `config.py`. O '
             "tratamento converte para UTF-8 antes de entregar ao DuckDB, que não lê "
-            "cp1252. E coloquei um byte dessa faixa no dado sintético dos testes, então "
-            "trocar o encoding quebra os testes em vez de quebrar o relatório."
+            "nativamente cp1252. E coloquei um byte dessa faixa no dado sintético dos "
+            "testes, então trocar o encoding quebra os testes em vez de quebrar o "
+            "relatório."
         ),
     )
 

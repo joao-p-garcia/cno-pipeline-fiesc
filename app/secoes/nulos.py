@@ -14,7 +14,8 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-TITULO = "O campo nulo que não é dado faltante"
+
+TITULO = "Campos nulos"
 
 
 def render() -> None:
@@ -24,10 +25,9 @@ def render() -> None:
         TITULO,
         "Com parte da arquitetura decidida, continuamos a análise exploratória "
         "para a tomada de decisões que serão úteis para os insights finais.\n\n"
-        "O campo `NI do responsável` está vazio em **dois terços** das obras. A "
-        "primeira reação é tratar como coluna suja e imputar ou descartar. Mas o "
-        "dicionário da Receita explica: o campo fica em branco quando o "
-        "responsável é pessoa física. **O vazio aqui é a informação.**",
+        "O campo `NI do responsável` está vazio em **dois terços** das obras. "
+        "Inicialmente ia descartar essa coluna ou as linhas, mas descobri que "
+        "esse vazio significa que é uma pessoa física.",
     )
 
     perfil = dados_app.consultar("responsavel")
@@ -48,13 +48,10 @@ def render() -> None:
     ui.decisao(
         achado=(
             f"**{estilo.percentual(fatia_pf)}** das obras não têm NI do responsável "
-            "preenchido. O dicionário da fonte explica: pessoa física não tem CNPJ "
-            "para informar ali."
+            "preenchido."
         ),
         risco=(
-            "Imputar a moda transformaria 2,4 milhões de pessoas físicas em jurídicas. "
-            "Descartar a coluna jogaria fora um dos recortes mais úteis da base. "
-            "Nenhum dos dois erros apareceria num teste."
+            "Descartar a coluna pode jogar fora um recorte útil."
         ),
         decisao=(
             "Criei a coluna `responsavel_tipo` (PF/PJ) na camada tratada. A regra "

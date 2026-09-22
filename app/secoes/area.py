@@ -1,4 +1,4 @@
-"""Seção 3 — a soma que mente por um fator de 312."""
+"""Seção 6 — a soma que mente por um fator de 312."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from analise import estilo
 from .. import componentes as ui
 from .. import dados_app, graficos
 
-TITULO = "O erro de somar a área"
+TITULO = "Área das obras"
 
 
 def render() -> None:
@@ -18,9 +18,8 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "Quantos metros quadrados esta base soma? Somar a coluna `area_total` "
-        "responde na hora, e responde errado. São **dois problemas "
-        "independentes**, e cada um sozinho já estraga o número.",
+        "Tentei somar a área das obras com a coluna `area_total`, e os dados "
+        "vieram suspeitos. A base não está com a unidade padronizada.",
     )
 
     decomposicao = dados_app.consultar("decomposicao_area")
@@ -36,9 +35,8 @@ def render() -> None:
         width="stretch",
     )
     st.caption(
-        "Escala logarítmica: sem ela, a resposta certa vira um traço invisível ao lado "
-        "da errada. As duas linhas do meio isolam um problema cada — a unidade "
-        "misturada e a área implausível —, e a última aplica os dois."
+        "Utilizei escala logarítmica para ser mais perceptível as diferenças em "
+        "números pequenos."
     )
 
     ui.numeros(
@@ -65,16 +63,13 @@ def render() -> None:
             "umas 65 vezes a área do Brasil."
         ),
         risco=(
-            "Nenhum dos filtros resolve sozinho. Só tirar as implausíveis ainda deixa "
-            "49.286 km², porque soma unidades diferentes. Só pegar o que está em m² "
-            "ainda deixa 840.668 km², porque o erro de digitação continua lá. "
             "Somando sem cuidado, o número sai 312 vezes maior que o certo."
         ),
         decisao=(
             "Criei na camada curada a coluna `area_m2`, que **só é preenchida quando a "
             "unidade é metro quadrado e a área não é suspeita**. A área declarada "
-            "continua ao lado, com a unidade original: eu marco, não apago. Só "
-            "`area_m2` pode ser somada, e é a única que os marts usam."
+            "continua ao lado, com a unidade original, mas só `area_m2` pode ser "
+            "somada, e é a única que os marts usam."
         ),
     )
 
@@ -98,7 +93,7 @@ def render() -> None:
     )
     st.caption(
         "Metade das obras tem até 135 m²; um quarto tem até 70. A média é puxada pelo 1% "
-        "acima de 12.049 m² e não descreve caso nenhum — por isso os marts guardam "
+        "acima de 12.049 m² e não descreve caso nenhum, por isso os data marts guardam "
         "mediana, e as faixas de `faixa_area` foram cortadas na distribuição real."
     )
 
