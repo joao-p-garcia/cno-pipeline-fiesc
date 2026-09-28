@@ -1,6 +1,6 @@
 # cno-pipeline-fiesc
 
-Pipeline de extração e tratamento da base do **CNO — Cadastro Nacional de Obras**
+Pipeline de extração e tratamento da base do **CNO, o Cadastro Nacional de Obras**
 da Receita Federal, com análise descritiva em cima da camada tratada.
 
 Do `.zip` publicado pela Receita até um dashboard narrativo, sem download manual
