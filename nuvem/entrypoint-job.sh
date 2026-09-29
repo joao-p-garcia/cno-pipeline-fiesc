@@ -93,8 +93,18 @@ echo "=== publicando raw, staging e curated no lake ==="
 # A staging sobe também, e não só raw e curated: é a camada tratada — UTF-8,
 # tipada — que o desafio pede como entrega em parquet, e que raw (CSV) e
 # curated (marts já agregados) não mostram sozinhos.
+#
+# CNO_LAKE_STAGING checado com `:-`, e não direto: esta imagem pode rodar antes
+# do `terraform apply` que cria a variável no job, e com `set -u` a referência
+# nua derrubaria o script *antes* do sync do curated — a imagem nova quebraria
+# uma publicação que nem mexe em staging. Sem a variável, pula e avisa; o pior
+# caso vira um log, não um job vermelho.
 azcopy sync "$RAW_LOCAL" "$CNO_LAKE_RAW" --recursive --delete-destination=false
-azcopy sync "$CNO_DATA_DIR/staging" "$CNO_LAKE_STAGING" --recursive --delete-destination=false
+if [ -n "${CNO_LAKE_STAGING:-}" ]; then
+  azcopy sync "$CNO_DATA_DIR/staging" "$CNO_LAKE_STAGING" --recursive --delete-destination=false
+else
+  echo "CNO_LAKE_STAGING não definida (terraform apply pendente); pulando a staging"
+fi
 azcopy sync "$CNO_DATA_DIR/curated" "$CNO_LAKE_CURATED" --recursive --delete-destination=false
 
 echo "=== fim ==="
