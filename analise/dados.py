@@ -152,10 +152,24 @@ def abrir(curated_dir: Path | None = None, *, threads: int | None = None) -> Cur
     `threads` fica sem default: o do DuckDB é o número de núcleos disponíveis, e
     era isso que um teto fixo de 4 estava jogando fora justamente nas consultas
     caras, que são as que escalam com paralelismo.
+
+    **Cada view lê só o `snapshot_date` mais recente.** Localmente isso nunca
+    apareceu porque só existe uma execução no disco; na nuvem o job roda em cron
+    e cada rodada grava uma partição nova sem apagar a anterior — a camada
+    curada acumula snapshots. Um `**/*.parquet` sem esse filtro soma todos eles:
+    o cabeçalho dizia "atualizado em X" com a data certa, lida do nome do
+    diretório, enquanto os números abaixo somavam X e todo snapshot anterior
+    junto. É a mesma causa que fazia o disco (e a RAM da consulta) crescer sem
+    limite a cada rodada do cron. Filtra pelo diretório (`snapshot_date={mais
+    recente}` fixo no caminho, não um `WHERE` sobre a coluna de partição) pelo
+    motivo que `Curada.snapshot` já registra: agregar a coluna de partição
+    estoura o bug do DuckDB 1.5.5.
     """
     destino = curated_dir or get_settings().curated_dir
     if not destino.is_dir():
         raise CamadaAusente(destino)
+
+    mais_recente = snapshot_mais_recente(destino)
 
     con = duckdb.connect()
     if threads:
@@ -163,7 +177,9 @@ def abrir(curated_dir: Path | None = None, *, threads: int | None = None) -> Cur
     for view, tabela in TABELAS.items():
         if not (destino / tabela).is_dir():
             raise CamadaAusente(destino / tabela)
-        caminho = str(destino / tabela / "**" / "*.parquet").replace("\\", "/")
+        caminho = str(
+            destino / tabela / f"snapshot_date={mais_recente}" / "**" / "*.parquet"
+        ).replace("\\", "/")
         con.execute(f"""
             CREATE OR REPLACE VIEW {view} AS
             SELECT * FROM read_parquet('{caminho}', hive_partitioning=true)
