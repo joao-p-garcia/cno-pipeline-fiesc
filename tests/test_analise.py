@@ -11,6 +11,7 @@ Nada de rede, nada de dado real.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,28 @@ def test_camada_ausente_diz_o_que_rodar(tmp_path):
 def test_snapshot_vem_do_nome_da_particao(curada: dados.Curada):
     """Sem varrer parquet: o DuckDB 1.5.5 estoura ao agregar coluna de partição."""
     assert curada.snapshot == SNAPSHOT
+
+
+def test_snapshot_antigo_no_disco_nao_infla_o_total(camada_raw: Settings, curada: dados.Curada):
+    """Um cron que não limpa a curada anterior não pode dobrar o total.
+
+    Reproduz o que a nuvem faz de fato: o job roda em cron e cada rodada grava
+    uma partição nova sem apagar a anterior. Sem o filtro em `abrir`, cada view
+    lia `**/*.parquet` e somava todo snapshot que já existiu no disco — foi
+    assim que o total em produção chegou a ~14 milhões de obras em vez dos 3,6
+    milhões de um snapshot só, e o disco (e a consulta) cresciam a cada rodada.
+    """
+    total_um_snapshot = dados.total_obras(curada)
+
+    outra_data = "2026-10-12"
+    for tabela in dados.TABELAS.values():
+        origem = camada_raw.curated_dir / tabela / f"snapshot_date={SNAPSHOT}"
+        destino = camada_raw.curated_dir / tabela / f"snapshot_date={outra_data}"
+        shutil.copytree(origem, destino)
+
+    curada_com_dois_snapshots = dados.abrir(camada_raw.curated_dir)
+    assert curada_com_dois_snapshots.snapshot == outra_data
+    assert dados.total_obras(curada_com_dois_snapshots) == total_um_snapshot
 
 
 # ---------------------------------------------------------------------------
