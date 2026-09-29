@@ -19,6 +19,11 @@ FOLGA_JANELA = 30
 
 def render() -> None:
     ui.cabecalho()
+    st.info(
+        "**Observação:** a análise reflete como os dados estavam no dia 22 de "
+        "setembro de 2026, apesar de o aplicativo em Streamlit utilizar nos "
+        "gráficos os dados atualizados diariamente."
+    )
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
