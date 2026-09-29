@@ -80,15 +80,21 @@ cno curate --json
 
 # --- publicação -----------------------------------------------------------
 
-echo "=== publicando raw e curated no lake ==="
+echo "=== publicando raw, staging e curated no lake ==="
 # Autenticação por identidade gerenciada vem do ambiente, e não de
 # `azcopy login`: dentro de um container o login tenta persistir o token num
 # keyring do sistema que não existe, e falha com "operation not permitted" —
 # depois das quatro etapas terem rodado, que é o pior momento para descobrir.
 #
-# --delete-destination=false é deliberado nas duas: snapshot antigo no lake não
-# é lixo, é histórico. É a mesma postura que a camada raw tem localmente.
+# --delete-destination=false é deliberado nas três: snapshot antigo no lake não
+# é lixo, é histórico. É a mesma postura que a camada raw tem localmente, e é o
+# que sustenta uma análise temporal entre snapshots mais adiante.
+#
+# A staging sobe também, e não só raw e curated: é a camada tratada — UTF-8,
+# tipada — que o desafio pede como entrega em parquet, e que raw (CSV) e
+# curated (marts já agregados) não mostram sozinhos.
 azcopy sync "$RAW_LOCAL" "$CNO_LAKE_RAW" --recursive --delete-destination=false
+azcopy sync "$CNO_DATA_DIR/staging" "$CNO_LAKE_STAGING" --recursive --delete-destination=false
 azcopy sync "$CNO_DATA_DIR/curated" "$CNO_LAKE_CURATED" --recursive --delete-destination=false
 
 echo "=== fim ==="

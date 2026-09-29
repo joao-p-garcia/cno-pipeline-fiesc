@@ -6,6 +6,7 @@ locals {
   lake_base    = "${azurerm_storage_account.lake.primary_dfs_endpoint}${azurerm_storage_data_lake_gen2_filesystem.lake.name}"
   lake_curated = "${local.lake_base}/curated"
   lake_raw     = "${local.lake_base}/raw"
+  lake_staging = "${local.lake_base}/staging"
 }
 
 resource "azurerm_container_app_environment" "cno" {
@@ -102,6 +103,13 @@ resource "azurerm_container_app_job" "pipeline" {
       env {
         name  = "CNO_LAKE_RAW"
         value = local.lake_raw
+      }
+      # A staging é a camada tratada — UTF-8, tipada, ainda sem a agregação dos
+      # marts. O desafio pede o parquet como entrega, e o raw (CSV) e o curated
+      # (marts) sozinhos não mostram essa etapa intermediária.
+      env {
+        name  = "CNO_LAKE_STAGING"
+        value = local.lake_staging
       }
       # O azcopy precisa saber *qual* identidade usar: a réplica pode ter mais
       # de uma atribuída, e sem isto ele não escolhe sozinho.

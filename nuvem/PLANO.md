@@ -53,7 +53,7 @@ Idempotência verificada na nuvem: com o lake populado, o `extract` registra
                         │  quatro etapas, publica       │  no boot
                         │  no disco efêmero             │
                         └────▶◀  ADLS Gen2  ──────────┘
-                                 raw/ + curated/
+                                 raw/ + staging/ + curated/
 ```
 
 ### O que substitui o quê
@@ -61,7 +61,7 @@ Idempotência verificada na nuvem: com o lake populado, o `extract` registra
 | Hoje (compose) | Azure | Nota |
 |---|---|---|
 | DAG Airflow + scheduler + api-server + dag-processor + Postgres | **Container Apps Job**, trigger cron | 5 serviços viram 1 recurso que escala a zero |
-| volume `cno-dados` | **ADLS Gen2** (storage com HNS) | `raw/` e `curated/` sobem; staging é efêmero |
+| volume `cno-dados` | **ADLS Gen2** (storage com HNS) | `raw/`, `staging/` e `curated/` sobem, as três camadas de parquet que o desafio pede; nenhuma é apagada entre rodadas, de propósito — é o que vira histórico para análise temporal |
 | `make build` na máquina | **ACR** + `docker build` no runner | é o "CD ainda não existe" do README, resolvido |
 | serviço `dashboard` | **Container App** | mesma imagem, entrypoint diferente |
 | `airflow-logs` | **Log Analytics** | histórico de execução visível no portal |
@@ -98,9 +98,15 @@ para `abfss://` e acabar. Três motivos para não:
    partição pela metade *sem levantar exceção*. Não é a peça para experimentar.
 
 Então: o job trabalha no disco efêmero, exatamente como faz hoje num volume, e
-**publica `raw/` e `curated/`** no fim — restaurando o `raw/` do lake no começo,
-para que a idempotência por ETag continue valendo. Staging fica de fora: é
-função pura de raw e `cno transform` o refaz em 20 s.
+**publica `raw/`, `staging/` e `curated/`** no fim — restaurando o `raw/` do
+lake no começo, para que a idempotência por ETag continue valendo.
+
+A staging é função pura de raw — `cno transform` a refaz em 20 s — e por isso
+quase ficou de fora, como raciocínio original deste plano. Subiu de qualquer
+jeito porque o desafio pede o parquet como entrega, e sem ela só existem duas
+das três camadas do lado de fora do container: CSV cru e marts já agregados,
+sem o meio do caminho — tipado, em UTF-8, ainda por linha — que mostra o que a
+etapa de tratamento de fato faz.
 
 **O dashboard baixa em vez de ler remoto.** São 191 MB de mesma região; leva
 segundos no boot. A alternativa (extensão `azure` do DuckDB lendo `abfss://`
@@ -435,7 +441,7 @@ tocam a rede e não têm nada a ver com nuvem.
 | Item | Estimativa |
 |---|---|
 | Container Apps Job | ~3,3 h/mês de compute → dentro da cota gratuita mensal (180k vCPU-s / 360k GiB-s) |
-| ADLS Gen2 | 191 MB/dia acumulando; poucos GB em hot → centavos |
+| ADLS Gen2 | ~1,3 GB por snapshot novo acumulando (191 MB de curated + ~1,1 GB de staging, raw à parte); poucos GB/mês em hot → ainda centavos |
 | ACR Basic | ~US$ 5/mês |
 | Log Analytics | ~US$ 0 no volume deste projeto |
 | Dashboard com `min_replicas = 0` | ~US$ 0 parado; centavos por sessão |
