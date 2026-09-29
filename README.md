@@ -11,6 +11,8 @@ somando as quatro tabelas.
 
 ## Rodar
 
+Nessa branch, a solução está em deploy na Nuvem. Entretanto, caso queira rodar:
+
 Caso seu sistema operacional não seja Linux, recomendo usar Docker Desktop.
 Pra rodar esse repositório basta apenas Docker, sem necessidade de instalar mais nada.
 O Docker, por ser solução de container, garante que rode igual em qualquer ambiente.
