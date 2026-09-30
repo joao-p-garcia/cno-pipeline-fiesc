@@ -15,9 +15,7 @@ from pathlib import Path
 # publicação mais recente, por isso o versionamento é responsabilidade nossa.
 DEFAULT_SOURCE_URL = "https://arquivos.receitafederal.gov.br/s/PC6732BXG9B98W3/download"
 
-# Arquivos esperados dentro do zip. Serve de contrato mínimo de extração:
-# se a Receita mudar o pacote, a extração falha de forma explícita em vez de
-# produzir uma camada raw silenciosamente incompleta.
+# Arquivos esperados dentro do zip. Se mudar o formato, falha.
 ARQUIVOS_ESPERADOS = (
     "cno.csv",
     "cno_areas.csv",
@@ -27,13 +25,6 @@ ARQUIVOS_ESPERADOS = (
 )
 
 # Os CSVs da Receita são **cp1252** (Windows-1252), não UTF-8 e não ISO-8859-1.
-#
-# A distinção importa: o `cno.csv` contém 4.881 bytes na faixa 0x80-0x9F, que
-# em cp1252 são tipografia legítima (travessão, aspas curvas, bullet) e em
-# ISO-8859-1 são caracteres de controle indefinidos. Lido como "latin-1", o
-# Python decodifica sem erro e produz caracteres de controle no lugar do texto —
-# corrupção silenciosa. Verificado: cp1252 decodifica os cinco arquivos
-# integralmente, sem nenhum byte indefinido.
 ENCODING_ORIGEM = "cp1252"
 
 # DuckDB não lê cp1252 (aceita utf-8, utf-16 e latin-1), por isso o tratamento
@@ -42,15 +33,7 @@ ENCODING_DESTINO = "utf-8"
 
 
 def _carregar_dotenv() -> None:
-    """Carrega um `.env` do diretório do projeto para o ambiente do processo.
-
-    Feito aqui, e não só no Makefile, porque o orquestrador e os testes chamam
-    a aplicação diretamente — depender do `make` para a configuração valer
-    significaria comportamento diferente conforme quem invoca.
-
-    Variáveis já definidas no ambiente têm precedência sobre o arquivo: o `.env`
-    é o default local, não uma imposição.
-    """
+    """Carrega um `.env` do diretório do projeto para o ambiente do processo."""
     caminho = Path(__file__).resolve().parents[2] / ".env"
     if not caminho.is_file():
         return
@@ -161,13 +144,7 @@ def get_settings() -> Settings:
             "cno-pipeline/0.1 (+https://github.com/joao-p-garcia/cno-pipeline-fiesc)",
         ),
         manter_zip=_env_bool("CNO_MANTER_ZIP", True),
-        # O intermediário UTF-8 custa ~1,4 GB e leva 18s para refazer. Manter é
-        # o default porque acelera o reprocessamento; num container efêmero
-        # convém desligar.
         manter_intermediarios=_env_bool("CNO_MANTER_INTERMEDIARIOS", True),
-        # Teto de memória do DuckDB. O volume cabe com folga, mas um limite
-        # explícito evita que o processo cresça sem controle numa máquina
-        # compartilhada ou num container com cgroup apertado.
         duckdb_memory_limit=_env_str("CNO_DUCKDB_MEMORY", "4GB"),
         duckdb_threads=_env_int("CNO_DUCKDB_THREADS", 4),
     )

@@ -1,19 +1,8 @@
 """Ponte entre a camada curada e a tabela de referência do IBGE.
 
-Este módulo existe para que **o notebook e o Streamlit usem exatamente a mesma
-definição de junção**. Se cada um normalizasse o nome do município do seu jeito,
-os dois divergiriam num município qualquer e ninguém perceberia — é o mesmo
-motivo de os marts existirem em vez de o app agregar por conta própria.
-
-A junção é por `(UF, nome normalizado)`, não pelo código do município: a Receita
-usa TOM de 4 dígitos e o IBGE usa código de 7, e a de-para entre os dois não tem
-fonte canônica estável. Medido na base real, normalizar (maiúscula, sem acento,
-sem hífen e apóstrofo) casa **5.555 de 5.572 (99,7%)**; os 17 que sobram estão em
-`correcoes_municipios.csv`, escritos à mão e auditáveis linha a linha.
-
-Trazer a tabela TOM de 5.570 linhas de um terceiro não evitaria esse trabalho —
-só o esconderia num arquivo que não dá para revisar. **Você não evita a de-para;
-você escolhe o tamanho dela.**
+A junção é por `(UF, nome normalizado)`, porque a Receita usa código TOM de 4
+dígitos e o IBGE usa código de 7. Normalizar casa 5.555 de 5.572 municípios
+(99,7%), e os 17 restantes estão em `correcoes_municipios.csv`.
 """
 
 from __future__ import annotations
@@ -24,19 +13,13 @@ from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
 
-# Os quatro artefatos que `construir_municipios.py` gera. Ficam declarados num
-# lugar só porque quem os escreve, quem os lê e quem checa a validade são módulos
-# diferentes: com uma cópia em cada um, renomear um arquivo não dá erro — dá o
-# caminho de ausência, que diz "gere com o script" sobre um arquivo que existe.
+# Os quatro artefatos que `construir_municipios.py` gera.
 ARQUIVO_MUNICIPIOS = AQUI / "municipios.csv"
 ARQUIVO_CORRECOES = AQUI / "correcoes_municipios.csv"
 ARQUIVO_MALHA = AQUI / "malha_municipios.geojson.gz"
 ARQUIVO_META = AQUI / "municipios.meta.json"
 
-# O código do IBGE começa com dois dígitos que identificam a UF. É o que permite
-# recortar a malha municipal sem carregar uma segunda tabela de-para — e mora
-# aqui, junto do resto do que se sabe sobre o código do IBGE, porque quem o usa
-# são dois módulos diferentes: o que desenha o mapa e o que consulta a UF.
+# O código do IBGE começa com dois dígitos que identificam a UF.
 TAMANHO_PREFIXO_UF = 2
 
 
@@ -58,33 +41,18 @@ def metadados() -> dict:
 
 
 def coluna_populacao() -> str:
-    """Nome da coluna de população, que carrega o ano: `populacao_2026`.
-
-    A safra vai no nome de propósito. Quem escrever `populacao` recebe erro de
-    coluna inexistente em vez de dividir obras de 2026 por um denominador de
-    outra época sem perceber.
-    """
+    """Nome da coluna de população, com o ano da safra (ex. `populacao_2026`)."""
     return f"populacao_{metadados()['safra_populacao']}"
 
 
-# Quantos dias antes do vencimento vale começar a avisar. Sessenta, e não
-# trinta, porque quem consome este aviso é uma DAG **mensal**: com trinta, o
-# vencimento poderia ser anunciado uma vez só antes de acontecer. Com sessenta,
-# há duas execuções de folga para alguém regerar a tabela.
+# Sessenta dias dão duas execuções da DAG mensal antes do vencimento.
 DIAS_AVISO_VALIDADE = 60
 
 
 def dias_ate_vencer() -> int:
-    """Dias até a safra da população vencer. Negativo se já venceu.
+    """Dias até a safra da população vencer, em UTC. Negativo se já venceu.
 
-    **A conta mora aqui e em nenhum outro lugar.** Ela já existiu em três
-    versões — esta, o `--verificar` do gerador e a DAG `referencias_ibge` — e as
-    três divergiam: a DAG avisava com 60 dias, o gerador com 30, e duas usavam
-    fuso local contra UTC. Nenhuma divergência dessas dá erro; elas só fazem o
-    alerta chegar em momentos diferentes conforme quem pergunta.
-
-    UTC porque o resto do projeto data tudo em UTC (o manifesto, o snapshot); um
-    dia a mais ou a menos num aviso não é grave, mas ter dois relógios é.
+    É a única implementação dessa conta; o gerador e a DAG chamam esta função.
     """
     meta = metadados()
     return (date.fromisoformat(meta["valido_ate"]) - datetime.now(UTC).date()).days
@@ -93,9 +61,7 @@ def dias_ate_vencer() -> int:
 def sql_normalizar(coluna: str) -> str:
     """Normalização usada nos dois lados da junção.
 
-    Maiúscula, sem acento, e hífen e apóstrofo viram espaço — que é o conjunto
-    mínimo que resolve `Sant'Ana`/`SANTANA` e `Biritiba-Mirim`/`BIRITIBA MIRIM`
-    sem colapsar nomes que são de fato diferentes.
+    Maiúscula, sem acento, e hífen e apóstrofo viram espaço.
     """
     sem_pontuacao = f"regexp_replace(upper(strip_accents({coluna})), '[''`-]', ' ', 'g')"
     return f"trim(regexp_replace({sem_pontuacao}, ' +', ' ', 'g'))"
@@ -118,10 +84,8 @@ def registrar(con) -> None:
 def sql_juntar(relacao: str, uf: str = "uf", nome: str = "nome_municipio") -> str:
     """Anexa os atributos do IBGE a uma relação que tenha UF e nome de município.
 
-    A correção tem precedência sobre a junção por nome: quando o município está
-    na tabela de correções, é o código de lá que vale. `LEFT JOIN` de propósito —
-    município que não casa continua na saída com os campos do IBGE nulos, em vez
-    de desaparecer da contagem sem aviso.
+    A tabela de correções tem precedência sobre a junção por nome. `LEFT JOIN`,
+    então município sem par continua na saída com os campos do IBGE nulos.
     """
     chave = sql_normalizar(f"r.{nome}")
     return f"""

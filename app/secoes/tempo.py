@@ -1,4 +1,4 @@
-"""Seção 8 — a série triplica em dois anos, e não foi boom de construção."""
+"""Seção 8, a série triplica em dois anos, e não foi boom de construção."""
 
 from __future__ import annotations
 
@@ -62,9 +62,6 @@ def render() -> None:
     )
 
     st.markdown("### Último ano com informações incompletas")
-    # A comparação com o ano anterior só existe se ele estiver na série. Num
-    # recorte pequeno, ou numa base que ainda não tem dois anos, `iloc[0]` numa
-    # seleção vazia levanta IndexError e derruba a página.
     ultimo = int(serie["ano"].max())
     anteriores = serie.loc[serie["ano"] == ultimo - 1, "obras"]
     comparacao = (

@@ -1,10 +1,4 @@
-"""Testes do tratamento, offline, contra uma camada raw sintética.
-
-O fixture reproduz o formato real por inteiro — as 26 colunas do `cno.csv` com
-os nomes originais, incluindo os typos da fonte — porque o SQL de tratamento
-referencia esses nomes literalmente. Um fixture simplificado passaria sem
-exercitar o contrato de verdade.
-"""
+# Testes do tratamento contra uma camada raw sintética
 
 from __future__ import annotations
 
@@ -237,11 +231,7 @@ def test_manifesto_de_staging_registra_metricas(camada_raw: Settings):
 
 
 def test_so_transcodifica_arquivos_com_bytes_c1(camada_raw: Settings):
-    """Dos cinco arquivos, só o cno.csv tem tipografia cp1252.
-
-    Transcodificar os outros seria trabalho e disco jogados fora: neles latin-1
-    e cp1252 produzem exatamente o mesmo texto.
-    """
+    """Dos cinco arquivos, só o cno.csv tem tipografia cp1252."""
     executar_staging(camada_raw)
 
     utf8_dir = camada_raw.staging_dir / "_utf8" / f"snapshot_date={SNAPSHOT}"
@@ -251,11 +241,7 @@ def test_so_transcodifica_arquivos_com_bytes_c1(camada_raw: Settings):
 
 
 def test_acentos_sobrevivem_na_leitura_direta_em_latin1(camada_raw: Settings):
-    """As tabelas lidas sem transcodificar não podem perder acentuação.
-
-    `ã` é 0xE3, que fica na faixa em que latin-1 e cp1252 concordam — é
-    justamente por isso que esses arquivos podem ser lidos direto.
-    """
+    """As tabelas lidas sem transcodificar não perdem acentuação."""
     executar_staging(camada_raw)
 
     destinacoes = {

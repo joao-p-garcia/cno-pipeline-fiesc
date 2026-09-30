@@ -1,25 +1,4 @@
-"""Testes de contrato da camada de análise — as falhas que não levantam exceção.
-
-Os outros testes conferem números. Estes conferem **acoplamentos**, e existem
-porque cada um deles corresponde a um defeito que de fato aconteceu neste
-projeto e que a suíte de então não pegou:
-
-* `dados.py` mudou três assinaturas (`Curada.valor`, `destinacoes(limite=)`,
-  `histograma_area(teto=)`) e uma coluna de retorno (`ordem`). O `ruff` não vê,
-  o import não vê, e o caderno só reclama quando é executado inteiro — o que
-  `make test` não faz.
-* A regra "o app não tem SQL" estava escrita em três docstrings e em nenhum
-  teste. Erodiu em três telas, incluindo uma cópia caractere por caractere da
-  consulta mais citada da narrativa.
-* Constantes do pipeline foram redigitadas na análise (o corte de 2019, o limite
-  de 150 km, os rótulos das faixas). Redigitar não dá erro: dá dois lugares que
-  podem discordar e continuar coerentes consigo mesmos.
-* Gráfico que falha em silêncio é a regra nesta base (ver `DECISOES.md`, erros
-  10 e 11). `AppTest` diz que a página subiu, não que o gráfico apareceu.
-
-Nenhum destes precisa da camada curada real: três são estáticos e o de gráfico
-usa a camada sintética.
-"""
+# Testes de contrato da camada de análise, falhas que não levantam exceção.
 
 from __future__ import annotations
 
@@ -78,12 +57,7 @@ def _chamadas(fonte: str):
 
 @pytest.mark.parametrize("rotulo,fonte", _celulas_de_codigo() + _fontes_do_app())
 def test_chamadas_batem_com_a_assinatura(rotulo, fonte):
-    """Toda chamada a `dados.*` existe e aceita os argumentos passados.
-
-    É o teste que faltava quando `histograma_area` perdeu o parâmetro `teto`: o
-    caderno continuou pedindo, e só a execução completa acusou. Aqui a
-    verificação é estática e custa milissegundos.
-    """
+    """Toda chamada a `dados.*` existe e aceita os argumentos passados."""
     for apelido, nome, posicionais, nomeados in _chamadas(fonte):
         modulo = APELIDOS[apelido]
         alvo = getattr(modulo, nome, None)
@@ -100,20 +74,13 @@ def test_chamadas_batem_com_a_assinatura(rotulo, fonte):
 # 2. A fronteira: quem publica número não inventa a pergunta
 # ---------------------------------------------------------------------------
 
-# `Curada.df` e `Curada.valor` são a camada de SQL. Quem pode chamá-las é
-# `analise/dados.py` — e os testes, que usam `valor` como oráculo.
+# Só `analise/dados.py` e os testes chamam `Curada.df` e `Curada.valor`.
 PALAVRAS_DE_SQL = ("SELECT ", "FROM ", " WHERE ", "GROUP BY")
 
 
 @pytest.mark.parametrize("rotulo,fonte", _celulas_de_codigo() + _fontes_do_app())
 def test_nao_ha_sql_fora_da_camada_de_consultas(rotulo, fonte):
-    """Nem o app nem o caderno escrevem SQL.
-
-    A regra não é purismo. Cada `SELECT` solto é uma pergunta que passa a existir
-    em dois lugares, e duas cópias divergem sem que nenhuma quebre: foi assim que
-    o funil de geocodificação — o número mais citado da análise — passou a ser
-    calculado por dois SQLs iguais, um no app e um no caderno.
-    """
+    """Nem o app nem o caderno escrevem SQL."""
     encontrados = [p for p in PALAVRAS_DE_SQL if p in fonte]
     assert not encontrados, (
         f"{rotulo} contém SQL ({', '.join(encontrados)}). "
@@ -127,11 +94,7 @@ def test_nao_ha_sql_fora_da_camada_de_consultas(rotulo, fonte):
 
 
 def test_constantes_sao_o_objeto_do_pipeline():
-    """A análise reexporta as constantes da curadoria — não as redigita.
-
-    `is`, e não `==`: dois inteiros iguais passariam num `==` e continuariam
-    sendo duas fontes de verdade. O que este teste protege é a identidade.
-    """
+    """A análise reexporta as constantes da curadoria. `is`, não `==`."""
     assert dados.ANO_SERIE_COMPARAVEL is dominios.PRIMEIRO_ANO_COMPARAVEL
     assert dados.LIMITE_PLAUSIVEL_KM is dominios.LIMITE_PLAUSIBILIDADE_KM
     assert tuple(r for _, _, r in dominios.FAIXAS_AREA_M2) == dados.ROTULOS_FAIXA_AREA
@@ -144,7 +107,7 @@ def test_rotulos_de_faixa_saem_da_tupla_do_pipeline():
 
 
 # ---------------------------------------------------------------------------
-# 4. O gráfico apareceu — não "a página subiu"
+# 4. O gráfico apareceu, não só a página
 # ---------------------------------------------------------------------------
 
 
@@ -159,31 +122,19 @@ def curada(camada_raw: Settings) -> dados.Curada:
 def _renderizar(chart) -> bytes:
     """PNG do gráfico, pelo mesmo compilador Vega-Lite que o navegador usa.
 
-    Import direto, e não `importorskip`: `vl-convert-python` está declarado no
-    extra `dev`, então ausência dele é ambiente quebrado, não ambiente mínimo.
-    A versão com `importorskip` fazia estes dois testes — os únicos que provam
-    que o gráfico saiu — **pularem em silêncio** onde mais importa, que é um CI
-    recém-provisionado.
+    Import direto, sem `importorskip`, porque `vl-convert-python` está no extra `dev`.
     """
     import vl_convert as vlc
 
     return vlc.vegalite_to_png(chart.to_json(), scale=1)
 
 
-# Um gráfico vazio ainda produz PNG — só que pequeno, com título e mais nada.
-# Medido nesta base: os gráficos reais passam de 15 KB; o vazio do `alt.Step`
-# ficava em ~4 KB. O piso vai baixo de propósito: o teste existe para pegar
-# gráfico que sumiu, não para vigiar bytes.
+# Gráfico vazio ainda gera PNG, com ~4 KB. Os reais passam de 15 KB.
 PISO_PNG_BYTES = 8_000
 
 
 def test_grafico_em_escala_log_desenha(curada):
-    """Barra em escala log não desenha, e não dá erro — vira gráfico em branco.
-
-    Este é o gráfico que a `DECISOES.md` #11 documenta: virou `mark_rule` mais
-    `mark_point` por causa disso. Nada além de renderizar e medir pega a
-    regressão.
-    """
+    """Barra em escala log sai em branco sem erro, por isso é `mark_rule` + `mark_point`."""
     from app import graficos
 
     png = _renderizar(
@@ -195,11 +146,7 @@ def test_grafico_em_escala_log_desenha(curada):
 
 
 def test_grafico_com_camadas_tem_altura(curada):
-    """`alt.Step` em spec com camadas devolve gráfico vazio (DECISOES.md #11).
-
-    A altura é calculada em pixel por causa disso. Se alguém voltar a `step`, o
-    spec continua válido e o PNG encolhe.
-    """
+    """`alt.Step` em spec com camadas devolve gráfico vazio, então a altura é em pixel."""
     from app import graficos
 
     png = _renderizar(
@@ -216,12 +163,7 @@ def test_grafico_com_camadas_tem_altura(curada):
 
 
 def test_eixo_numerico_troca_os_separadores():
-    """O tema formata eixo numérico em pt-BR, e a troca é global.
-
-    Não é cosmético: a versão anterior carimbava `formatLocale` em
-    `usermeta.embedOptions`, que o Streamlit **descarta**. Todo eixo do
-    dashboard vinha com vírgula de milhar e nada acusava.
-    """
+    """O tema formata eixo numérico em pt-BR, para todos os gráficos."""
     eixo = estilo.tema_altair()["config"]["axis"]
     assert eixo.get("labelExpr") == estilo.ROTULO_NUMERO_BR
     assert "/g" in estilo.ROTULO_NUMERO_BR, (
@@ -231,11 +173,7 @@ def test_eixo_numerico_troca_os_separadores():
 
 
 def test_eixo_de_ano_nao_leva_separador(curada):
-    """Ano é a exceção do default: `format(2019, ',')` daria "2.019".
-
-    O eixo de ano precisa declarar a exceção. Se alguém remover o `labelExpr`
-    explícito, ele volta a herdar o do tema e a série passa a falar de "2.019".
-    """
+    """Eixo de ano declara `labelExpr` próprio, senão sairia "2.019"."""
     from app import graficos
 
     grafico = graficos.serie_temporal(
@@ -258,11 +196,7 @@ def test_eixo_de_ano_nao_leva_separador(curada):
 
 
 def test_tooltip_nao_usa_o_format_do_vega():
-    """O número do tooltip sai formatado do Python, não do d3.
-
-    Não há gancho de expressão em tooltip: um `format=` ali volta a escrever em
-    inglês, e o hover é justamente onde o leitor vai conferir o número.
-    """
+    """O número do tooltip sai formatado do Python, porque `format=` sai em inglês."""
     fonte = (APP / "graficos.py").read_text(encoding="utf-8")
     assert "format=" not in fonte, (
         "tooltip com `format=` formata em inglês; use `_tooltips`, que "
@@ -279,13 +213,7 @@ GERADOR = RAIZ / "analise" / "construir_municipios.py"
 
 
 def test_ninguem_refaz_a_conta_de_validade():
-    """A subtração de datas mora em `referencias.dias_ate_vencer`, e só lá.
-
-    Ela já existiu em três versões — no módulo, no `--verificar` do gerador e na
-    DAG de vigilância — e as três divergiam: a DAG avisava com 60 dias, o
-    gerador com 30, e usavam relógios diferentes. Nada disso levanta erro; só
-    faz o alerta chegar em momentos diferentes conforme quem pergunta.
-    """
+    """A conta de validade mora em `referencias.dias_ate_vencer`, e só lá."""
     from analise import referencias
 
     for arquivo in (DAG_IBGE, GERADOR):
@@ -305,14 +233,7 @@ def test_ninguem_refaz_a_conta_de_validade():
 
 
 def test_ninguem_redigita_a_opacidade_das_bolhas():
-    """O mesmo mapa é desenhado duas vezes, em duas bibliotecas, e o número é um só.
-
-    A transparência das bolhas não é gosto: ela é medida contra o fundo, e o
-    fundo já mudou uma vez — na virada para o tema escuro, `0,55` deixou de dar
-    contraste e virou `0,65`. O caderno tinha o literal e o app tinha o literal;
-    quem trocasse um dos dois deixaria os dois mapas diferentes sem que nada
-    acusasse, porque as duas figuras nunca aparecem lado a lado.
-    """
+    """Caderno e app leem a opacidade das bolhas de `estilo.OPACIDADE_BOLHA`."""
     from analise import estilo
 
     literal = str(estilo.OPACIDADE_BOLHA)

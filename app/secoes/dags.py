@@ -1,18 +1,4 @@
-"""Seção 4 — a orquestração: quando roda, em que ordem, e o que acontece quando falha.
-
-Existe por dois motivos, e o segundo é de narrativa.
-
-**O primeiro:** a apresentação falava do Airflow como escolha de ferramenta
-(seção 3) e das camadas como disciplina de dados (seção 9), mas em nenhum lugar
-dizia o óbvio — que horas a pipeline roda, quais são as tarefas, o que acontece
-quando uma falha. Quem assiste precisa disso para acreditar que o sistema roda
-sozinho.
-
-**O segundo:** as seções 1 a 3 constroem, as seções 5 a 8 analisam. Essa troca
-de gênero precisava de uma dobradiça. É esta seção: o momento em que o trabalho
-deixa de ser mover dado e passa a ser olhar para ele — porque a máquina passou a
-fazer a primeira parte sozinha, todo dia às quatro da manhã.
-"""
+"""Seção 4, a orquestração."""
 
 from __future__ import annotations
 
@@ -25,14 +11,8 @@ from .. import componentes as ui
 
 TITULO = "As duas DAGs"
 
-# Mesmo tratamento do diagrama da seção 3, pelas mesmas cicatrizes: iframe via
-# `components.html`, cor fixa e setas em `<polygon>`. O porquê de cada uma está
-# documentado em `arquitetura.py` — três tentativas de embutir SVG direto na
-# página do Streamlit falharam antes de o iframe funcionar.
 ALTURA_DIAGRAMA = 330
 
-# Apelido curto porque a cor aparece sete vezes no SVG abaixo, e `{estilo.DOURADO}`
-# repetido dentro da f-string esconde o desenho.
 _DOURADO = estilo.DOURADO
 
 DIAGRAMA = f"""
@@ -99,7 +79,6 @@ DIAGRAMA = f"""
 """
 
 
-# Retry é decisão, não default. Cada linha diz por que aquela política.
 POLITICA = [
     {
         "Tarefa": "extrair",

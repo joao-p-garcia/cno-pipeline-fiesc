@@ -1,11 +1,4 @@
-"""Dados sintéticos que imitam o pacote real da Receita.
-
-Vive em módulo próprio porque tanto os testes de tratamento quanto os de
-validação precisam da mesma camada raw de mentira. As 26 colunas do `cno.csv`
-aparecem com os nomes originais, typos da fonte inclusive, porque o SQL do
-tratamento referencia esses nomes literalmente — um fixture simplificado passaria
-sem exercitar o contrato de verdade.
-"""
+# Dados sintéticos que imitam o pacote real da Receita.
 
 from __future__ import annotations
 
@@ -67,10 +60,8 @@ OBRAS_CSV = CABECALHO_OBRAS + "".join(
         _obra("010010119386", uf="EX", pais="249", nome_pais="ESTADOS UNIDOS"),
         # sem plus code
         _obra("010010119387", localizacao=""),
-        # situação encerrada, e Plus Code na forma curta: só vira coordenada se a
-        # curadoria conseguir ancorar no município. `64Q5+JP` é `58PJ64Q5+JP`
-        # sem os 4 caracteres do bloco de 1°, que é como a Receita recebe 227 mil
-        # códigos da base real.
+        # situação encerrada, e Plus Code curto (`58PJ64Q5+JP` sem o bloco de 1°),
+        # que só vira coordenada se a curadoria ancorar no município.
         _obra("010010119388", situacao="15", localizacao="64Q5+JP"),
         # tipografia cp1252 no nome, e um Plus Code válido apontando para o
         # Japão: 3,7% da base real tem código sintaticamente perfeito e lugar

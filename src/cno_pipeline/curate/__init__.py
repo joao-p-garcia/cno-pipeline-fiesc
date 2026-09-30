@@ -1,4 +1,4 @@
-"""Etapa de curadoria: da staging fiel à origem para o modelo que a análise usa."""
+"""Etapa curated"""
 
 from .curated import (
     ErroDeCuradoria,

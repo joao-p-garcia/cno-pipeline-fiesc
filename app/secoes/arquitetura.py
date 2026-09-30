@@ -1,16 +1,4 @@
-"""Seção 3 — as escolhas de ferramenta, justificadas pelo que as seções 1 e 2 mediram.
-
-Vem aqui porque é aqui que a pergunta nasce. Depois de ver 12,5 M de linhas em
-cp1252 com 1:N, "por que DuckDB?" é pergunta natural; antes disso, seria
-currículo. As seções 1 e 2 não são exploração — são o levantamento de
-requisitos, e esta seção é a resposta a ele.
-
-**Não confundir com a seção 8.** Esta responde *por que estas ferramentas*; a
-seção 8 responde *por que estas fronteiras* — as três camadas e o que cada
-achado virou em código. Uma é escolha de tecnologia, a outra é disciplina de
-pipeline, e elas se separam bem: o diagrama daqui mostra os processos, o de lá
-mostra as camadas.
-"""
+"""Seção 3, escolhas de ferramenta."""
 
 from __future__ import annotations
 
@@ -23,37 +11,6 @@ from .. import componentes as ui
 
 TITULO = "Arquitetura e stack"
 
-# O diagrama, com a paleta do resto do app: `estilo.TINTA` na estrutura e
-# `estilo.AZUL` reservado para a única coisa que carrega argumento — a fronteira
-# de processo entre o Airflow e o pipeline. A Receita fica **fora** da caixa do
-# Docker, porque é exatamente isso que ela é: o único pedaço que não
-# controlamos.
-#
-# Cor fixa, e não `currentColor`, pelo mesmo motivo que todo gráfico daqui fixa
-# a paleta: o tema do app é um só, declarado em `analise/estilo.py`. Herdar a
-# tinta da página seria elegante e acrescentaria um fator desconhecido a um
-# desenho que já custou duas tentativas para aparecer — ainda mais aqui, onde a
-# página é um iframe e não herda quase nada.
-#
-# **Desenhado num iframe, por `components.html`, e isso é cicatriz.** Três
-# tentativas de embutir o SVG direto na página do Streamlit falharam, cada uma
-# de um jeito, todas vistas na tela e nenhuma capturada por teste:
-#
-# 1. `st.markdown(unsafe_allow_html=True)` — markdown fecha um bloco de HTML na
-#    primeira linha em branco e trata linha indentada em quatro espaços como
-#    bloco de código; um SVG legível tem os dois. Renderizou só a primeira caixa
-#    e despejou o resto como parágrafos soltos, um `<text>` por linha.
-# 2. `st.html` — sumiu por inteiro. A hipótese era altura colapsada
-#    (`width="100%"` com `height:auto` e sem atributos de dimensão).
-# 3. `st.html` com `width`/`height` de atributo, `<polygon>` no lugar de
-#    `<marker>` e cor fixa em vez de `currentColor` — continuou sumindo. Nesse
-#    ponto a hipótese da altura caiu, e o que sobra é o DOMPurify do `st.html`
-#    removendo o fragmento.
-#
-# `components.html` renderiza num iframe: documento próprio, sem sanitizador e
-# sem CSS da página por cima. Custa a herança de tema — de que este app não
-# depende, porque todo gráfico já fixa a paleta — e exige altura declarada, daí
-# `ALTURA_DIAGRAMA`. Em troca, desenha.
 DIAGRAMA = f"""
 <svg viewBox="0 0 860 372" role="img" width="860" height="372"
      style="width:100%;max-width:860px;height:auto;display:block;margin:0 0 0.5rem 0;"
@@ -140,13 +97,9 @@ DIAGRAMA = f"""
 </svg>
 """
 
-# O iframe precisa de altura declarada, e ela não pode ser só os 372 do viewBox:
-# a página do iframe tem margem própria. 400 dá folga sem abrir barra de rolagem.
 ALTURA_DIAGRAMA = 400
 
 
-# O que ficou de fora, e por quê. Dizer não é o que separa decisão de default —
-# e cada linha daqui tem um motivo medido, não uma preferência.
 NAO_ESCOLHIDOS = [
     {
         "O caminho comum": "Spark ou Dask",
@@ -239,13 +192,7 @@ def render() -> None:
 
 
 def _pandas_ou_polars() -> None:
-    """A medição que decidiu o engine, que é a pergunta mais previsível da seção.
-
-    Fica fora da tabela acima de propósito: as outras quatro linhas se defendem
-    com um argumento, esta se defende com três números. Misturar as duas coisas
-    na mesma tabela esconderia justamente o que ela tem de mais forte — que a
-    escolha foi medida, e não preferida.
-    """
+    """A medição que decidiu o engine, que é a pergunta mais previsível da seção."""
     st.markdown("*Comparação de desempenho entre pandas, polars e DuckDB*:")
     st.markdown(
         "| Engine | Tempo | Pico de RAM |\n"
@@ -270,12 +217,7 @@ def _pandas_ou_polars() -> None:
 
 
 def _fronteira_externa() -> None:
-    """Por que o IBGE não entra no pipeline.
-
-    Está em arquitetura, e não na seção que usa o denominador, porque é decisão
-    de fronteira: define o que o pipeline aceita processar. Quem vê o ranking
-    por mil habitantes mais adiante precisa saber de onde veio o divisor.
-    """
+    """Por que o IBGE não entra no pipeline."""
     st.markdown("### IBGE como segunda fonte, mas fora da pipeline")
     st.markdown(
         "Para enriquecer a análise, trouxe dados do IBGE de **população, nome e "

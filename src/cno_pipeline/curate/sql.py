@@ -1,24 +1,13 @@
 """SQL da camada curada.
 
-A staging é fiel à origem: quatro tabelas, uma linha por registro publicado. Essa
-fidelidade é o que a torna auditável, e é justamente o que a impede de responder
-perguntas — "quantos m² Joinville construiu em 2023" exige juntar quatro tabelas e
-tomar decisões que a fonte não tomou.
-
-É aqui que essas decisões acontecem, todas explícitas:
-
 * **`area_m2` só existe quando a unidade é m².** A base mistura unidades no mesmo
-  campo — 21.328 obras em km, 14.539 em m³, 3.580 em kW, 156.712 em "Outra".
+  campo, 21.328 obras em km, 14.539 em m³, 3.580 em kW, 156.712 em "Outra".
   Somar a coluna crua dá 49.286 km²; somando só o que é metro quadrado dá 2.839.
   Fator de 17 entre o número certo e o errado, e o errado é o que sai de um
   `SUM(area_total)` desavisado.
 * **Uma linha por obra.** Áreas e CNAEs são 1:N legítimos e são colapsados, com
   `n_areas` e `n_cnaes` preservados para que a perda de informação seja visível.
 * **`serie_comparavel`** marca o que dá para comparar no tempo. Ver `dominios.py`.
-
-Tudo derivado exclusivamente do CNO. População, PIB e malha municipal entram na
-camada de análise, nunca aqui — o pipeline reconcilia contra a fonte, e um dado
-que a fonte não publica não tem como ser reconciliado.
 """
 
 from __future__ import annotations
@@ -33,7 +22,6 @@ from .dominios import (
 )
 from .geocodificacao import REGEX_COMPLETO, REGEX_CURTO, SQL_NORMALIZAR
 
-# Raio médio da Terra, para a distância até a âncora de geocodificação.
 RAIO_TERRA_KM = 6371
 
 
@@ -85,12 +73,7 @@ def _case_faixa_area(coluna: str) -> str:
 
 
 def sql_base(staging_dir: str, snapshot_id: str) -> str:
-    """Obras da staging, com o Plus Code normalizado e classificado por forma.
-
-    A classificação por regex é pré-filtro de desempenho, não validação: evita
-    trazer para o Python as 563 mil linhas de lixo. Quem decide se o código vale
-    é o `isValid` da biblioteca, em `geocodificacao.py`.
-    """
+    """Obras da staging, com o Plus Code normalizado e classificado por forma."""
     obras = ler_staging(staging_dir, "obras", snapshot_id)
     norm = SQL_NORMALIZAR.format(coluna="codigo_localizacao")
     forma = f"""CASE
@@ -104,7 +87,7 @@ SELECT
     {norm} AS codigo_norm,
     {forma} AS forma_plus_code,
     -- Chaves de junção já discriminadas por forma. Poderiam ser uma só, com a
-    -- forma testada no ON do LEFT JOIN — mas uma condição que olha só o lado
+    -- forma testada no ON do LEFT JOIN, mas uma condição que olha só o lado
     -- esquerdo dentro do ON impede o planejador de usar hash join e o degrada
     -- para laço aninhado sobre 3,6 M × 1,3 M linhas. Medido: a consulta passava
     -- de dez minutos e não terminava. Com a chave nula onde a forma não bate, o
@@ -119,18 +102,12 @@ FROM {obras}
 # Geocodificação, em três passos
 # ---------------------------------------------------------------------------
 
-# A decodificação não está mais no SQL. O DuckDB seleciona os códigos distintos
-# — trabalho paralelo sobre 3,6 M de linhas —, o Python decodifica e devolve o
-# resultado como tabela. Ver o cabeçalho de `geocodificacao.py` para a medição
-# que motivou tirar a UDF daqui.
 SQL_DISTINTOS_COMPLETOS = """
 CREATE OR REPLACE TEMP TABLE codigos_completos AS
 SELECT DISTINCT codigo_norm FROM base WHERE forma_plus_code = 'completo'
 """
 
-# A âncora é a mediana dos pontos já decodificados do mesmo município. Mediana e
-# não média: um único ponto mal digitado do outro lado do país arrastaria a média
-# para fora da célula certa e estragaria a recuperação do município inteiro.
+# A âncora é a mediana dos pontos já decodificados do mesmo município.
 SQL_ANCORAS = """
 CREATE OR REPLACE TEMP TABLE ancoras AS
 SELECT
@@ -144,8 +121,6 @@ WHERE b.codigo_municipio IS NOT NULL
 GROUP BY 1
 """
 
-# Já sai com a âncora anexada, para o Python receber tudo o que precisa numa
-# leitura só e não ter que voltar ao banco por município.
 SQL_DISTINTOS_CURTOS = """
 CREATE OR REPLACE TEMP TABLE codigos_curtos AS
 SELECT DISTINCT b.codigo_norm, b.codigo_municipio, a.lat_ancora, a.lon_ancora
@@ -154,8 +129,6 @@ JOIN ancoras a USING (codigo_municipio)
 WHERE b.forma_plus_code = 'curto' AND b.codigo_municipio IS NOT NULL
 """
 
-# Colunas das tabelas que o Python carrega de volta. Ficam aqui, ao lado do SQL
-# que as consome, para não divergirem em silêncio.
 COLUNAS_GEO_COMPLETO = {
     "codigo_norm": "VARCHAR",
     "latitude": "DOUBLE",
@@ -193,7 +166,7 @@ def sql_obras_analitico(staging_dir: str, snapshot_id: str) -> str:
 
     area_m2 = "CASE WHEN b.unidade_medida = 'm2' AND NOT b.area_suspeita THEN b.area_total END"
     # A distância é medida contra a mediana do município, para todo ponto
-    # geocodificado e não só para os recuperados: um Plus Code completo pode ser
+    # geocodificado e não só para os recuperados, um Plus Code completo pode ser
     # válido e ainda assim apontar para o Japão, e 3,7% deles apontam.
     distancia = _distancia_km(
         "coalesce(g.latitude, gc.latitude)",
@@ -220,8 +193,7 @@ WITH area_agg AS (
 cnae_ordenado AS (
     -- A fonte não designa um CNAE principal: a obra tem de um a doze, sem ordem
     -- declarada. Adotamos o primeiro registrado, desempatando pelo código para
-    -- que o resultado seja determinístico entre execuções — sem o desempate, duas
-    -- rodadas sobre o mesmo dado poderiam escolher CNAEs diferentes.
+    -- que o resultado seja determinístico entre execuções.
     SELECT
         cno,
         cnae,
@@ -332,8 +304,7 @@ FROM juntado
 
 # O Streamlit não pode varrer 3,6 M de linhas a cada clique num filtro. Estas
 # tabelas têm milhares de linhas, respondem instantaneamente e carregam as mesmas
-# definições da tabela analítica — o app não recalcula regra de negócio nenhuma,
-# que é o que impede o dashboard e o notebook de divergirem.
+# definições da tabela analítica, o app não recalcula regra de negócio nenhuma.
 
 _MEDIDAS = """
         count(*)                                         AS n_obras,
@@ -363,14 +334,7 @@ GROUP BY 1, 2, 3, 4, 5
 
 
 def sql_mart_setor_ano(analitico: str) -> str:
-    """Recorte setorial pelo CNAE da obra, não pela seção.
-
-    Agrupar por seção daria uma linha só: o CNO é cadastro de obra, e 100% da
-    base cai na seção F. O que separa "construção de edifícios" de "obra de
-    infraestrutura" é a divisão, e o que separa os tipos de serviço dentro delas
-    é a classe — por isso a granularidade aqui é o código completo, com a divisão
-    ao lado para agrupar.
-    """
+    """Recorte setorial pelo CNAE da obra."""
     return f"""
 SELECT
     snapshot_date, uf, cnae_principal, cnae_divisao,

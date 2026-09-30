@@ -1,4 +1,4 @@
-"""Seção 1 — o dado como ele chega."""
+"""Seção 1, o dado como ele chega."""
 
 from __future__ import annotations
 
@@ -11,9 +11,6 @@ from .. import dados_app
 
 TITULO = "A fonte e o encoding"
 
-# Quantos caracteres mostrar depois da última divergência entre os encodings. O
-# corte do bloco sai daí: precisa alcançar os bytes que fazem o argumento, com
-# um pouco de contexto à direita para o campo não terminar cortado.
 FOLGA_JANELA = 30
 
 
@@ -64,12 +61,6 @@ def render() -> None:
     linhas = dados_app.consultar_amostra()
     texto = dados_app.decodificar_amostra(escolhido)
 
-    # Onde os dois encodings divergem, em (linha, coluna). Calculado, não
-    # chutado: este trecho já cortou o bloco em 180 caracteres e fatiou a
-    # comparação em [100:160], enquanto as divergências desta amostra estão nas
-    # colunas 204, 206 e 207. O seletor não mudava nada na tela e as duas
-    # colunas mostravam a mesma string — a seção fazia o argumento certo e não
-    # demonstrava coisa nenhuma. A janela agora sai do dado.
     certo = dados_app.decodificar_amostra("cp1252")
     latino = dados_app.decodificar_amostra("latin-1")
     divergencias = [

@@ -27,9 +27,8 @@ log = logging.getLogger("cno_pipeline.cli")
 def _emitir_json(dados: dict) -> None:
     """Imprime o resumo da etapa em JSON, para o orquestrador consumir.
 
-    Vai no stdout enquanto os logs vão no stderr, de modo que a saída possa ser
-    lida por um `json.loads` sem filtragem — é assim que a DAG recebe o
-    `snapshot_id` de uma etapa e o repassa para a seguinte.
+    Vai no stdout e os logs no stderr, para a DAG ler com `json.loads` e passar
+    o `snapshot_id` para a etapa seguinte.
     """
     print(json.dumps(dados, ensure_ascii=False, default=str))
 
@@ -350,12 +349,8 @@ def main(argv: list[str] | None = None) -> int:
         ErroDeStaging,
         ErroDeValidacao,
         ErroDeCuradoria,
-        # Recusar rodar porque o snapshot está ocupado é falha esperada, não
-        # defeito: merece a mesma mensagem limpa e o mesmo código de saída.
         SnapshotOcupado,
     ) as exc:
-        # Falhas esperadas viram mensagem limpa e código de saída != 0, para o
-        # orquestrador marcar a task como falha sem um traceback inútil.
         log.error("%s", exc)
         return 1
     except KeyboardInterrupt:

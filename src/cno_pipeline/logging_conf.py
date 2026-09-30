@@ -1,8 +1,7 @@
 """Configuração de logging.
 
 Saída em texto simples por padrão (legível no terminal) e em JSON quando
-`CNO_LOG_JSON=1` — que é o formato útil quando o pipeline roda sob um
-orquestrador e os logs vão para um coletor.
+`CNO_LOG_JSON=1`.
 """
 
 from __future__ import annotations

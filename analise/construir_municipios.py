@@ -1,34 +1,11 @@
 #!/usr/bin/env python3
 """Gera a tabela de referência de municípios usada pela análise.
 
-**Isto não é uma etapa do pipeline, e é de propósito.** O pipeline processa uma
-fonte só — o CNO da Receita — e toda a camada curada é derivável e reconciliável
-a partir dela. Município, população e malha vêm do IBGE, mudam uma vez por ano e
-não tornam nenhum número do pipeline certo ou errado: sem eles a análise perde o
-per capita e o mapa, mas o dado continua válido.
-
-Três motivos para essa separação, na ordem em que pesam:
-
-1. **Acoplamento de falha.** Como task da DAG, uma indisponibilidade do IBGE
-   derrubaria o pipeline do CNO, que não precisa do IBGE para nada.
-2. **Cadências incompatíveis.** A DAG roda diariamente; o IBGE publica uma vez
-   por ano. Seriam 365 buscas do mesmo arquivo.
-3. **Assimetria de custo.** Trocar a safra da população é trocar um arquivo de
-   300 KB, não reprocessar 3,6 M de linhas.
-
-O resultado é **tabela de referência versionada**, não processo rodando por fora
-— a mesma categoria dos nomes das seções da CNAE, que estão como constantes em
-`dominios.py` e ninguém acha estranho que não sejam buscados toda noite.
-
-Uso:
+Fica fora do pipeline porque vem do IBGE, muda uma vez por ano e não torna nenhum
+número do CNO certo ou errado. Uma falha do IBGE não deve derrubar o pipeline.
 
     python analise/construir_municipios.py              # regera os arquivos
     python analise/construir_municipios.py --verificar  # falha se a safra venceu
-
-O modo `--verificar` existe para que o envelhecimento seja detectado por máquina,
-e não pela memória de alguém. É para quem roda na mão e para um passo de CI; a
-DAG `referencias_ibge` vigia a mesma coisa mensalmente, chamando a **mesma**
-função (`referencias.dias_ate_vencer`) em vez de executar este script.
 """
 
 from __future__ import annotations
@@ -42,8 +19,7 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Roda como script (`python analise/construir_municipios.py`), então a raiz do
-# repositório não está no path por conta própria.
+# Roda como script, então a raiz do repositório não está no path.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from analise.referencias import (  # noqa: E402
@@ -56,25 +32,19 @@ from analise.referencias import (  # noqa: E402
 
 USER_AGENT = "cno-pipeline/0.1 (+https://github.com/joao-p-garcia/cno-pipeline-fiesc)"
 
-# Lista de municípios, com código IBGE, UF e as regiões geográficas imediata e
-# intermediária — que são o recorte regional oficial, e o que permite agregar os
-# 295 municípios de SC em regiões que o público da FIESC reconhece.
+# Municípios com código IBGE, UF e regiões geográficas imediata e intermediária.
 URL_LOCALIDADES = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
 
-# População residente estimada, tabela 6579 do SIDRA, variável 9324, último ano
-# publicado. Estimativa anual, não Censo: a defasagem é de meses, não de anos.
+# População residente estimada, tabela 6579 do SIDRA, último ano publicado.
 URL_POPULACAO = "https://apisidra.ibge.gov.br/values/t/6579/n6/all/v/9324/p/last"
 
-# Malha municipal do país inteiro, na qualidade mínima (já simplificada pelo
-# IBGE). São 3,1 MB de GeoJSON que comprimem para 0,8 MB — o suficiente para um
-# coroplético sem depender de rede em tempo de execução.
+# Malha municipal do país inteiro, na qualidade mínima (0,8 MB comprimida).
 URL_MALHA = (
     "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR"
     "?formato=application/vnd.geo+json&qualidade=minima&intrarregiao=municipio"
 )
 
-# Quanto tempo a tabela vale antes de pedir revisão. O IBGE publica a estimativa
-# populacional anualmente, por volta de agosto.
+# O IBGE publica a estimativa populacional uma vez por ano, por volta de agosto.
 VALIDADE_MESES = 12
 
 
@@ -97,7 +67,6 @@ def _buscar(url: str, timeout: int = 300) -> bytes:
     try:
         return gzip.decompress(bruto)
     except OSError:
-        # A resposta não veio comprimida; é o caso comum.
         return bruto
 
 
@@ -108,8 +77,7 @@ def _localidades() -> dict[str, dict[str, str]]:
     for item in dados:
         imediata = item.get("regiao-imediata") or {}
         intermediaria = imediata.get("regiao-intermediaria") or {}
-        # A UF aparece por dois caminhos conforme a resposta; o segundo é o
-        # fallback para registros sem microrregião.
+        # Registros sem microrregião trazem a UF pela região intermediária.
         micro = item.get("microrregiao") or {}
         uf = (micro.get("mesorregiao") or {}).get("UF") or intermediaria.get("UF") or {}
         municipios[str(item["id"])] = {
@@ -144,12 +112,7 @@ def _populacao() -> tuple[dict[str, int], str]:
 
 
 def _centroide(geometria: dict) -> tuple[float, float]:
-    """Centro do envelope da feição.
-
-    Média das coordenadas, não centroide de polígono. É aproximação suficiente
-    para posicionar um marcador ou uma legenda — o coroplético usa a malha, não
-    este ponto —, e evita trazer shapely só para isso.
-    """
+    """Média das coordenadas da feição. Aproximação suficiente para um marcador."""
     xs: list[float] = []
     ys: list[float] = []
 
@@ -211,9 +174,7 @@ def construir() -> dict:
     malha_gz, centroides = _malha()
     print(f"  {len(centroides)} feições, {len(malha_gz) / 1024:.0f} KB comprimidos")
 
-    # A safra vai no nome da coluna, nunca numa nota de rodapé. Quem escrever
-    # `populacao` sem o ano vai receber um erro de coluna inexistente em vez de
-    # dividir 2026 por um denominador de outra época sem perceber.
+    # A safra vai no nome da coluna, para ninguém usar um denominador de outro ano.
     coluna_populacao = f"populacao_{ano}"
     cabecalho = [*COLUNAS_FIXAS, coluna_populacao]
 
@@ -268,13 +229,7 @@ def construir() -> dict:
 
 
 def verificar() -> int:
-    """Falha se a tabela venceu. Modo para quem roda na mão e para um passo de CI.
-
-    A conta de quantos dias faltam **não está aqui**: é `dias_ate_vencer`, a
-    mesma que a DAG `referencias_ibge` consulta. Esta função decide só o que
-    fazer com o número — imprimir e devolver código de saída. Antes ela refazia
-    a conta, e o limiar de aviso daqui (30 dias) já discordava do da DAG (60).
-    """
+    """Falha se a tabela venceu. A conta é `dias_ate_vencer`, a mesma da DAG."""
     if not ARQUIVO_META.is_file():
         print(f"ERRO: {ARQUIVO_META} não existe — a tabela nunca foi gerada.")
         return 1

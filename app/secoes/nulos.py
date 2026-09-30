@@ -1,9 +1,4 @@
-"""Seção 5 — o nulo que não é dado faltante.
-
-Primeira seção depois da virada: as quatro anteriores montam o pipeline, daqui
-em diante o assunto é o que a base diz. A frase de abertura marca essa troca —
-sem ela a seção caía em `NI do responsável` logo depois de um diagrama de DAG.
-"""
+"""Seção 5, o nulo que não é dado faltante."""
 
 from __future__ import annotations
 
@@ -57,11 +52,6 @@ def render() -> None:
         ),
     )
 
-    # O explorador desta seção mostrava situação cadastral (Ativa/Encerrada),
-    # que é bom achado e assunto nenhum desta seção — a UF aparecia do nada,
-    # num texto sobre PF e PJ. Mudou de casa: agora abre a seção de conclusões,
-    # onde a pergunta é justamente *o que se está contando*. Aqui ficou o
-    # recorte que responde à pergunta da seção.
     with ui.explorar("Ver a divisão PF/PJ por UF"):
         uf = ui.seletor_uf("uf_nulos")
         st.altair_chart(

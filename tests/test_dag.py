@@ -1,12 +1,4 @@
-"""Testes da DAG.
-
-Só rodam onde o Airflow está instalado — que é o ambiente do orquestrador, não o
-do pipeline. O `importorskip` faz a suíte principal continuar passando num venv
-sem Airflow, e `make test-dag` roda estes aqui no venv certo.
-
-O que se testa aqui é o encadeamento e a política de retry, não a regra de
-negócio: essa já é coberta pelos testes das etapas, sem precisar de scheduler.
-"""
+# Testes da DAG
 
 from __future__ import annotations
 
@@ -30,11 +22,7 @@ import cno_pipeline_dag as modulo  # noqa: E402
 
 @pytest.fixture
 def dag():
-    """Carrega a DAG como o scheduler carregaria, a partir da pasta `dags/`.
-
-    Usar o `DagBag` em vez de importar o módulo direto é o que faz o teste pegar
-    erro de parsing — que é como a maioria das DAGs quebra na prática.
-    """
+    """Carrega a DAG pelo `DagBag`, como o scheduler, para pegar erro de parsing."""
     from airflow.models import DagBag
 
     bag = DagBag(dag_folder=str(DAGS_DIR))
@@ -51,12 +39,7 @@ def test_dag_carrega_sem_erro(dag):
 
 
 def test_encadeamento_das_etapas(dag):
-    """extrair -> tratar -> validar -> curar, nessa ordem e sem ramificação.
-
-    A curadoria vem depois da validação de propósito: é ela que alimenta o
-    relatório e o dashboard, e publicar número em cima de dado reprovado é pior
-    do que não publicar número nenhum.
-    """
+    """extrair -> tratar -> validar -> curar, nessa ordem e sem ramificação."""
     assert set(dag.task_ids) == {"extrair", "tratar", "validar", "curar"}
 
     assert dag.get_task("extrair").downstream_task_ids == {"tratar"}
@@ -66,11 +49,7 @@ def test_encadeamento_das_etapas(dag):
 
 
 def test_so_a_extracao_tem_retry(dag):
-    """Rede merece nova tentativa; etapa determinística, não.
-
-    `transform` e `validate` são funções puras do dado de entrada: se falharam,
-    falharão de novo. Retentar só multiplicaria o mesmo erro no log.
-    """
+    """Só a extração depende da rede, as outras etapas falhariam de novo."""
     assert dag.get_task("extrair").retries == 3
     assert dag.get_task("tratar").retries == 0
     assert dag.get_task("validar").retries == 0
@@ -175,10 +154,7 @@ def dag_ibge():
 def _verificador(dag_ibge, monkeypatch, diretorio):
     """Devolve a função da task, com o diretório de referências redirecionado.
 
-    O `DagBag` importa o arquivo da DAG sob um nome próprio, então o módulo que
-    ele carregou **não é** o que um `import` normal traz. Patchear pelo import
-    não alcança a cópia que a task usa; alcançar os globais da própria função é
-    o que funciona, e é a razão deste helper existir.
+    O `DagBag` importa a DAG sob outro nome, então o patch vai nos globais da função.
     """
     funcao = dag_ibge.get_task("verificar_validade").python_callable
     monkeypatch.setitem(funcao.__globals__, "DIRETORIO_REFERENCIAS", diretorio)
@@ -186,38 +162,20 @@ def _verificador(dag_ibge, monkeypatch, diretorio):
 
 
 def _instalar_referencias(diretorio: Path) -> None:
-    """Copia `analise/referencias.py` para o diretório, como a imagem faz.
-
-    A DAG deixou de refazer a conta de validade e passou a chamar
-    `referencias.dias_ate_vencer()`. Com isso o diretório de referências precisa
-    conter o módulo, não só o JSON — que é como ele existe de verdade, no
-    repositório e em `/opt/cno/analise` dentro da imagem. Um diretório com
-    `municipios.meta.json` e sem `referencias.py` não acontece em lugar nenhum.
-    """
+    """Copia `analise/referencias.py` para o diretório, como a imagem faz."""
     origem = Path(__file__).resolve().parents[1] / "analise" / "referencias.py"
     shutil.copy(origem, diretorio / "referencias.py")
 
 
 def test_dag_do_ibge_e_separada_e_minima(dag_ibge):
-    """Separada da `cno_pipeline` de propósito: não pode derrubar a pipeline.
-
-    Uma task só, sem rede, lendo um arquivo local. Se esta DAG ficar vermelha, o
-    pipeline de dados continua verde — que é exatamente a divisão pretendida.
-    """
+    """Separada da `cno_pipeline`, com uma task só e sem rede."""
     assert dag_ibge is not None
     assert set(dag_ibge.task_ids) == {"verificar_validade"}
     assert dag_ibge.dag_id != "cno_pipeline"
 
 
 def test_referencia_ausente_e_skip_nao_falha(dag_ibge, tmp_path, monkeypatch):
-    """Sem camada de análise instalada, a DAG pula em vez de ficar vermelha.
-
-    Um pipeline de dados sem dashboard é implantação legítima; marcar isso como
-    erro treinaria quem opera a ignorar o alerta — que é o oposto do objetivo.
-
-    O diretório vazio representa isso com mais fidelidade do que antes: sem
-    `referencias.py`, a camada de análise de fato não está ali.
-    """
+    """Sem camada de análise instalada, a DAG pula em vez de ficar vermelha."""
     from airflow.sdk.exceptions import AirflowSkipException
 
     with pytest.raises(AirflowSkipException):

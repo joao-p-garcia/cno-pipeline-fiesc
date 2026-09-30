@@ -1,9 +1,5 @@
 .DEFAULT_GOAL := help
 
-# Configuração local opcional, não versionada. Serve para apontar CNO_DATA_DIR
-# para fora do repositório — útil quando o código está numa pasta montada
-# (/mnt/c no WSL) e os dados devem ficar num disco nativo, bem mais rápido.
-# Veja .env.exemplo.
 -include .env
 export
 
@@ -11,16 +7,12 @@ VENV := .venv
 PIP := $(VENV)/bin/pip
 CNO := $(VENV)/bin/cno
 
-# Os testes da DAG precisam do Airflow, que vive no seu próprio venv.
-# Sobrescrevível para o CI e o container apontarem o deles.
 AIRFLOW_VENV ?= $(HOME)/.venvs/airflow
 
 .PHONY: help setup info extract extract-force transform validate curate pipeline \
         test test-dag lint fmt clean clean-data dashboard notebook \
         build up down down-tudo logs ps dag-run docker-pipeline
 
-# O -h é necessário porque o `-include .env` acrescenta um segundo arquivo ao
-# MAKEFILE_LIST, e sem ele o grep prefixaria cada linha com o nome do arquivo.
 help:  ## Lista os alvos disponíveis
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -28,9 +20,6 @@ help:  ## Lista os alvos disponíveis
 $(VENV):
 	python3 -m venv $(VENV)
 
-# Sentinela: o pip só roda de novo quando o pyproject.toml muda. Sem isto, todo
-# alvo pagaria um `pip install` — caro quando o repositório está montado em
-# /mnt/c, onde operações com muitos arquivos pequenos são lentas.
 STAMP := $(VENV)/.instalado
 
 $(STAMP): pyproject.toml | $(VENV)
@@ -47,7 +36,7 @@ info: setup  ## Compara a fonte com o estado local, sem baixar nada
 extract: setup  ## Baixa e materializa a camada raw (pula se já estiver atualizado)
 	$(CNO) extract
 
-extract-force: setup  ## Rebaixa mesmo que o snapshot local esteja atualizado
+extract-force: setup  ## Baixa mesmo que o snapshot local esteja atualizado
 	$(CNO) extract --force
 
 transform: setup  ## Trata a camada raw e materializa parquet em staging
@@ -67,15 +56,6 @@ pipeline: extract transform validate curate  ## Roda o pipeline inteiro, na orde
 
 ANALISE := $(VENV)/.analise
 
-# Sentinela própria: os extras da análise são pesados (Streamlit, JupyterLab) e
-# quem só quer extrair e tratar não deve pagar por eles. `extract`, `transform`,
-# `validate` e `curate` dependem só de `setup`.
-#
-# `test`, porém, depende daqui: a suíte cobre a camada de análise, e `analise
-# /dados.py` importa pandas, que não é dependência base. Enquanto `test`
-# dependia só de `setup`, a suíte passava na minha máquina — onde os extras já
-# estavam instalados de um `make dashboard` anterior — e **falhava num clone
-# limpo**. Foi o CI que expôs isso.
 $(ANALISE): pyproject.toml | $(VENV)
 	$(PIP) install -e ".[dashboard,notebook]" --quiet
 	@touch $(ANALISE)
@@ -86,15 +66,9 @@ dashboard: $(ANALISE)  ## Sobe o dashboard narrativo em http://localhost:8501
 notebook: $(ANALISE)  ## Reexecuta o notebook de exploração, gravando as saídas
 	$(VENV)/bin/jupyter execute --inplace analise/exploracao.ipynb
 
-test: setup $(ANALISE)  ## Roda a suíte de testes (offline)
+test: setup $(ANALISE)  ## Roda os testes (offline)
 	$(VENV)/bin/pytest
 
-# Nove dos quinze testes consultam o banco de metadados. Sem ele o pytest
-# morre com `sqlite3.OperationalError: no such table: dag`, que não diz a
-# ninguém o que fazer — o alvo já conferia o venv, e passou a conferir o
-# banco pelo mesmo motivo. O `db migrate` fica de fora de propósito: ele
-# escreve em $(HOME)/airflow, e um alvo chamado `test` não deve criar
-# estado por conta própria.
 test-dag:  ## Roda os testes da DAG (exige o venv do Airflow)
 	@test -x "$(AIRFLOW_VENV)/bin/pytest" \
 		|| { echo "venv do Airflow não encontrado em $(AIRFLOW_VENV)"; \
@@ -122,9 +96,6 @@ clean-data:  ## Apaga a camada de dados (ela é reproduzível com 'make extract'
 	rm -rf data/raw data/staging data/curated
 
 # -- container ------------------------------------------------------------
-# A stack de entrega. Desenvolvimento continua rodando direto no host, com os
-# alvos acima; estes existem para quem clona o repositório e quer ver tudo de
-# pé sem instalar Airflow, Postgres nem Python na mão.
 
 COMPOSE := docker compose
 
@@ -155,9 +126,7 @@ ps:  ## Mostra o estado dos serviços
 dag-run:  ## Dispara uma execução da DAG no Airflow em container
 	$(COMPOSE) exec airflow-scheduler airflow dags trigger cno_pipeline
 
-# Roda as três etapas em containers efêmeros, sem orquestrador nenhum. Escreve
-# no mesmo volume que a DAG usa, então serve tanto de demonstração rápida
-# quanto de pré-aquecimento antes de subir o Airflow.
+# Roda as etapas em containers efêmeros, sem orquestrador.
 docker-pipeline:  ## Roda o pipeline inteiro em container, sem Airflow
 	$(COMPOSE) run --rm cno extract
 	$(COMPOSE) run --rm cno transform

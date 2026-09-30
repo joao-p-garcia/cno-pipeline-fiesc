@@ -2,8 +2,7 @@
 
 A camada raw é tratada como imutável e endereçada por snapshot. O id do
 snapshot vem do `Last-Modified` da fonte (a data em que a Receita publicou),
-não da data em que rodamos — assim reprocessar amanhã não cria um snapshot
-novo para os mesmos dados.
+assim reprocessar amanhã não cria um snapshot novo para os mesmos dados.
 """
 
 from __future__ import annotations
@@ -30,7 +29,7 @@ from .source import HttpSource, RemoteInfo
 
 log = logging.getLogger(__name__)
 
-# Nome do arquivo de totais publicado pela Receita, usado como oráculo de
+# Nome do arquivo de totais publicado pela Receita, serve de
 # reconciliação pelas etapas seguintes.
 ARQUIVO_TOTAIS = "cno_totais.csv"
 
@@ -52,13 +51,13 @@ class ErroDeExtracao(RuntimeError):
 class ResultadoExtracao:
     manifest: Manifest
     snapshot_dir: Path
-    reaproveitado: bool  # True = nada foi baixado, snapshot já estava íntegro
+    reaproveitado: bool
 
 
 def executar_extracao(settings: Settings, *, forcar: bool = False) -> ResultadoExtracao:
     """Ponto de entrada da etapa de extração.
 
-    Idempotente: se o ETag da fonte bate com o do manifesto local e os arquivos
+    Se o ETag da fonte bate com o do manifesto local e os arquivos
     conferem, não baixa nada. `forcar=True` ignora o cache.
     """
     with HttpSource(settings) as fonte:
@@ -116,11 +115,7 @@ def executar_extracao(settings: Settings, *, forcar: bool = False) -> ResultadoE
 
 
 def _derivar_snapshot_id(info: RemoteInfo) -> str:
-    """Id do snapshot = data de publicação da fonte (AAAA-MM-DD).
-
-    Sem `Last-Modified`, cai para a data de execução — pior, mas não trava o
-    pipeline por causa de um cabeçalho ausente.
-    """
+    """Id do snapshot = data de publicação da fonte (AAAA-MM-DD)."""
     publicado = info.data_publicacao
     if publicado:
         return publicado.isoformat()
@@ -129,11 +124,7 @@ def _derivar_snapshot_id(info: RemoteInfo) -> str:
 
 
 def _logar_progresso(intervalo_mb: int = 50) -> Callable[[int, int | None], None]:
-    """Callback de progresso que loga a cada N MB, sem poluir a saída.
-
-    Barra de progresso não serve aqui: o pipeline roda em container e em
-    scheduler, onde a saída vai para arquivo de log, não para um terminal.
-    """
+    """Callback de progresso que loga a cada N MB, sem poluir a saída."""
     limite = intervalo_mb * 1024 * 1024
     estado = {"ultimo_marco": 0}
 
@@ -230,7 +221,7 @@ def _validar_nome_membro(nome: str) -> None:
 def _ler_totais_controle(caminho: Path) -> dict[str, int]:
     """Lê o `cno_totais.csv`, que traz as contagens oficiais de cada tabela.
 
-    Esses números viram o oráculo de reconciliação: a etapa de validação
+    Esses números viram reconciliação: a etapa de validação
     compara as linhas efetivamente carregadas contra o que a Receita publicou.
     """
     if not caminho.is_file():

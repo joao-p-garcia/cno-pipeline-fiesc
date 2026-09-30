@@ -1,21 +1,12 @@
 """Contrato de dados da camada staging: nomes, domínios e regras de limpeza.
 
-Este módulo é declarativo de propósito. A mecânica de carga vive em
-`staging.py`; aqui fica só *o que* a camada tratada promete, para que a
-validação e a análise leiam a mesma definição em vez de repetir regras.
-
-Duas decisões atravessam todo o módulo:
-
-**Tudo é lido como texto e convertido explicitamente.** A fonte é um cadastro
-público com preenchimento livre em vários campos, e deixar o `read_csv` inferir
-tipos faria a carga falhar num valor ruim isolado — ou, pior, silenciosamente
-tratar a coluna inteira como texto sem ninguém perceber. Lendo como `VARCHAR` e
-aplicando `TRY_CAST` depois, um valor inconversível vira `NULL` **contabilizado**
-em vez de derrubar 3,6 milhões de linhas.
+**Tudo é lido como texto e convertido explicitamente.** Deixar o `read_csv`
+inferir tipos faria a carga falhar num valor ruim isolado, ou tratar a coluna
+inteira como texto. Com `VARCHAR` e `TRY_CAST`, um valor inconversível vira
+`NULL` contabilizado.
 
 **Nada é descartado por suspeita.** Registros implausíveis recebem flag e
-continuam na tabela. Quem analisa decide se exclui; o pipeline não decide por
-ele.
+continuam na tabela, e quem analisa decide o que excluir.
 """
 
 from __future__ import annotations
@@ -44,9 +35,6 @@ QUALIFICACOES: dict[str, str] = {
     "0111": "Sociedade Líder de Consórcio",
 }
 
-# As 27 unidades federativas. Escrito como string separada por espaço porque a
-# lista literal equivalente ocupa 27 linhas ou estoura o limite de coluna, e
-# nenhuma das duas formas se lê melhor do que esta.
 _UFS = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO"
 
 UFS_BRASIL: frozenset[str] = frozenset(_UFS.split())
@@ -61,10 +49,8 @@ UFS_BRASIL: frozenset[str] = frozenset(_UFS.split())
 DATAS_SENTINELA: tuple[str, ...] = ("1900-01-01", "1970-01-01", "0001-01-01")
 
 # Área acima da qual o registro é marcado para revisão. O maior valor da base é
-# 555.555.555.555 m², cerca de 65 vezes a área do Brasil — claramente digitação.
-# O corte é conservador e serve só para sinalizar: como é flag e não exclusão,
-# um falso positivo não custa nada, enquanto deixar passar distorce média e
-# desvio padrão de qualquer agregação.
+# 555.555.555.555 m², cerca de 65 vezes a área do Brasil, claramente digitação.
+# O corte é conservador e serve como flag.
 AREA_SUSPEITA_M2: int = 1_000_000
 
 # Código do país do Brasil no cadastro.
@@ -73,8 +59,7 @@ CODIGO_PAIS_BRASIL: str = "105"
 # O campo `Estado` tem 35 valores distintos em vez de 27. A maioria do excedente
 # é de obras no exterior ou digitação livre, mas dois casos são a UF correta por
 # extenso e dá para recuperar sem ambiguidade. Os demais (`CHILE`, `CHUBUT`,
-# `BUENO ARIES`, `estado`, vazio) viram NULL — são menos de dez registros, e
-# inventar uma UF para eles seria pior do que admitir que não se sabe.
+# `BUENO ARIES`, `estado`, vazio) viram NULL.
 UF_CORRECOES: dict[str, str] = {
     "SÃO PAULO": "SP",
     "PERNAMBUCO": "PE",
@@ -160,7 +145,7 @@ AREAS = TabelaSpec(
     },
     # A fonte não traz identificador de linha: a mesma obra pode ter várias
     # áreas legítimas (principal + complementares). A chave é a linha inteira,
-    # e só linhas idênticas em tudo são duplicata de verdade — 21.449 delas.
+    # e só linhas idênticas em tudo são duplicata de verdade, 21.449 delas.
     chave_dedup=(
         "cno",
         "categoria",

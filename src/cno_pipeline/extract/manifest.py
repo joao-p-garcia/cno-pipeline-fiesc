@@ -1,9 +1,8 @@
 """Manifesto de snapshot: proveniência e controle de idempotência.
 
-O share da Receita não expõe histórico de versões e **não respeita
-`If-None-Match`** (testado: devolve 200 e reenvia os 330 MB inteiros). Por isso
-o controle de "já baixei esta versão?" fica aqui: guardamos o ETag observado
-num `HEAD` e comparamos antes de decidir baixar.
+O share da Receita não expõe histórico de versões e não respeita
+`If-None-Match`, então guardamos o ETag observado num `HEAD` e comparamos antes
+de decidir baixar.
 """
 
 from __future__ import annotations

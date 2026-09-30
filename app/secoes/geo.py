@@ -1,4 +1,4 @@
-"""Seção 7 — o endereço vem em Plus Code, e alguns apontam para o Japão."""
+"""Seção 7, o endereço vem em Plus Code, e alguns apontam para o Japão."""
 
 from __future__ import annotations
 
@@ -12,8 +12,6 @@ from .. import dados_app, graficos
 
 TITULO = "Localização das obras"
 
-# Prefixo do código do IBGE para Santa Catarina — o mapa abre em SC porque é o
-# recorte que interessa à FIESC; o seletor troca para qualquer outra UF.
 UF_PADRAO = "SC"
 
 
@@ -27,9 +25,6 @@ def render() -> None:
         "(estão errados) e outros apontam para localizações erradas.",
     )
 
-    # Os três degraus vêm de `dados.funil_geocodificacao`, não de três contagens
-    # remontadas aqui: é o número mais citado da narrativa, e o caderno mostra
-    # exatamente este. Duas cópias do mesmo SQL divergiriam em silêncio.
     funil = dados_app.consultar("funil_geocodificacao")
     total = dados_app.consultar("total_obras")
     com_mais, decodificaram, plausiveis = (int(v) for v in funil["obras"])
@@ -96,8 +91,6 @@ def render() -> None:
         key="uf_mapa",
     )
     pontos = dados_app.consultar("mapa_municipios", uf=uf)
-    # A malha e a tabela de municípios saem do mesmo gerador, mas o mapa depende
-    # das duas: uma dá o desenho, a outra dá o prefixo de UF do IBGE.
     if malha.disponivel() and dados_app.metadados_referencia() and not pontos.empty:
         prefixo = dados_app.consultar("prefixo_ibge", uf=uf)
         st.altair_chart(

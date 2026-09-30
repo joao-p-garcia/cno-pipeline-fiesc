@@ -9,13 +9,7 @@ description = "Pipeline de extração e tratamento da base do CNO (Cadastro Naci
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.32",
-    # Engine do tratamento. Escolhido em vez de pandas porque os 3,6 M de linhas
-    # cabem em memória com folga no DuckDB e estourariam vários GB no pandas, e
-    # porque ele escreve parquet particionado nativamente.
     "duckdb>=1.1",
-    # Implementação de referência do Open Location Code, do Google. Python puro,
-    # sem dependências transitivas. É o que permite geocodificar os Plus Codes do
-    # `Código de localização` sem chamar nenhum serviço externo pago.
     "openlocationcode>=1.0",
 ]
 
@@ -23,25 +17,13 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
-    # Compila o spec Vega-Lite para PNG, que é como os testes conferem que um
-    # gráfico **apareceu** — `AppTest` só diz que a página não levantou exceção,
-    # e nesta base gráfico que some em silêncio é a regra (DECISOES.md #10/#11).
-    # Só os testes usam: o dashboard renderiza no navegador e o caderno usa
-    # matplotlib. Estava faltando aqui, e os dois testes de gráfico passaram a
-    # pular num clone limpo sem que nada acusasse.
     "vl-convert-python>=1.7",
 ]
-# O que o dashboard precisa, e só isso — é este grupo que o container instala.
-# pandas e altair vêm de carona com o Streamlit, mas o código os importa
-# diretamente, então são declarados: dependência implícita já custou uma task
-# morta em container uma vez neste projeto.
 dashboard = [
     "streamlit>=1.40",
     "pandas>=2.2",
     "altair>=5.4",
 ]
-# Só para quem vai abrir ou reexecutar o notebook. Fica fora do container de
-# propósito: o caderno é registro de como os achados surgiram, não serviço.
 notebook = [
     "matplotlib>=3.9",
     "jupyterlab>=4.2",
@@ -70,6 +52,4 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# O caderno ajusta o `sys.path` antes de importar `analise` — ele roda a partir
-# do repositório, que não é um pacote instalado, e a ordem aqui é obrigatória.
 "*.ipynb" = ["E402"]

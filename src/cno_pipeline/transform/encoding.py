@@ -2,13 +2,12 @@
 
 Existe por uma limitação concreta: o DuckDB lê `utf-8`, `utf-16` e `latin-1`,
 mas **não** cp1252, que é o encoding real da fonte. E ler como `latin-1` não
-serve — os 4.881 bytes da faixa `0x80-0x9F` do `cno.csv` virariam caracteres de
+serve, os 4.881 bytes da faixa `0x80-0x9F` do `cno.csv` virariam caracteres de
 controle silenciosamente (ver `config.ENCODING_ORIGEM`).
 
 A alternativa seria corrigir os caracteres em SQL depois de carregar, mas isso
-exigiria lembrar de aplicar a correção em cada coluna de texto, uma por uma —
-esquecer uma seria uma corrupção invisível. Transcodificar o arquivo resolve o
-problema na entrada, de uma vez, para todas as colunas.
+exigiria lembrar de aplicar a correção em cada coluna de texto, uma por uma.
+Transcodificar o arquivo resolve o problema para todas as colunas.
 """
 
 from __future__ import annotations
@@ -25,23 +24,12 @@ log = logging.getLogger(__name__)
 
 CHUNK = 8 * 1024 * 1024
 
-# cp1252 e ISO-8859-1 são idênticos em 0x00-0x7F e em 0xA0-0xFF. Divergem
-# *somente* na faixa 0x80-0x9F, onde cp1252 põe tipografia e ISO-8859-1 deixa
-# controles indefinidos. Logo, um arquivo sem nenhum byte nessa faixa decodifica
-# exatamente igual nos dois encodings — e pode ser lido direto como latin-1,
-# sem transcodificar, sem risco nenhum.
 _FAIXA_C1 = range(0x80, 0xA0)
 _FORA_DA_FAIXA_C1 = bytes(b for b in range(256) if b not in _FAIXA_C1)
 
 
 def contem_bytes_c1(caminho: Path, chunk_size: int = CHUNK) -> bool:
-    """Diz se o arquivo tem algum byte em 0x80-0x9F.
-
-    É a pergunta exata que decide se dá para pular a transcodificação: sem esses
-    bytes, latin-1 e cp1252 produzem o mesmo texto. A varredura é feita com
-    `bytes.translate`, que roda em C — custa uma leitura sequencial, bem menos
-    do que decodificar e reescrever o arquivo.
-    """
+    """Diz se o arquivo tem algum byte em 0x80-0x9F."""
     with caminho.open("rb") as fh:
         while bloco := fh.read(chunk_size):
             if bloco.translate(None, _FORA_DA_FAIXA_C1):
@@ -59,7 +47,7 @@ class ResultadoTranscodificacao:
     destino: Path
     bytes_lidos: int
     bytes_escritos: int
-    caracteres_c1: int  # quantos vieram da faixa que latin-1 corromperia
+    caracteres_c1: int
 
 
 def transcodificar(
