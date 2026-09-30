@@ -1,16 +1,7 @@
 """Malha municipal do IBGE, para desenhar mapa sem depender de GIS.
 
-A malha é geometria — não é dado do CNO, e por isso mora aqui, fora do pipeline,
-junto com a tabela de municípios. É a mesma fronteira descrita em
-`referencias.py`: o que a fonte publica e o pipeline reconcilia fica lá dentro; o
-que é conveniência de análise fica aqui.
-
-**Sem geopandas.** Um polígono do GeoJSON é uma lista de pares de coordenadas;
-para pintar município por valor não é preciso mais do que isso. Trazer geopandas
-custaria GEOS, PROJ e uma cadeia de binários no container, e compraria só o que
-`json` já entrega. O preço é não haver operação espacial nenhuma aqui — e não
-precisamos de nenhuma: a junção com o CNO é por código de município, não por
-geometria.
+Sem geopandas, porque a junção com o CNO é por código de município e não há
+operação espacial nenhuma aqui.
 """
 
 from __future__ import annotations
@@ -73,18 +64,8 @@ def _area_assinada(anel: list) -> float:
 def _orientar(feature: dict) -> dict:
     """Põe o anel externo no sentido horário e os buracos no anti-horário.
 
-    **Isto não é purismo de formato, e é o contrário do que o RFC 7946 pede.**
-    Quem desenha mapa em projeção esférica — D3, Vega, e portanto o Altair — usa o
-    sentido do anel para saber qual lado é o de dentro, e a convenção do D3 é
-    **anel externo horário**. Um polígono no sentido "certo" segundo o RFC não
-    desenha o município: desenha *o planeta inteiro menos o município*, que na
-    tela vira uma mancha chapada cobrindo o gráfico inteiro. Medido nesta malha:
-    com o sentido do RFC, 295 municípios viram um retângulo; invertendo, o mapa
-    aparece.
-
-    O matplotlib não se importa, porque desenha no plano. Foi por isso que o mapa
-    do notebook saiu certo e o do dashboard saiu chapado — o mesmo arquivo, com
-    dois desenhistas que discordam sobre o que é dentro.
+    É o contrário do RFC 7946, mas é a convenção do D3 (e do Vega). No sentido do
+    RFC o Altair desenha o planeta inteiro menos o município.
     """
     geometria = feature["geometry"]
     poligonos = (
@@ -122,14 +103,9 @@ def enquadramento(
 ) -> tuple[tuple[float, float], float]:
     """Centro e escala de uma projeção Mercator que faz a coleção caber na tela.
 
-    O Vega-Lite **não** ajusta a projeção sozinho quando a geometria vem inline
-    junto com outra camada: o mapa sai desenhado em escala mundial, o estado vira
-    um ponto no meio do quadro e ninguém vê erro nenhum. Calcular o enquadramento
-    aqui resolve — e é aritmética de Mercator, não dependência de GIS.
-
-    A latitude não é linear em Mercator: `ln(tan(π/4 + φ/2))` é a coordenada
-    vertical de verdade, e é nela que o centro precisa ser calculado. Usar a média
-    das latitudes desloca o mapa, pouco perto do equador e muito longe dele.
+    O Vega-Lite não ajusta a projeção sozinho quando a geometria vem inline junto
+    com outra camada. O centro é calculado na coordenada Mercator, não na média
+    das latitudes.
     """
     lon_min, lat_min, lon_max, lat_max = limites(colecao)
 
@@ -149,8 +125,7 @@ def enquadramento(
 def contornos(colecao: dict) -> list[tuple[list[float], list[float]]]:
     """Achata os polígonos em listas de x e y, prontas para `plot` ou `fill`.
 
-    Um `MultiPolygon` (ilha, ou município partido por divisa de água) vira várias
-    entradas — desenhar a primeira e ignorar o resto apagaria pedaço de mapa.
+    Cada parte de um `MultiPolygon` vira uma entrada.
     """
     caminhos: list[tuple[list[float], list[float]]] = []
     for feature in colecao["features"]:

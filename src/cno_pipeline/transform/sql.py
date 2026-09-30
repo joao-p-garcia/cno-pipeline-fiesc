@@ -1,13 +1,4 @@
-"""Construção do SQL de tratamento.
-
-Separado de `staging.py` para que a lógica de negócio — o que cada coluna vira —
-possa ser lida e revisada sem o ruído de conexão, arquivos e métricas.
-
-O SQL é montado em Python a partir de `schema.py` em vez de escrito à mão porque
-os nomes de coluna da fonte são hostis (`"Qualificação do responsavel"`, com
-acento e com o typo original) e repeti-los em texto livre seria fonte garantida
-de erro de digitação silencioso.
-"""
+"""Construção do SQL de tratamento."""
 
 from __future__ import annotations
 
@@ -58,16 +49,7 @@ def numero(coluna_origem: str, tipo: str = "DECIMAL(18,2)") -> str:
 
 
 def flag(expressao: str) -> str:
-    """Booleano de dois valores, nunca NULL.
-
-    Em SQL, qualquer comparação com NULL devolve NULL — `NULL LIKE '%+%'` não é
-    falso, é desconhecido. Uma flag de três valores é armadilha para quem
-    consome: `WHERE NOT tem_plus_code` descartaria em silêncio todas as linhas
-    em que a coluna de origem está vazia, que aqui são 40,78% do total.
-
-    Ausência de evidência é tratada como ausência da característica, que é o que
-    a flag significa.
-    """
+    """Booleano de dois valores, nunca NULL."""
     return f"coalesce({expressao}, false)"
 
 
@@ -223,9 +205,7 @@ CONSTRUTORES = {
 def fonte_read_csv(caminho: str, encoding: str) -> str:
     """Monta a expressão `read_csv` usada como origem do tratamento.
 
-    Fica aqui, e não em `staging.py`, para que a única forma de ler um CSV do
-    pipeline seja esta — com `all_varchar` sempre ligado, que é o que garante a
-    conversão explícita de tipos.
+    É a única forma de ler um CSV no pipeline, sempre com `all_varchar`.
     """
     return (
         f"read_csv({_literal(caminho)}, header = true, all_varchar = true"

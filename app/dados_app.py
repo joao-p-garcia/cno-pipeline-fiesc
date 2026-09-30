@@ -1,12 +1,4 @@
-"""Porta de entrada do dashboard para a camada curada.
-
-Uma função só faz consulta, e ela é a única coisa cacheada. O Streamlit reexecuta
-o script inteiro a cada clique; sem cache, cada filtro pagaria a varredura de novo
-e o app pareceria quebrado.
-
-**O app não tem SQL.** Toda consulta mora em `analise/dados.py`, que o notebook
-também usa. Aqui só se escolhe qual pergunta fazer e se guarda a resposta.
-"""
+"""Porta de entrada do dashboard para a camada curada."""
 
 from __future__ import annotations
 
@@ -31,11 +23,7 @@ def conexao() -> dados.Curada:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def consultar(pergunta: str, **filtros):
-    """Executa uma das funções de `analise.dados` e guarda o resultado.
-
-    O nome da função entra como texto porque o Streamlit precisa de argumentos
-    hasheáveis para indexar o cache — a conexão não é, e é resolvida aqui dentro.
-    """
+    """Executa uma das funções de `analise.dados` e guarda o resultado."""
     return getattr(dados, pergunta)(conexao(), **filtros)
 
 
@@ -47,7 +35,7 @@ def consultar_amostra() -> list[bytes]:
 
 @st.cache_data(show_spinner=False)
 def decodificar_amostra(encoding: str) -> list[str]:
-    """A mesma amostra lida em cp1252 ou em latin-1 — a demonstração da seção 1."""
+    """A mesma amostra lida em cp1252 ou em latin-1, a demonstração da seção 1."""
     return dados.decodificar(dados.amostra_bruta(), encoding)
 
 

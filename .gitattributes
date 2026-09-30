@@ -1,23 +1,13 @@
-# O repositório é canônico em LF. Sem isto, arquivos escritos a partir do
-# Windows entram com CRLF e quebram scripts dentro dos containers Linux.
 * text=auto eol=lf
 
-# Arquivos que precisam de LF mesmo em checkout no Windows
 *.sh text eol=lf
 Makefile text eol=lf
 
-# Binários: nunca converter
 *.zip binary
 *.parquet binary
 *.png binary
-# Fontes da marca. O `text=auto` acima adivinha bem na prática, mas um arquivo
-# de fonte que passe por normalização de fim de linha vira uma fonte que o
-# navegador recusa em silêncio — e o app inteiro cai para a tipografia do
-# sistema sem nenhum erro na tela.
+
 *.woff2 binary
 *.ttf binary
 
-# Amostra crua do CNO, usada pelo notebook e pelo dashboard para demonstrar o
-# encoding da fonte. Os bytes cp1252 são o conteúdo: marcada como binária para
-# que nenhuma normalização encoste neles.
 analise/amostra_bruta.csv binary

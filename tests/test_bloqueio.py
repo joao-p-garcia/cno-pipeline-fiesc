@@ -1,15 +1,4 @@
-"""Testes da exclusão mútua por snapshot.
-
-A corrida que isto previne não dá erro: duas execuções sobre o mesmo snapshot
-produzem uma partição pela metade que é parquet válido e legível. Não dá para
-testar o sintoma, então testa-se o mecanismo — e, no fim, que a etapa de fato
-recusa rodar duas vezes em paralelo.
-
-O teste de contenção roda em **processo separado**, não em duas threads: o
-`flock` do POSIX é do descritor aberto, e dois `open()` no mesmo processo já
-conflitam, mas um subprocesso prova também que a trava sobrevive à fronteira de
-processo, que é o caso real (dois `cno transform`, ou um deles órfão).
-"""
+# Testes da exclusão mútua por snapshot.
 
 from __future__ import annotations
 
@@ -84,12 +73,7 @@ def test_snapshots_diferentes_nao_se_estorvam(tmp_path: Path):
 
 
 def test_trava_morre_com_o_processo(tmp_path: Path):
-    """A razão de usar `flock` em vez de arquivo-sentinela.
-
-    O processo é morto com `SIGKILL`, sem chance de limpar nada. Se a trava
-    fosse um arquivo criado com `O_EXCL`, ela ficaria para sempre e a próxima
-    execução legítima seria recusada até alguém apagar à mão.
-    """
+    """Morto com `SIGKILL`, o processo não deixa trava órfã."""
     sinal = tmp_path / "peguei"
     refem = _segurar_em_subprocesso(tmp_path, SNAPSHOT, sinal)
     refem.kill()
@@ -119,12 +103,7 @@ def test_espera_desiste_com_mensagem_em_vez_de_pendurar(tmp_path: Path):
 
 
 def test_o_arquivo_de_trava_nao_e_apagado(tmp_path: Path):
-    """Apagar o arquivo abriria a corrida que a trava existe para fechar.
-
-    Se cada execução apagasse o arquivo ao sair, uma poderia remover o inode que
-    outra acabou de abrir e travar: os dois passariam a travar arquivos
-    diferentes e ambos se achariam donos, sem erro nenhum.
-    """
+    """Apagar o arquivo deixaria dois processos travando inodes diferentes."""
     with travar_snapshot(tmp_path, SNAPSHOT, etapa="teste"):
         pass
     trava = tmp_path / "_locks" / f"snapshot_date={SNAPSHOT}.lock"
@@ -148,12 +127,7 @@ def test_registro_de_quem_detem_some_ao_liberar(tmp_path: Path):
 
 
 def test_transform_recusa_rodar_com_o_snapshot_travado(camada_raw, monkeypatch):
-    """O que o usuário vê: `cno transform` falha explicando, em vez de corromper.
-
-    Este é o teste que amarra o mecanismo à etapa. Sem ele, alguém poderia
-    remover o `with` de `executar_staging` e os sete testes acima continuariam
-    verdes, porque testam a trava, não o seu uso.
-    """
+    """`cno transform` falha explicando, em vez de corromper a partição."""
     from cno_pipeline.transform import executar_staging
 
     sinal = camada_raw.data_dir / "peguei"
@@ -168,11 +142,7 @@ def test_transform_recusa_rodar_com_o_snapshot_travado(camada_raw, monkeypatch):
 
 
 def test_curate_recusa_rodar_com_o_snapshot_travado(camada_raw):
-    """A curadoria disputa a **mesma** trava do tratamento, de propósito.
-
-    Não é zelo: a curadoria lê a staging que o tratamento reescreve. Se cada
-    etapa tivesse a sua, essa corrida continuaria aberta.
-    """
+    """A curadoria usa a mesma trava do tratamento, porque lê a staging que ele reescreve."""
     from cno_pipeline.curate import executar_curadoria
     from cno_pipeline.transform import executar_staging
 

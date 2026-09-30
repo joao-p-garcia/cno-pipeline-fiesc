@@ -1,4 +1,4 @@
-"""Testes da etapa de extração, todos offline contra o servidor fake."""
+# Testes de extração
 
 from __future__ import annotations
 
@@ -93,13 +93,7 @@ def test_acentos_preservados_na_extracao(settings: Settings):
 
 
 def test_tipografia_cp1252_nao_vira_caractere_de_controle(settings: Settings):
-    """Regressão de encoding.
-
-    O travessão (byte 0x96) existe em cp1252 e é indefinido em ISO-8859-1. Lido
-    como latin-1 ele vira U+0096, um caractere de controle, **sem levantar
-    erro** — exatamente a corrupção silenciosa que a base real sofreria em 4.881
-    posições se usássemos o encoding errado.
-    """
+    """O byte 0x96 lido como latin-1 vira caractere de controle sem erro."""
     resultado = executar_extracao(settings)
     bruto = (resultado.snapshot_dir / "csv" / "cno.csv").read_bytes()
 

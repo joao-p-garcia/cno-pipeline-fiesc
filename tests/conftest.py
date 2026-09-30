@@ -1,11 +1,4 @@
-"""Fixtures dos testes.
-
-O servidor fake existe para exercitar o extrator sem depender da Receita:
-os testes precisam rodar em CI, offline, em segundos, e precisam conseguir
-simular falhas que não dá para provocar num servidor real (queda no meio da
-transferência, mudança de publicação durante o download, servidor que ignora
-`Range`).
-"""
+# Fixtures dos testes.
 
 from __future__ import annotations
 
@@ -25,12 +18,8 @@ from .dados_sinteticos import ARQUIVOS, SNAPSHOT
 
 LAST_MODIFIED = "Sat, 12 Sep 2026 04:59:45 GMT"
 
-# Conteúdo mínimo que respeita o contrato real: mesmos nomes de arquivo,
-# mesmo encoding cp1252 e o cno_totais.csv com os rótulos originais.
-#
-# O travessão em "OBRA – FASE 2" é deliberado: o byte 0x96 existe em cp1252 mas
-# é indefinido em ISO-8859-1. Se alguém trocar o encoding para latin-1, o
-# caractere vira um controle e o teste de acentos pega a regressão.
+# Mesmos nomes de arquivo, encoding cp1252 e rótulos do cno_totais.csv reais.
+# O travessão em "OBRA – FASE 2" é o byte 0x96, indefinido em latin-1.
 CSVS = {
     "cno.csv": (
         '"CNO","Nome do município","Estado","Área total"\n'
@@ -73,9 +62,8 @@ class EstadoServidor:
     # Se >0, a resposta de corpo é cortada após N bytes, simulando queda de
     # conexão no meio do download.
     cortar_apos: int = 0
-    # Por padrão o corte acontece só na primeira resposta (para testar a
-    # retomada). Com `cortar_sempre`, toda resposta é truncada — é assim que
-    # se testa o esgotamento das tentativas.
+    # Por padrão só a primeira resposta é cortada (testa a retomada). Com
+    # `cortar_sempre` todas são, para testar o esgotamento das tentativas.
     cortar_sempre: bool = False
     # Se True, responde 200 (corpo inteiro) mesmo quando pedem Range.
     ignorar_range: bool = False
@@ -169,9 +157,7 @@ def settings(tmp_path: Path, servidor: str) -> Settings:
         read_timeout=5.0,
         max_tentativas=4,
         backoff_base=0.0,  # testes não podem dormir
-        # Chunk pequeno de propósito: o payload de teste tem poucas centenas de
-        # bytes, e com chunk grande nenhum bloco chegaria a ser gravado antes da
-        # queda — o teste de retomada não exercitaria a retomada.
+        # Pequeno para algum bloco ser gravado antes da queda simulada.
         chunk_size=64,
         user_agent="cno-pipeline-test",
         manter_zip=True,

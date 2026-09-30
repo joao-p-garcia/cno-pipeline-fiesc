@@ -1,13 +1,4 @@
-"""Testes da camada de análise: as consultas compartilhadas e o dashboard.
-
-O que estes testes protegem é uma propriedade de arquitetura, não uma conta: o
-notebook e o dashboard leem **as mesmas funções**, e o que elas devolvem tem de
-continuar sendo o que a camada curada gravou. Um filtro que se perde aqui não dá
-erro em lugar nenhum — dá um número diferente em um dos dois lugares.
-
-Rodam sobre a camada sintética, montada pelas mesmas fixtures das outras etapas.
-Nada de rede, nada de dado real.
-"""
+# Testes da camada de análise
 
 from __future__ import annotations
 
@@ -49,14 +40,7 @@ def test_snapshot_vem_do_nome_da_particao(curada: dados.Curada):
 
 
 def test_snapshot_antigo_no_disco_nao_infla_o_total(camada_raw: Settings, curada: dados.Curada):
-    """Um cron que não limpa a curada anterior não pode dobrar o total.
-
-    Reproduz o que a nuvem faz de fato: o job roda em cron e cada rodada grava
-    uma partição nova sem apagar a anterior. Sem o filtro em `abrir`, cada view
-    lia `**/*.parquet` e somava todo snapshot que já existiu no disco — foi
-    assim que o total em produção chegou a ~14 milhões de obras em vez dos 3,6
-    milhões de um snapshot só, e o disco (e a consulta) cresciam a cada rodada.
-    """
+    """Snapshots antigos no disco não entram na soma, só o mais recente."""
     total_um_snapshot = dados.total_obras(curada)
 
     outra_data = "2026-10-12"
@@ -76,12 +60,7 @@ def test_snapshot_antigo_no_disco_nao_infla_o_total(camada_raw: Settings, curada
 
 
 def test_decomposicao_de_area_separa_os_dois_filtros(curada: dados.Curada):
-    """Os quatro números precisam ser diferentes, e o último tem de ser o menor.
-
-    É o gráfico da seção 3 inteiro: se dois critérios passarem a dar o mesmo
-    valor, a demonstração de que *cada filtro resolve metade do problema* deixa
-    de existir sem ninguém perceber.
-    """
+    """Os quatro números precisam ser diferentes, e o último tem de ser o menor."""
     tabela = dados.decomposicao_area(curada).set_index("criterio")["km2"]
     cru = tabela["SUM(area_total) cru"]
     so_m2 = tabela["só o que está em m²"]
@@ -131,13 +110,7 @@ def test_serie_comparavel_corta_o_passado(curada: dados.Curada):
 
 
 def test_marts_e_tabela_analitica_contam_o_mesmo(curada: dados.Curada):
-    """Se divergirem, o dashboard e o notebook passam a contar coisas diferentes.
-
-    Inclui as obras **sem UF** de propósito: a junção com o IBGE é `LEFT JOIN`, e
-    município que não casa continua na contagem com os campos do IBGE nulos. Uma
-    junção que as descartasse faria o total do painel encolher sem aviso, que é
-    exatamente o modo de falha que este teste existe para pegar.
-    """
+    """Marts e tabela analítica somam o mesmo, incluindo obras sem UF."""
     pelo_mart = dados.municipios(curada)["obras"].sum()
     pela_analitica = curada.valor("SELECT count(*) FROM obras")
     assert pelo_mart == pela_analitica
@@ -187,11 +160,7 @@ def test_malha_recorta_por_uf():
 
 @pytest.mark.skipif(not malha.disponivel(), reason="malha não gerada")
 def test_aneis_externos_saem_no_sentido_horario():
-    """A convenção do D3, que é o oposto da do RFC 7946.
-
-    Com o sentido do RFC, o Vega desenha o complemento do polígono e o mapa vira
-    uma mancha chapada — sem erro nenhum no console.
-    """
+    """A convenção do D3, que é o oposto da do RFC 7946."""
     for feature in malha.por_prefixo("42")["features"][:50]:
         geometria = feature["geometry"]
         poligonos = (
@@ -212,13 +181,8 @@ def test_enquadramento_centra_santa_catarina():
 
 
 # ---------------------------------------------------------------------------
-# A paleta, medida
+# A paleta, medida: os contrastes citados em `analise/estilo.py`
 # ---------------------------------------------------------------------------
-#
-# Os comentários de `analise/estilo.py` afirmam contrastes e separações. Aqui
-# eles viram asserção: uma cor trocada "porque ficou mais bonita" que quebre
-# alguma dessas contas para o teste, em vez de chegar à apresentação como um
-# rótulo que ninguém consegue ler no projetor.
 
 
 def _canais(cor: str) -> tuple[float, float, float]:
@@ -269,21 +233,12 @@ def test_paleta_tem_contraste_sobre_a_superficie(papel, cor, minimo):
 
 
 def test_grade_recua_em_vez_de_competir():
-    """Limite **superior**, e é de propósito.
-
-    Grade é andaime. Uma grade que passa no contraste de texto está gritando no
-    lugar onde o dado deveria falar — o erro oposto ao de sempre, e mais difícil
-    de enxergar porque toda régua de acessibilidade elogia contraste alto.
-    """
+    """Limite superior: a grade não pode competir com o dado."""
     assert contraste(estilo.GRADE, estilo.SUPERFICIE) <= 3.0
 
 
 def test_bolha_do_mapa_sobrevive_a_transparencia():
-    """A opacidade é o que codifica densidade, e é o que apaga a bolha.
-
-    O número mora em `estilo.OPACIDADE_BOLHA` porque ele não é estético: depende
-    do fundo, e o fundo já mudou uma vez.
-    """
+    """A bolha translúcida ainda tem contraste contra o fundo."""
     vista = _sobre_o_fundo(estilo.AZUL, estilo.OPACIDADE_BOLHA)
     assert contraste(vista, estilo.SUPERFICIE) >= 3.0
 
@@ -294,12 +249,7 @@ def test_bolha_do_mapa_sobrevive_a_transparencia():
 
 
 def _simular_daltonismo(cor: str, matriz) -> str:
-    """Viénot 1999: projeta a cor no que um dicromata distingue.
-
-    Vale para deuteranopia e protanopia, que juntas respondem pela quase
-    totalidade dos casos e são exatamente as que confundem as duas pontas de uma
-    paleta quente/fria.
-    """
+    """Viénot 1999: projeta a cor no que um dicromata distingue (deutan e protan)."""
 
     def linear(canal: float) -> float:
         return canal / 12.92 if canal <= 0.04045 else ((canal + 0.055) / 1.055) ** 2.4
@@ -335,13 +285,7 @@ def _distancia(a: str, b: str) -> float:
 
 @pytest.mark.parametrize("visao", [None, DEUTERANOPIA, PROTANOPIA])
 def test_categorias_se_separam_tambem_sob_daltonismo(visao):
-    """Cada par do trio categórico, nas três visões.
-
-    O limite de 30 é o que o trio anterior (azul, laranja, verde-água, medido em
-    31,5 no pior par) entregava: o tema novo não pode piorar a leitura de quem
-    não distingue vermelho de verde só porque ficou mais parecido com a
-    identidade do Observatório.
-    """
+    """Cada par do trio categórico, nas três visões. 30 é o piso do tema anterior."""
     import itertools
 
     cores = [c if visao is None else _simular_daltonismo(c, visao) for c in estilo.CATEGORICAS]
@@ -350,17 +294,9 @@ def test_categorias_se_separam_tambem_sob_daltonismo(visao):
 
 
 def test_matplotlib_acha_montserrat_nos_dois_pesos():
-    """O caderno precisa achar a fonte da marca — e no peso certo.
+    """O caderno acha a fonte da marca nos pesos 400 e 600, não no Thin padrão.
 
-    Pulado onde o matplotlib não está: ele vive no extra `notebook`, não em
-    `dev`, porque o caderno é registro e não serviço. Isso deixa este teste fora
-    do CI de propósito, e ele continua valendo justamente onde importa — na
-    máquina de quem reexecuta o notebook e commita as figuras.
-
-    O que ele protege é uma falha muda: o Montserrat variável tem instância
-    padrão em `wght=100`, e registrá-la direto faria o caderno inteiro sair em
-    Thin. Nenhum erro, nenhum aviso — só figuras que ninguém consegue ler no
-    projetor.
+    Pulado sem o extra `notebook`, que não entra no CI.
     """
     pytest.importorskip("matplotlib", reason="extra `notebook` não instalado")
     from matplotlib import font_manager

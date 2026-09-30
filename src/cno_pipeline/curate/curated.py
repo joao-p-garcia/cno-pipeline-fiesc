@@ -1,13 +1,11 @@
 """Camada curada: da staging para o modelo que a análise consome.
 
-Idempotente e não destrutiva, como as etapas anteriores: a staging nunca é
+Idempotente e não destrutiva, como as etapas anteriores, a staging nunca é
 tocada, e reprocessar um snapshot só reescreve a partição daquele snapshot.
 
 A etapa materializa quatro tabelas. `obras_analitico` tem uma linha por obra e
 serve ao drill-down; os três marts são pré-agregados e são o que o dashboard lê,
 porque um Streamlit não pode varrer 3,6 M de linhas a cada clique num filtro.
-Todos derivam da mesma definição — o app não recalcula regra de negócio, e é isso
-que impede o dashboard e o notebook de divergirem com o tempo.
 """
 
 from __future__ import annotations
@@ -70,12 +68,7 @@ class MetricasGeo:
 
     @property
     def cobertura_util(self) -> float:
-        """A que vale para mapa e relatório: só o ponto que cai no município certo.
-
-        É esta que deve ser citada. A diferença entre as duas são 48 mil Plus
-        Codes válidos apontando para o lugar errado, alguns do outro lado do
-        planeta.
-        """
+        """A que vale para mapa e relatório: só o ponto que cai no município certo."""
         if not self.obras:
             return 0.0
         return self.plausiveis / self.obras
@@ -108,10 +101,6 @@ def executar_curadoria(settings: Settings, *, snapshot_id: str | None = None) ->
     snapshot = manifesto["snapshot_id"]
     staging = str(settings.staging_dir).replace("\\", "/")
 
-    # Mesma trava do `cno transform`, e de propósito: além de a curadoria poder
-    # atropelar a si mesma, ela **lê** a staging que o tratamento reescreve. Uma
-    # trava por etapa deixaria essa segunda corrida em pé. Snapshots diferentes
-    # têm travas diferentes e seguem em paralelo.
     with travar_snapshot(settings.data_dir, snapshot, etapa="cno curate"):
         resultado = _curar(settings, snapshot, staging, inicio)
 
@@ -148,9 +137,6 @@ def _curar(
             )
         ]
 
-        # Os marts leem o parquet recém-escrito, não a consulta em memória: assim
-        # o que eles agregam é literalmente o que ficou em disco, e uma diferença
-        # entre os dois não tem como passar despercebida.
         analitico = _read_parquet(settings.curated_dir / TABELA_ANALITICA, snapshot)
         plausiveis = con.execute(
             f"SELECT count(*) FILTER (WHERE geo_plausivel) FROM {analitico}"
@@ -224,13 +210,7 @@ def _conectar(settings: Settings) -> duckdb.DuckDBPyConnection:
 
 
 def _geocodificar(con: duckdb.DuckDBPyConnection, settings: Settings) -> MetricasGeo:
-    """Decodifica os Plus Codes completos e recupera os curtos pela âncora municipal.
-
-    O DuckDB escolhe os códigos distintos, o Python decodifica e devolve o
-    resultado como tabela. A fronteira entre os dois é atravessada duas vezes por
-    conjunto, não uma vez por linha — ver o cabeçalho de `geocodificacao.py` para
-    a medição que motivou esse desenho.
-    """
+    """Decodifica os Plus Codes completos e recupera os curtos pela âncora municipal."""
     inicio = time.monotonic()
 
     con.execute(sql_mod.SQL_DISTINTOS_COMPLETOS)
@@ -305,16 +285,7 @@ def _carregar_tabela(
     colunas: dict[str, str],
     linhas,
 ) -> int:
-    """Materializa no DuckDB as linhas que o Python produziu, via CSV temporário.
-
-    CSV e não `executemany`: com 1 M de linhas o `executemany` do DuckDB não
-    terminou em dez minutos, enquanto gravar o CSV e lê-lo de volta leva menos de
-    um segundo. É o mesmo princípio que tirou a UDF daqui — o custo está em
-    atravessar a fronteira, não no trabalho.
-
-    O arquivo vai no diretório temporário que a própria etapa já usa para o spill
-    do DuckDB, e é removido em seguida mesmo se a carga falhar.
-    """
+    """Materializa no DuckDB as linhas que o Python produziu, via CSV temporário."""
     temp = settings.curated_dir / "_tmp"
     temp.mkdir(parents=True, exist_ok=True)
     caminho = temp / f"{nome}.csv"
@@ -328,9 +299,6 @@ def _carregar_tabela(
                 total += 1
 
         if total == 0:
-            # `read_csv` num arquivo vazio é erro. Uma base sem nenhum código
-            # válido é improvável, mas a tabela precisa existir de qualquer forma
-            # para os LEFT JOIN a jusante não quebrarem.
             definicao = ", ".join(f"{col} {tipo}" for col, tipo in colunas.items())
             con.execute(f"CREATE OR REPLACE TEMP TABLE {nome} ({definicao})")
         else:
@@ -363,7 +331,6 @@ def _materializar(
     inicio = time.monotonic()
     destino = settings.curated_dir / nome
 
-    # Só a partição deste snapshot: reprocessar um não pode apagar os outros.
     particao = destino / f"snapshot_date={snapshot_id}"
     shutil.rmtree(particao, ignore_errors=True)
     destino.mkdir(parents=True, exist_ok=True)

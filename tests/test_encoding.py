@@ -1,4 +1,4 @@
-"""Testes da transcodificação cp1252 → UTF-8."""
+# Testes da transcodificação cp1252 → UTF-8.
 
 from __future__ import annotations
 
@@ -137,11 +137,7 @@ def test_arquivo_ascii_puro_nao_precisa_transcodificar(tmp_path: Path):
 
 
 def test_detecta_c1_alem_do_primeiro_bloco(tmp_path: Path):
-    """O byte C1 pode estar no fim de um arquivo de 900 MB.
-
-    Uma verificação que olhasse só o começo daria falso negativo e levaria o
-    pipeline a ler como latin-1 um arquivo que não é — corrompendo em silêncio.
-    """
+    """O byte C1 pode estar no fim de um arquivo de 900 MB."""
     grande = tmp_path / "g.csv"
     grande.write_bytes(b"x" * 5_000_000 + TRAVESSAO + b"\n")
     assert contem_bytes_c1(grande, chunk_size=64 * 1024) is True
