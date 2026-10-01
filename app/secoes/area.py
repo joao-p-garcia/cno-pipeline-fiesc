@@ -1,4 +1,4 @@
-"""Seção 6, a soma que mente por um fator de 312."""
+"""Seção 6, área das obras."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def render() -> None:
     st.altair_chart(
         graficos.decomposicao_log(
             decomposicao,
-            titulo="Quantos km² esta base soma — quatro respostas, uma certa",
+            titulo="Soma da área da base, em km²",
             subtitulo="as duas do meio isolam um problema cada; a última aplica os dois",
         ),
         width="stretch",
@@ -54,7 +54,7 @@ def render() -> None:
         achado=(
             "Primeiro, **a coluna mistura unidades**: metro quadrado em 94% das linhas "
             "e quilômetro, metro cúbico, quilowatt e kVA no resto. Segundo, **323 "
-            "obras declaram área impossível**, sendo a maior 555.555.555.555 m², "
+            "obras declaram área implausível**, sendo a maior 555.555.555.555 m², "
             "umas 65 vezes a área do Brasil."
         ),
         risco=("Somando sem cuidado, o número sai 312 vezes maior que o certo."),
@@ -76,7 +76,7 @@ def render() -> None:
             dados_app.consultar("histograma_area"),
             titulo="Área construída por obra",
             subtitulo=(
-                f"mediana {estilo.numero(mediana)} m² · média {estilo.numero(media)} m² — "
+                f"mediana {estilo.numero(mediana)} m² · média {estilo.numero(media)} m² · "
                 f"tudo acima de {estilo.numero(consultas.TETO_HISTOGRAMA_M2)} m² "
                 "empilhado na última barra"
             ),
@@ -111,13 +111,13 @@ def render() -> None:
                 dados_app.consultar("faixas_area", uf=uf),
                 categoria="faixa_area",
                 valor="obras",
-                titulo=f"Obras por faixa de área — {uf or 'Brasil'}",
+                titulo=f"Obras por faixa de área ({uf or 'Brasil'})",
                 rotulo_valor="obras",
                 ordenar=False,
             ),
             width="stretch",
         )
-        st.markdown("**As maiores áreas declaradas da base — marcadas, não excluídas**")
+        st.markdown("**As maiores áreas declaradas da base, marcadas e não excluídas**")
         st.dataframe(
             dados_app.consultar("areas_implausiveis", limite=10),
             hide_index=True,

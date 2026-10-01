@@ -86,9 +86,9 @@ def render() -> None:
         bytes_c1 = ", ".join(f"0x{b:02x}" for b in linhas[i] if 0x80 <= b <= 0x9F)
         inicio, fim = max(0, j - 42), j + 20
         esquerda, direita = st.columns(2)
-        esquerda.caption(f"cp1252 — bytes {bytes_c1}")
+        esquerda.caption(f"cp1252 · bytes {bytes_c1}")
         esquerda.success(certo[i][inicio:fim])
-        direita.caption("latin-1 — mesma sequência, sem erro nenhum")
+        direita.caption("latin-1 · mesma sequência, sem erro nenhum")
         direita.error(repr(latino[i][inicio:fim]))
 
     ui.decisao(

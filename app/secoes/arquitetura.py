@@ -34,7 +34,7 @@ DIAGRAMA = f"""
   <rect x="16" y="100" width="828" height="256" rx="8" fill="none" stroke="{estilo.TINTA}"
         stroke-width="1.5" stroke-dasharray="5 4" opacity="0.55"/>
   <text x="32" y="122" font-size="11" fill="{estilo.TINTA}" opacity="0.75"
-        font-weight="600">Docker — uma imagem, dois ambientes Python</text>
+        font-weight="600">Docker · uma imagem, dois ambientes Python</text>
 
   <g fill="none" stroke="{estilo.TINTA}" stroke-width="1.5">
     <rect x="44" y="140" width="212" height="62" rx="6"/>
@@ -52,7 +52,7 @@ DIAGRAMA = f"""
         opacity="0.75">LocalExecutor · só orquestra</text>
 
   <text x="466" y="166" text-anchor="middle" font-size="13" fill="{estilo.AZUL}"
-        font-weight="600">cno — venv próprio</text>
+        font-weight="600">cno · venv próprio</text>
   <text x="466" y="184" text-anchor="middle" font-size="11" fill="{estilo.AZUL}"
         opacity="0.85">DuckDB embarcado · faz o trabalho</text>
 

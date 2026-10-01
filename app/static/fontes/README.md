@@ -1,7 +1,7 @@
 # Fontes da marca
 
 Montserrat e Open Sans, as duas da identidade visual do Observatório FIESC, sob
-licença SIL Open Font License 1.1 — ver `OFL.txt`, que vale para as duas.
+licença SIL Open Font License 1.1 (ver `OFL.txt`, que vale para as duas).
 
 Estão versionadas em vez de vir de CDN por um motivo só: numa apresentação ao
 vivo, fonte que depende de rede é fonte que pode não chegar, e o que chega no
