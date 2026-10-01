@@ -1,231 +1,191 @@
-# cno-pipeline-fiesc
+# cno-pipeline-fiesc · branch `cloud/azure`
 
 Pipeline de extração e tratamento da base do **CNO (Cadastro Nacional de Obras)**
-da Receita Federal, com análise descritiva em cima da camada tratada.
+da Receita Federal, com análise descritiva sobre a camada tratada. São 3,6
+milhões de obras e 12,5 M de linhas somando as quatro tabelas.
 
-Do `.zip` publicado pela Receita até um dashboard narrativo, sem download manual
-e sem passo manual nenhum no meio. **3,6 milhões de obras**, 12,5 M de linhas
-somando as quatro tabelas.
+Esta branch é a versão em produção na **Azure**. O código do pipeline, da análise
+e do dashboard é o mesmo da `main`; muda onde e como ele roda. A versão local, com
+Airflow e Docker Compose, está na branch [`main`](https://github.com/joao-p-garcia/cno-pipeline-fiesc/tree/main).
 
 ---
 
-## Rodar
+## Como roda na nuvem
 
-Nesta branch a solução está em deploy na nuvem. Para rodar localmente, siga abaixo.
+```
+   push na cloud/azure
+        │
+        ▼
+   GitHub Actions ──▶ docker build ──▶ Azure Container Registry
+        (login por OIDC)                      │
+                          ┌───────────────────┴───────────────────┐
+                          ▼                                       ▼
+               Container Apps Job                       Container App
+               cron diário, 09:00 UTC                   dashboard Streamlit
+               2 vCPU / 4 GiB                           0,5 vCPU / 1 GiB
+                          │                                       ▲
+                          │ restaura o raw, roda as quatro        │ baixa a camada
+                          │ etapas, publica as camadas            │ curated no início
+                          ▼                                       │
+                       ADLS Gen2 (data lake): raw/ · staging/ · curated/
+```
 
-Caso seu sistema operacional não seja Linux, recomendo usar Docker Desktop.
-Pra rodar esse repositório basta apenas Docker, sem necessidade de instalar mais nada.
-O Docker, por ser solução de container, garante que rode igual em qualquer ambiente.
+1. **Job diário.** Às 09:00 UTC (06:00 em Brasília) o Container Apps Job sobe um
+   contêiner, restaura o `raw` do lake e roda `cno extract`, `cno transform`,
+   `cno validate` e `cno curate`, na mesma ordem da DAG da `main`. No fim,
+   publica `raw/`, `staging/` e `curated/` no lake. Se a Receita não publicou
+   nada novo, o `extract` reconhece pelo ETag e não baixa de novo.
+2. **Dashboard.** Um Container App com endereço público. Ao iniciar, baixa a
+   camada `curated` do lake (191 MB) e sobe o Streamlit. Fica com zero réplicas
+   quando ninguém acessa, então o primeiro acesso demora alguns segundos.
+3. **Histórico.** Os snapshots antigos não são apagados do lake.
 
-| Sua máquina | Comando |
+### Por que um job agendado e não Airflow
+
+O pipeline roda cerca de 6,5 minutos por dia. Na `main`, o Airflow ocupa cinco
+contêineres (scheduler, api-server, dag-processor, init e Postgres) ligados o
+tempo todo, o que é adequado localmente, onde não há custo. Na nuvem:
+
+| Opção | Por que não foi usada |
 |---|---|
-| **Windows** + Docker Desktop | `docker compose up -d --build` (PowerShell) |
-| **macOS** + Docker Desktop | `docker compose up -d --build` |
-| **Linux** ou **WSL2** + Docker | `make up`, ou o mesmo `docker compose up -d --build` |
-| qualquer sistema, sem Docker | [Sem Docker](#sem-docker), abaixo |
+| Airflow gerenciado (Data Factory) | roda 24 horas num nó dedicado, com custo de centenas de dólares por mês para 6,5 min de trabalho diário |
+| Azure Functions | limite de 1,5 GB de memória e 10 minutos; o `transform` usa 4 GB |
+| **Container Apps Job** (escolhido) | só cobra enquanto roda e tem cron próprio |
 
-`make` : tem uma Makefile, mas Make não funciona no Windows. Se estiver no Linux, pode usar pra facilitar.
+O que se perde em relação ao Airflow: o retry por etapa (o job inteiro tenta mais
+uma vez) e a visualização da DAG. Como cada etapa é idempotente, repetir o job
+inteiro não duplica dados. O detalhamento está em [nuvem/PLANO.md](nuvem/PLANO.md).
 
-### Com Docker
+---
 
-```
-docker compose up -d --build
-```
+## Diferenças para a `main`
 
-Sobe Airflow 3.3.2 + Postgres + o dashboard, e a DAG **começa a rodar sozinha**:
-baixa os ~315 MB, trata, valida e cura. Primeira execução ~6,5 min.
-Acompanhe o funcionamento nos localhost abaixo:
-
-| Onde | O quê |
-|---|---|
-| <http://localhost:8080> | Airflow (`airflow` / `airflow`) |
-| <http://localhost:8501> | o dashboard da análise |
-
-```
-docker compose logs -f             # acompanhar a primeira execução
-docker compose down                # derruba, preservando os dados
-docker compose down --volumes      # derruba e apaga os volumes também
-```
-
-Equivalentes no Makefile, para quem está em Linux ou WSL2: `make logs`,
-`make down`, `make down-tudo`, `make dag-run`.
-
-**Se `docker` não for reconhecido:** no Windows, isso significa que falta o
-Docker Desktop (ou você esqueceu de abrir), ou que o Docker está instalado só dentro de uma distro WSL, e
-nesse caso os comandos acima precisam ser dados de dentro do WSL. Numa distro
-WSL com engine nativo, o daemon costuma começar parado: `sudo systemctl start
-docker` antes de subir a stack.
-
-### Sem Docker
-
-Precisa de Python 3.11+. O `cno` é o mesmo executável que a DAG invoca, ou seja,
-montei o código de forma que não necessita do Airflow necessariamente. Então
-esta via roda exatamente as mesmas etapas:
-
-```
-python3 -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e ".[dev,dashboard]"
-
-cno info        # compara com a fonte sem baixar nada (só um HEAD)
-cno extract     # camada raw (~315 MB comprimidos, 1,4 GB extraídos)
-cno transform   # camada staging em parquet tipado e particionado  (~20s)
-cno validate    # 19 regras + reconciliação com os totais da Receita (~6s)
-cno curate      # camada curada: tabela analítica e três marts      (~35s)
-
-streamlit run app/dashboard.py                        # http://localhost:8501
-```
-
-Em Linux e WSL2, `make pipeline` encadeia a pipeline e `make dashboard` sobe o
-app. Esta via nativa foi exercitada em Linux e WSL2; **no Windows, prefira o
-Docker**,  os alvos do Makefile assumem o layout POSIX do venv (`.venv/bin`).
-
-`cno extract` é idempotente, se o ETag da fonte bate com o do manifesto local e
-os arquivos conferem, não baixa nada. `cno validate` sai com código 1 se houver
-divergência e falha a DAG.
-
-**Configuração** é opcional, sem nada o pipeline usa `./data`. Para mudar, copie
-`.env.exemplo` para `.env`. A variável que mais importa é `CNO_DATA_DIR`, útil em
-WSL para manter os 1,4 GB fora de `/mnt/c`.
-
-### Testes
-
-| O que roda | Linux / WSL | Windows (sem `make`) |
+| | `main` | `cloud/azure` |
 |---|---|---|
-| cobertura de testes: 272 testes offline | `make test` | `pytest` |
-| estilo e erros estáticos | `make lint` | `ruff check src tests dags analise app` |
-| 15 testes das DAGs | `make test-dag` | exige o venv do Airflow |
-
-Os testes montam camada sintética e, quando precisam de
-HTTP, sobem um servidor local, sem contato com a rede em si. O CI roda os três a cada push, em Python 3.11 e
-3.12.
-
-Para as DAGs, o Airflow tem venv própria, porque as bibliotecas podem conflitar com a pipeline.
-Porém se você rodar direto no Docker, não precisa disso.
-
-```bash
-python3 -m venv ~/.venvs/airflow
-~/.venvs/airflow/bin/pip install "apache-airflow==3.3.2" \
-  --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
-AIRFLOW_HOME=~/airflow ~/.venvs/airflow/bin/airflow db migrate
-```
-
----
-
-## Fontes
-
-| Fonte | O quê | Frequência |
-|---|---|---|
-| **CNO — Receita Federal** | dados de 3,6 M obras | extração **diária**, 04:00 (`cno_pipeline`) |
-| **IBGE** | municípios, UF, região, população e malha | extração **anual**; por fora do pipeline |
-
-Acrescentei os dados do IBGE para poder agregar por 
-município e comparar por porte. Deixei ela de **fora do pipeline** como uma 
-tabela de referência versionada no repositório. A DAG `referencias_ibge`
-roda mensalmente para verificar se o dado versionado atual do IBGE ainda está válido. 
-Não acessa a rede e **falha quando esses dados vencem**. Existe um script
-no código `construir_municipios.py` para extrair esses dados do IBGE de novo.
-
-A extração diária do CNO é idempotente, se o ETag da fonte não mudou, não baixa de novo.
-
----
-
-## Stack
-
-| | |
-|---|---|
-| **DuckDB** | todo o processamento, transform, validate e curate, em SQL sobre parquet |
-| **Parquet** | formato das camadas staging e curated, particionado por snapshot |
-| **Airflow 3.3.2** | orquestração, duas DAGs, LocalExecutor sobre Postgres |
-| **Docker Compose** | para abrir a entrega em qualquer ambiente |
-| **Streamlit + Altair** | analise exploratória em formato de dash interativo |
-| **pytest + ruff** | 272 testes offline, lint e formatação |
-
-Python 3.11+, empacotado como CLI (`cno`). Sem Spark, sem data warehouse, os
-12,5 M de linhas cabem com folga no DuckDB de uma máquina só. Ler mais em
-[ARQUITETURA.md](ARQUITETURA.md).
+| Onde roda | local, com `docker compose up` | Azure (Brazil South) |
+| Orquestração | Airflow 3.3.2 (LocalExecutor + Postgres) | Container Apps Job |
+| Agendamento | DAG diária, 04:00 UTC | cron do job, 09:00 UTC |
+| Retentativa | por etapa (a extração tenta 3 vezes) | o job inteiro tenta mais 1 vez |
+| Armazenamento | volume Docker local | ADLS Gen2 |
+| Imagem | `apache/airflow` + venv do pipeline (3,88 GB) | `python:3.12-slim` + azcopy (231 MB) |
+| Dashboard | contêiner local, porta 8501 | Container App público |
+| Validade da tabela do IBGE | DAG mensal `referencias_ibge` | sem verificação automática |
+| CI | lint e testes a cada push e PR | as mudanças de código passam pelo CI na `main` e chegam aqui por merge |
+| CD | não tem | build e deploy a cada push |
+| Infraestrutura | `Dockerfile` + `docker-compose.yml` | Terraform, com estado remoto |
+| Credenciais | não se aplica | identidades gerenciadas e OIDC, sem segredo no repositório |
+| Custo | zero | US$ 5 a 10 por mês, com alerta de orçamento |
 
 ---
 
 ## CI/CD
 
-**CI**, hoje: a cada push e a cada PR, o GitHub Actions roda lint e a suíte em
-Python 3.11 e 3.12, e num job separado sobe o Airflow 3.3.2 para os testes das
-DAGs. Como nenhum teste toca a rede, a CI não depende de a Receita estar no ar.
+**CI** (`.github/workflows/ci.yml`). Em push na `main` e em pull requests, roda
+`make lint` e `make test` em Python 3.11 e 3.12, e um job separado instala o
+Airflow 3.3.2 para os testes das DAGs. Nenhum teste acessa a rede.
 
-**CD** existe nesta branch. A cada push em `cloud/azure`, o GitHub Actions
-constrói a imagem, envia para um Azure Container Registry e atualiza o job e o
-dashboard. A autenticação é OIDC, **sem segredo guardado no repositório**.
+**CD** (`.github/workflows/nuvem.yml`). A cada push na `cloud/azure`:
 
-Na nuvem o pipeline roda num **Container Apps Job** com cron diário no lugar do
-Airflow, grava as três camadas num **ADLS Gen2** e o dashboard fica num
-endereço público. A infraestrutura é **Terraform** com estado remoto.
+1. confere se as Variables do repositório estão preenchidas;
+2. faz login na Azure por OIDC, sem senha ou chave guardada no GitHub;
+3. constrói a imagem no runner (o ACR Tasks está bloqueado nesta assinatura) e
+   envia ao registry com a tag do commit e `latest`;
+4. aponta o job e o dashboard para a imagem nova.
 
-A entrega do desafio continua sendo o `docker compose up`, sem conta em nuvem.
-O pipeline não mudou para rodar lá. Detalhes em [nuvem/PLANO.md](nuvem/PLANO.md).
+O CD publica a imagem; a próxima execução do job e o próximo início do dashboard
+já usam a versão nova.
 
 ---
 
-## O que a solução faz
+## Infraestrutura
+
+Tudo em `nuvem/terraform/`, com o estado guardado num storage account criado por
+`nuvem/bootstrap.sh`.
+
+| Recurso | Função |
+|---|---|
+| Container Registry (Basic) | guarda a imagem |
+| Container Apps Job | roda o pipeline |
+| Container App | serve o dashboard |
+| Storage ADLS Gen2 | o data lake, com as três camadas |
+| Log Analytics | logs do job e do dashboard, com cota diária |
+| 3 identidades gerenciadas | o job escreve no lake, o dashboard só lê, o GitHub faz deploy |
+| Alerta de orçamento | avisa em 50% do teto e na previsão de estourar o mês |
+
+Para recriar em outra conta: copiar `nuvem/terraform/exemplo.tfvars` para
+`terraform.tfvars`, preencher, rodar `sh nuvem/bootstrap.sh` e depois
+`terraform init` e `terraform apply` em `nuvem/terraform/`.
+
+---
+
+## O pipeline
+
+Igual ao da `main`. Na nuvem, as camadas são publicadas no lake ao fim de cada
+execução.
 
 ```
         Receita Federal (.zip, 315 MB)
                  │
    extract  ─────┤  HTTP com ETag, download resumível, sha256 por arquivo
                  ▼
-            data/raw/          o zip e os CSVs originais, por snapshot
+            raw/          o zip e os CSVs originais, por snapshot
                  │
-   transform ────┤  cp1252 → UTF-8, tipos, duplicatas, sentinelas de data
+   transform ────┤  cp1252 → UTF-8, tipos, duplicatas, datas inválidas
                  ▼
-            data/staging/      parquet tipado, particionado por snapshot
+            staging/      parquet tipado, particionado por snapshot
                  │
-   validate  ────┤  19 regras + reconciliação contra os totais da fonte
+   validate  ────┤  19 regras + reconciliação com os totais da fonte
                  ▼
    curate    ────┤  uma linha por obra, geocodificação, 3 marts
                  ▼
-            data/curated/  ──▶  notebook  +  dashboard
+            curated/  ──▶  notebook + dashboard
 ```
 
-**Duas DAGs.** `cno_pipeline` encadeia as quatro etapas, diariamente.
-`referencias_ibge` é separada e só vigia a validade da tabela do IBGE — pode
-ficar vermelha sem afetar o pipeline.
+| | |
+|---|---|
+| **DuckDB** | processamento em SQL sobre parquet |
+| **Parquet** | formato das camadas staging e curated |
+| **Streamlit + Altair** | dashboard |
+| **pytest + ruff** | 273 testes offline, mais 15 das DAGs, lint e formatação |
 
-**Três camadas.** `raw` com os dados originais, `staging` com tratamentos
-iniciais, remoções de duplicatas e tratamento de colunas, e `curated` 
-possui agregações e transformações voltadas para a análise.
+Python 3.11+, empacotado como CLI (`cno`). As decisões de cada etapa, com as
+medições, estão em [ARQUITETURA.md](ARQUITETURA.md).
 
-### A análise
+### Fontes
 
-```bash
-make dashboard    # dez seções, na ordem em que as decisões surgiram
-make notebook     # reexecuta analise/exploracao.ipynb com as saídas
-```
-O notebook (`analise/exploracao.ipynb`) é uma organização dos testes, 
-exploração dos dados inicial e para a construção do dashboard em si, e 
-está versionado **com as saídas**, para ser lido sem ser executado.
+| Fonte | O quê | Atualização |
+|---|---|---|
+| CNO, Receita Federal | 3,6 M de obras | diária, pelo job |
+| IBGE | municípios, região, população e malha | anual, tabela versionada em `analise/` |
 
-O dashboard é um Streamlit que já contém uma apresentação com tomadas 
-de decisão, arquitetura e conclusões.
+A tabela do IBGE fica fora do pipeline e é regerada com
+`python analise/construir_municipios.py`. Ela vale até 19/09/2027. Nesta branch
+não há verificação automática da validade; `python analise/construir_municipios.py --verificar`
+faz a checagem manualmente.
 
 ---
 
-## Decisões técnicas
+## Rodar localmente
 
-O porquê de cada uma, com as medições, está em **[ARQUITETURA.md](ARQUITETURA.md)**.
-Em resumo:
+Os arquivos da versão local continuam nesta branch. Com Docker:
 
-| Decisão | Por quê, em uma linha |
-|---|---|
-| **DuckDB**, não pandas | 3,6 M de linhas cabem com folga e ele escreve parquet particionado nativamente — [detalhes](ARQUITETURA.md#tratamento) |
-| **cp1252**, não latin-1 | 4.881 bytes na faixa C1; latin-1 decodifica todos **sem erro**, e o defeito só aparece no relatório — [detalhes](ARQUITETURA.md#tratamento) |
-| Nulo do responsável **não é imputado** | 66,39% de ausência é pessoa física, não lacuna; virou `responsavel_tipo` — [detalhes](ARQUITETURA.md#tratamento) |
-| Área implausível é **marcada, não excluída** | quem plota filtra, quem investiga tem o caso — [detalhes](ARQUITETURA.md#curadoria) |
-| `area_m2` só existe em m² e sem suspeita | dois defeitos independentes; cada filtro sozinho ainda erra por uma ordem de grandeza — [detalhes](ARQUITETURA.md#curadoria) |
-| Geocodificação **offline**, via Plus Code | 2,1 M de registros, sem serviço pago; 3,7% são válidos e apontam errado, daí `geo_plausivel` — [detalhes](ARQUITETURA.md#curadoria) |
-| Série comparável **a partir de 2019** | o CNO não existia antes de nov/2018: o passado é subcontado e instável entre snapshots — [detalhes](ARQUITETURA.md#curadoria) |
-| **Validação derruba a execução** | publicar número sobre dado reprovado é pior que não publicar — [detalhes](ARQUITETURA.md#validação) |
-| **IBGE fica fora do pipeline** | o pipeline processa uma fonte só e reconcilia contra ela; o IBGE entra como tabela de referência versionada, com validade vigiada por DAG — [detalhes](ARQUITETURA.md#fronteira-de-dados-externos) |
-| **DAG é enxuta** | encadeia os mesmos comandos que se roda na mão; nenhuma regra de negócio mora nela — [detalhes](ARQUITETURA.md#orquestração) |
-| **Trava por snapshot dentro da etapa** | duas execuções simultâneas corromperiam a partição **sem levantar erro**; a garantia não pode depender do orquestrador — [detalhes](ARQUITETURA.md#orquestração) |
+```
+docker compose up -d --build
+```
+
+Sobe o Airflow em <http://localhost:8080> (`airflow` / `airflow`) e o dashboard em
+<http://localhost:8501>. A primeira execução leva cerca de 6,5 minutos.
+
+Sem Docker, com Python 3.11+:
+
+```
+python3 -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev,dashboard]"
+cno extract && cno transform && cno validate && cno curate
+streamlit run app/dashboard.py
+```
+
+Instruções completas no README da [`main`](https://github.com/joao-p-garcia/cno-pipeline-fiesc/tree/main).
 
 ---
 
@@ -233,38 +193,26 @@ Em resumo:
 
 ```
 src/cno_pipeline/     o pipeline: extract, transform, validate, curate
-├── config.py         parâmetros, todos sobrescrevíveis por variável de ambiente
-├── bloqueio.py       trava por snapshot, para duas execuções não se atropelarem
-├── extract/          HTTP resumível, descompactação validada, manifesto
-├── transform/        contrato de dados, transcodificação, carga em parquet
-├── validate/         19 regras + reconciliação com os totais da fonte
-└── curate/           tabela analítica, geocodificação e os três marts
-
-dags/                 cno_pipeline (as quatro etapas) e referencias_ibge
-analise/              camada de análise: consultas, estilo, malha e o caderno
-app/                  o dashboard narrativo (Streamlit), uma seção por arquivo
-├── .streamlit/       o tema: as cores do chrome, que o `analise/estilo.py` espelha
-└── static/fontes/    Montserrat e Open Sans, versionadas em vez de vir de CDN
-tests/                272 testes offline, mais 15 das DAGs que pedem o Airflow
-data/                 raw / staging / curated
+dags/                 as DAGs do Airflow (usadas na versão local)
+analise/              consultas, estilo, malha, tabela do IBGE e o notebook
+app/                  o dashboard (Streamlit), uma seção por arquivo
+tests/                testes offline
+nuvem/
+├── Dockerfile        imagem da nuvem, sem Airflow
+├── entrypoint-job.sh       restaura o raw, roda o pipeline, publica no lake
+├── entrypoint-dashboard.sh baixa a curated e sobe o Streamlit
+├── bootstrap.sh      cria o storage do estado do Terraform
+├── terraform/        a infraestrutura
+└── PLANO.md          o plano e as decisões da migração
 ```
-
-`analise/` traz também a tabela de referência do IBGE já gerada
-(`municipios.csv`, a malha e as 17 correções de nome), então o dashboard
-funciona num clone limpo sem buscar nada. Para regerá-la, use
-`python analise/construir_municipios.py`. Ela declara a própria validade, e a
-DAG `referencias_ibge` falha quando esse dado está vencido.
 
 ---
 
-## Limitações conhecidas
+## Limitações
 
-Declaradas de propósito, e também visíveis na seção 6 do dashboard:
-
-- **O CNO mede o cadastro da construção, não o setor.** Serve para *onde há obra
-  cadastrada*; não serve para PIB setorial.
-- **58,8% das obras não têm ponto no mapa**, e a ausência não é aleatória. Todo
-  mapa aqui é de um subconjunto.
-- **A área é autodeclarada** e não há como validá-la contra nada externo.
-- **A população é de 2026 e as obras são de todos os anos** — a taxa por mil
+- O CNO mede o cadastro de obras, não o setor da construção.
+- 58,8% das obras não têm ponto no mapa.
+- A área é declarada pelo contribuinte e não tem fonte externa para conferir.
+- A população é de 2026 e as obras são de todos os anos, então a taxa por mil
   habitantes compara municípios entre si, não serve como série histórica.
+- Nesta branch, a validade da tabela do IBGE não é verificada automaticamente.
