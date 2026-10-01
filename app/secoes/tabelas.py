@@ -1,20 +1,4 @@
-"""Seção 2 — as quatro tabelas que chegam, e o que cada uma é.
-
-Existe porque a seção anterior mostra **como** o dado chega (um zip, cp1252) e
-as seguintes já discutem problemas específicos. Faltava o mapa: o que há dentro
-do pacote, o que cada arquivo significa e como eles se ligam. Sem isso, quem
-assiste ouve "obras", "áreas" e "vínculos" sem saber que os três não têm o mesmo
-tamanho nem a mesma chave.
-
-O argumento da seção é a **cardinalidade**. `cno.csv` tem uma linha por obra; os
-outros três têm N por obra. É essa assimetria que torna "juntar tudo numa tabela
-só" a decisão mais cara do pipeline, e é ela que a seção 7 retoma.
-
-O bloco do gabarito mora aqui, e não na seção 1 como já morou: `cno_totais.csv`
-declara uma contagem **por tabela**, e contagem por tabela não significa nada
-para quem ainda não sabe que tabelas existem. Junto das quatro, ele fecha o
-raciocínio — e a reconciliação do 1:N vira a prova de que a leitura está certa.
-"""
+"""Seção 2, as quatro tabelas que chegam, e o que cada uma é."""
 
 from __future__ import annotations
 
@@ -28,10 +12,6 @@ from .. import dados_app
 
 TITULO = "As quatro tabelas"
 
-# O que cada arquivo do pacote é. Descrição, não número: os números vêm da
-# camada curada, logo abaixo, e redigitá-los aqui criaria duas versões da mesma
-# contagem. O que não dá para consultar é o *significado*, e é só isso que mora
-# nesta tabela.
 ARQUIVOS = [
     {
         "Arquivo no zip": "cno.csv",

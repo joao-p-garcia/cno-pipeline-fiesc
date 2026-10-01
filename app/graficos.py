@@ -1,17 +1,4 @@
-"""Construtores de gráfico do dashboard.
-
-Altair, e não matplotlib como no notebook, porque aqui o gráfico é interativo: um
-gráfico numa página web sem *hover* desperdiça o meio. As cores, a grade e a
-tipografia saem de `analise/estilo.py` — a mesma paleta do caderno, para que o
-mesmo achado tenha a mesma cara nos dois lugares.
-
-Três regras que valem para tudo neste arquivo:
-
-* **Série única, cor única.** Barra maior não ganha cor mais forte.
-* **Ênfase em vez de arco-íris.** O que o gráfico defende fica azul; o resto,
-  cinza. Quando há duas séries, há legenda.
-* **Um eixo só.** Obras e metros quadrados nunca dividem a mesma escala.
-"""
+"""Construtores de gráfico do dashboard."""
 
 from __future__ import annotations
 
@@ -20,17 +7,10 @@ import pandas as pd
 
 from analise import estilo, malha
 
-# Espessura da barra, com teto de 24px. Barra que preenche a faixa inteira faz o
-# gráfico virar uma parede: a sobra da banda é ar, e é o ar que separa uma barra
-# da seguinte — não um contorno desenhado em volta.
 ALTURA_BARRA = 20
 
-# O ar entre uma barra e a próxima. Somado à altura, dá a banda de cada
-# categoria. Era um 12 literal repetido em dois lugares.
 ESPACO_BARRA = 14
 
-# Nas barras agrupadas cada série divide a banda, então a barra é mais fina.
-# Proporcionalmente é o mesmo ar: duas de 12 numa banda de 34 por série.
 ALTURA_BARRA_AGRUPADA = 12
 
 
@@ -39,16 +19,7 @@ def _titulo(titulo: str, subtitulo: str | None = None) -> alt.TitleParams:
 
 
 def _tooltips(df: pd.DataFrame, casas: dict[str, int] | None = None) -> tuple[pd.DataFrame, list]:
-    """Tooltips com o número **já escrito em português**, como texto.
-
-    O `format` do Vega-Lite é o d3, que formata em inglês, e trocar o locale do
-    d3 só é possível pela opção `formatLocale` do vega-embed — que o Streamlit
-    descarta (ver `estilo.ROTULO_NUMERO_BR`). Para o eixo dá para contornar com
-    expressão; para o tooltip não há gancho equivalente. Então o número sai
-    formatado do Python e chega ao tooltip como string.
-
-    Colunas com `_` na frente são de uso interno do gráfico e não viram tooltip.
-    """
+    """Tooltips com o número **já escrito em português**, como texto."""
     casas = casas or {}
     tabela = df.copy()
     tooltips = []
@@ -71,35 +42,16 @@ def _tooltips(df: pd.DataFrame, casas: dict[str, int] | None = None) -> tuple[pd
     return tabela, tooltips
 
 
-# O Streamlit renderiza com `autosize: fit` — e o `width="stretch"` de cada
-# chamada é o que liga isso. Nesse modo a altura pedida é a do gráfico
-# **inteiro**: título, subtítulo e eixo x saem de dentro dela, não de fora.
-#
-# Sem reservar o espaço deles, a banda de cada categoria encolhe até a barra
-# encostar na vizinha — foi o que aconteceu com `situacao`, que tem cinco
-# categorias: 170px pedidos viravam ~100px de área útil, banda de 20px e barra
-# de 20px. Medido renderizando os dois modos com o vl-convert.
 ALTURA_MOLDURA = 70
 
 
 def _altura_fixa(area_de_plotagem: int) -> int:
-    """Altura a pedir para obter `area_de_plotagem` de área útil.
-
-    Mesma correção de `_altura`, para os gráficos cuja altura não depende do
-    número de categorias: o número escrito na chamada é a área de plotagem
-    desejada, e o que se pede ao Vega é ela mais a moldura.
-    """
+    """Altura a pedir para obter `area_de_plotagem` de área útil."""
     return area_de_plotagem + ALTURA_MOLDURA
 
 
 def _altura(categorias: int, por_categoria: int) -> int:
-    """Altura fixa a partir do número de categorias.
-
-    O jeito idiomático seria `alt.Step`, que deixa o Vega-Lite dimensionar
-    sozinho — mas **`step` não vale em gráfico com camadas**, e todo gráfico daqui
-    tem pelo menos duas (a marca e o rótulo). O Vega-Lite não reclama: devolve um
-    gráfico vazio. Calcular a altura aqui é feio e é o que funciona.
-    """
+    """Altura fixa a partir do número de categorias."""
     return max(120, categorias * por_categoria) + ALTURA_MOLDURA
 
 
@@ -115,12 +67,7 @@ def barras(
     ordenar: bool = True,
     cor: str = estilo.AZUL,
 ) -> alt.LayerChart:
-    """Barras horizontais com rótulo direto no fim de cada uma.
-
-    Horizontais porque os rótulos deste projeto são nomes ("Residencial
-    unifamiliar", "Serviços especializados para construção") e nome girado 45° é
-    o jeito mais rápido de tornar um gráfico ilegível.
-    """
+    """Barras horizontais com rótulo direto no fim de cada uma."""
     dados = df.copy()
     alvos = {destaque} if isinstance(destaque, str) else set(destaque or ())
     dados["_destaque"] = dados[categoria].isin(alvos)
@@ -149,23 +96,11 @@ def barras(
     )
 
 
-# Início do eixo logarítmico. A escala precisa dele: os quatro valores vão de
-# 2.839 a 887.114 km², e numa escala linear a resposta certa vira um traço
-# invisível ao lado da errada.
 PISO_LOG_KM2 = 1_000
 
 
 def decomposicao_log(df: pd.DataFrame, *, titulo: str, subtitulo: str) -> alt.LayerChart:
-    """Régua com ponta, em escala logarítmica, com a última linha em azul.
-
-    Não são barras. Barra mede a partir do zero, e o zero não existe em escala
-    logarítmica — em Vega-Lite isso não dá erro, dá um gráfico vazio. A régua
-    declara de onde parte (`PISO_LOG_KM2`) e o ponto marca onde chega.
-
-    A linha destacada é a **última**, porque a consulta devolve os critérios do
-    mais cru ao mais correto. Antes havia uma coluna `ordem` só para dizer isso;
-    a ordem das linhas já diz.
-    """
+    """Régua com ponta, em escala logarítmica, com a última linha em azul."""
     tabela = df.assign(
         _rotulo=df["km2"].map(lambda v: f"{estilo.numero(v)} km²"),
         _certa=[False] * (len(df) - 1) + [True],
@@ -202,11 +137,7 @@ def barras_comparadas(
     subtitulo: str | None = None,
     rotulo_valor: str,
 ) -> alt.Chart:
-    """Duas medidas por categoria, na mesma escala e com legenda.
-
-    Só é legítimo quando as duas medidas **são comparáveis** — aqui, duas
-    participações percentuais. Duas grandezas diferentes viram dois gráficos.
-    """
+    """Duas medidas por categoria, na mesma escala e com legenda."""
     longo = df.melt(
         id_vars=[categoria], value_vars=list(series), var_name="medida", value_name="valor"
     )
@@ -246,16 +177,9 @@ def serie_temporal(
     marcar_ano: int | None = None,
     rotulo_marca: str = "",
 ) -> alt.LayerChart:
-    """Linha com marcador em cada ponto e régua vertical opcional.
-
-    O ponto em cima da linha não é enfeite: sem ele, um ano faltante vira um
-    segmento reto e some.
-    """
+    """Linha com marcador em cada ponto e régua vertical opcional."""
     tabela, dicas = _tooltips(df)
     base = alt.Chart(tabela).encode(
-        # `labelExpr` explícito: o tema põe separador de milhar em todo eixo
-        # numérico, e ano é a única grandeza deste app que não o quer — 2019
-        # viraria "2.019". A exceção fica escrita no eixo que a pede.
         x=alt.X(
             f"{x}:O",
             title=None,
@@ -280,9 +204,6 @@ def serie_temporal(
             .encode(x=alt.X(f"{x}:O"))
         )
         camadas.append(
-            # Alinhado à direita, encostando na régua pela esquerda: alinhado à
-            # esquerda, um rótulo desses transborda a área do gráfico sempre que a
-            # marca cai perto do fim da série — que é justamente o caso aqui.
             alt.Chart(regua)
             .mark_text(align="right", dx=-8, color=estilo.DOURADO, fontSize=11, fontWeight="bold")
             .encode(x=alt.X(f"{x}:O"), y=alt.value(12), text="rotulo:N")
@@ -293,11 +214,7 @@ def serie_temporal(
 
 
 def _anos_ticks(serie: pd.Series) -> list[int]:
-    """Um rótulo a cada cinco anos, mais o último — 30 rótulos não cabem.
-
-    O último só entra se não colidir com o múltiplo de cinco anterior: `2025` e
-    `2026` lado a lado viram um borrão.
-    """
+    """Um rótulo a cada cinco anos, mais o último."""
     anos = sorted(int(a) for a in serie.unique())
     if not anos:
         return []
@@ -349,13 +266,7 @@ def mapa(
     largura: int = 760,
     altura: int = 460,
 ) -> alt.LayerChart:
-    """Bolhas sobre a malha municipal do IBGE.
-
-    Cada bolha é um município, posicionado na **mediana das coordenadas
-    plausíveis** das suas obras — não no centroide oficial. É a mesma âncora que a
-    curadoria usa para recuperar Plus Code curto, então o mapa mostra o dado que o
-    pipeline de fato tem, não uma aproximação cartográfica por cima dele.
-    """
+    """Bolhas sobre a malha municipal do IBGE."""
     fundo = alt.Chart(alt.Data(values=malha_uf["features"])).mark_geoshape(
         fill=estilo.FUNDO_MAPA, stroke=estilo.GRADE, strokeWidth=0.6
     )
@@ -364,13 +275,7 @@ def mapa(
         alt.Chart(pontos)
         .mark_circle(
             color=estilo.AZUL,
-            # A transparência aqui codifica densidade: onde duas bolhas se
-            # sobrepõem o azul acumula. O valor mora em `estilo` porque ele é
-            # medido contra o fundo, e o fundo mudou — ver o comentário de
-            # `OPACIDADE_BOLHA`.
             opacity=estilo.OPACIDADE_BOLHA,
-            # Contorno na cor do fundo: é o que separa duas bolhas encostadas
-            # sem gastar uma segunda cor.
             stroke=estilo.SUPERFICIE,
             strokeWidth=0.8,
         )
@@ -381,13 +286,6 @@ def mapa(
                 "obras:Q",
                 title="obras",
                 scale=alt.Scale(range=[10, 900]),
-                # Poucos degraus e dentro do mapa: a legenda padrão do Vega abre
-                # oito círculos e rouba um terço da largura do gráfico.
-                #
-                # `labelExpr` aqui e não no tema: `labelExpr` existe em `Legend`
-                # mas **não** em `LegendConfig`, então a versão do tema era
-                # config morta — o eixo inteiro saía em português e a legenda do
-                # mapa continuava em "1,000". Só a imagem mostrou.
                 legend=alt.Legend(
                     orient="bottom-left",
                     symbolType="circle",
@@ -398,11 +296,6 @@ def mapa(
             tooltip=dicas,
         )
     )
-    # A projeção vai na camada, nunca em cada sublayer: duas projeções irmãs não
-    # se conversam, e o resultado é a malha sumir e os pontos desabarem num
-    # amontoado no meio da tela. Centro e escala são calculados a partir da
-    # própria malha — ver `malha.enquadramento` para o porquê de não haver ajuste
-    # automático aqui.
     centro, escala = malha.enquadramento(malha_uf, largura, altura)
     return (
         alt.layer(fundo, bolhas)

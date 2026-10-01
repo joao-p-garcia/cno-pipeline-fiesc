@@ -1,9 +1,4 @@
-"""Testes da validação.
-
-Boa parte deles injeta defeito de propósito na camada tratada. É o único jeito
-de provar que a validação pega o problema — uma suíte que só verifica o caminho
-feliz não distingue "está tudo certo" de "a regra não está sendo avaliada".
-"""
+# Testes de validação
 
 from __future__ import annotations
 
@@ -29,10 +24,8 @@ def _particao(settings: Settings, tabela: str) -> Path:
 def _injetar(settings: Settings, tabela: str, transformacao: str = "") -> None:
     """Acrescenta uma linha defeituosa a uma tabela já materializada.
 
-    Copia uma linha de um parquet existente para um arquivo novo **na mesma
-    pasta**, opcionalmente alterando colunas. Fazer assim, em vez de reescrever
-    a tabela, garante que o schema bate: em parquet particionado, `uf` e
-    `snapshot_date` vivem no caminho do diretório e não dentro do arquivo.
+    Grava um parquet novo na mesma pasta, porque `uf` e `snapshot_date` vivem no
+    caminho da partição e não dentro do arquivo.
     """
     arquivo = next(iter(_particao(settings, tabela).rglob("*.parquet")))
     colunas = f"* REPLACE ({transformacao})" if transformacao else "*"

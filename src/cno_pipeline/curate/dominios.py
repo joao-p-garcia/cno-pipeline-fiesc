@@ -1,15 +1,4 @@
-"""Domínios da camada curada.
-
-Aqui moram classificações que são **estrutura**, não dado: a divisão do CNAE em
-seções é uma regra fixa da CNAE 2.0, publicada pela CONCLA, que não muda de ano
-para ano nem depende de qual snapshot está sendo processado. Embutir 21 constantes
-é honesto; seria desonesto embutir população ou PIB, que envelhecem — esses ficam
-fora do pipeline, na camada de análise.
-
-A decodificação de `Situação` e `Qualificação` **não está aqui**: já acontece em
-`transform/schema.py`, a partir dos domínios que o próprio dicionário de dados da
-Receita publica inline. A camada curada não repete o que a staging já fez.
-"""
+"""Domínios da camada curada."""
 
 from __future__ import annotations
 
@@ -39,37 +28,19 @@ SECOES_CNAE: tuple[tuple[int, int, str, str], ...] = (
     (99, 99, "U", "Organismos internacionais e outras instituições extraterritoriais"),
 )
 
-# Divisões da seção F. O CNO é um cadastro de obras: as três divisões abaixo
-# cobrem 100% da base (41 com 1.905.075 obras, 43 com 1.415.825, 42 com 283.256),
-# e nenhuma outra divisão aparece. Agrupar por seção seria inútil aqui — daria
-# uma linha só —, então é a divisão que serve de recorte setorial.
-#
-# As demais divisões da CNAE não estão nomeadas de propósito: nomear 87 divisões
-# que não ocorrem seria peso morto. Se uma publicação futura trouxer outra, o
-# código da divisão continua preenchido e só o nome fica nulo — visível, não
-# silencioso.
 DIVISOES_CNAE: dict[str, str] = {
     "41": "Construção de edifícios",
     "42": "Obras de infraestrutura",
     "43": "Serviços especializados para construção",
 }
 
-# Distância máxima entre o ponto geocodificado e a mediana do município para o
-# ponto ser considerado plausível. Não há município brasileiro com raio perto
-# disso — o maior, Altamira/PA, fica bem abaixo —, então passar de 150 km
-# significa que o código aponta para outro lugar.
-#
-# O limite existe porque um Plus Code pode ser sintaticamente válido e mesmo
-# assim estar errado: medidos 48.460 pontos (3,7% dos decodificados) a mais de
-# 150 km do município declarado, 39.105 deles a mais de 500 km, alguns caindo no
-# Japão. Sem esse corte, o mapa mostraria obras catarinenses em Kyushu.
+# Distância máxima até a mediana do município para o ponto ser plausível. Nenhum
+# município brasileiro tem raio perto disso. 48.460 pontos válidos (3,7%) passam
+# do limite, alguns no Japão.
 LIMITE_PLAUSIBILIDADE_KM = 150
 
 
-# Faixas de área para segmentar a análise. Os cortes saem da distribuição real
-# (mediana 135 m², p75 270 m², p99 12.049 m²), não de números redondos escolhidos
-# no olho: 150 separa a obra residencial típica, 500 separa o multifamiliar
-# pequeno, e 5.000 isola o que é obra de porte industrial ou comercial.
+# Cortes a partir da distribuição real (mediana 135 m², p75 270 m², p99 12.049 m²).
 FAIXAS_AREA_M2: tuple[tuple[float | None, float | None, str], ...] = (
     (None, 70, "até 70 m²"),
     (70, 150, "70 a 150 m²"),
@@ -78,23 +49,9 @@ FAIXAS_AREA_M2: tuple[tuple[float | None, float | None, str], ...] = (
     (5000, None, "acima de 5.000 m²"),
 )
 
-# A partir deste ano a série é comparável. Antes disso ela não mede construção:
-# mede cobertura do cadastro.
-#
-# O CNO foi instituído pela IN RFB 1.845, de 22/11/2018, substituindo a matrícula
-# CEI, e passou a valer em 21/01/2019. A base confirma a norma sozinha: a
-# `data_registro` mais antiga é 19/11/2018, e 2018 inteiro tem 385 registros
-# contra 366 mil em 2019 — antes disso o cadastro simplesmente não existia.
-#
-# Obra iniciada antes de 2019 só aparece aqui se alguém a registrou depois, e
-# isso **não foi um evento único**: as obras com início anterior a 2019 entraram
-# espalhadas por todos os anos (215 mil em 2021, 192 mil em 2023, 191 mil em
-# 2019, 172 mil em 2022...). No total, 1,6 M de obras — 45% da base — foram
-# registradas mais de um ano depois de começarem.
-#
-# Duas consequências, e as duas mandam cortar em 2019: o passado é subcontado, e
-# **não é estável** — cada snapshot novo acrescenta obras antigas, então uma
-# série que inclua 2016 muda de valor sem que nada tenha sido construído.
+# O CNO passou a valer em 21/01/2019 (IN RFB 1.845/2018). Antes disso a série mede
+# a cobertura do cadastro, não construção, e muda a cada snapshot porque obras
+# antigas continuam sendo registradas.
 PRIMEIRO_ANO_COMPARAVEL = 2019
 
 

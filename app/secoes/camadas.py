@@ -1,11 +1,4 @@
-"""Seção 9 — o que o pipeline construiu com tudo o que as seções anteriores mostraram.
-
-Vem aqui, e não no começo, de propósito. Cada transformação desta seção é
-resposta a um problema que já foi visto: o encoding da seção 1, o 1:N da seção
-2, o nulo da 3, a soma da 4, o Plus Code da 5, o corte de 2019 da 6. Contada
-antes, seria uma lista de etapas; contada agora, é a conta fechando — o leitor
-já sabe por que cada linha existe.
-"""
+"""Seção 9, o que o pipeline construiu com tudo o que as seções anteriores mostraram."""
 
 from __future__ import annotations
 
@@ -18,8 +11,6 @@ from .. import componentes as ui
 
 TITULO = "Transformação dos dados"
 
-# As três camadas, e a regra que separa uma da outra. É desenho, não medição:
-# os números desta seção vivem no texto, medidos no snapshot corrente.
 CAMADAS = [
     {
         "Camada": "**raw**",
@@ -108,13 +99,7 @@ def render() -> None:
 
 
 def _validacao() -> None:
-    """As regras de validação, lidas do pacote que as executa.
-
-    A tabela vem de `cno_pipeline.validate.REGRAS`, o mesmo objeto que o
-    `cno validate` roda — não é lista copiada. Acrescentar ou remover uma regra
-    muda esta tela junto, e uma apresentação que descreve regra que o código não
-    roda é pior que nenhuma.
-    """
+    """As regras de validação, lidas do pacote que as executa."""
     erros = sum(1 for r in REGRAS if r.severidade is Severidade.ERRO)
 
     st.markdown("### Validação dos dados")

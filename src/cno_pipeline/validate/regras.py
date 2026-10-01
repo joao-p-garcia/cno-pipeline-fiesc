@@ -2,17 +2,14 @@
 
 Cada regra é um SELECT que devolve **as linhas que a violam**. Conjunto vazio
 significa regra cumprida. O executor conta, amostra exemplos e decide o código
-de saída — então acrescentar uma regra é escrever uma consulta, sem mexer em
-nenhuma mecânica.
+de saída, então acrescentar uma regra é escrever uma consulta.
 
 As tabelas entram como `{obras}`, `{areas}`, `{cnaes}` e `{vinculos}`, que o
 executor substitui pelos `read_parquet` do snapshot em avaliação.
 
-Sobre severidade: `ERRO` é violação de contrato — se acontecer, a camada tratada
-não está confiável e o pipeline falha. `AVISO` é característica conhecida da
-fonte que queremos medir e acompanhar, mas que não invalida a carga. Marcar tudo
-como erro tornaria a validação inútil, porque um cadastro público de 3,6 milhões
-de registros sempre tem sujeira; marcar tudo como aviso a tornaria decorativa.
+`ERRO` é violação de contrato, e se acontecer a camada tratada não está
+confiável e o pipeline falha. `AVISO` é característica conhecida da
+fonte que queremos medir e acompanhar, mas que não invalida a carga.
 """
 
 from __future__ import annotations
@@ -39,9 +36,7 @@ class Regra:
     nome: str
     descricao: str
     severidade: Severidade
-    # SELECT que devolve as linhas violadoras.
     violacoes: str
-    # Colunas a mostrar quando houver violação, para o relatório ser acionável.
     amostra: tuple[str, ...] = ()
 
 
@@ -53,8 +48,7 @@ _SITUACOES = _lista(SITUACOES)
 _QUALIFICACOES = _lista(QUALIFICACOES)
 _UFS = _lista(UFS_BRASIL)
 
-# Todas as flags booleanas da camada tratada. Um NULL em qualquer uma delas é
-# armadilha: `WHERE NOT flag` descartaria essas linhas em silêncio.
+# Todas as flags booleanas da camada tratada.
 _FLAGS_OBRAS = (
     "obra_ativa",
     "no_exterior",

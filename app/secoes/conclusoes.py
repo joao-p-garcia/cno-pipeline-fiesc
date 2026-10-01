@@ -1,4 +1,4 @@
-"""Seção 10 — o que dá para afirmar, e o que não dá."""
+"""Seção 10, o que dá para afirmar, e o que não dá."""
 
 from __future__ import annotations
 
@@ -25,10 +25,6 @@ def render() -> None:
         "**Sem elas, nenhum deles seria.**",
     )
 
-    # A ordem é uma escalada sobre a mesma pergunta — *o que exatamente se está
-    # contando*: contar obras ou medir área (_setor), contar tudo ou só o que
-    # está em andamento (_situacao), contar em absoluto ou por habitante
-    # (_denominador). Só depois o que a obra é (_destinacao) e o que fica fora.
     _setor()
     _situacao()
     _denominador()
@@ -60,12 +56,7 @@ def _setor() -> None:
 
 
 def _situacao() -> None:
-    """A maior parte do que se conta como *obra* já acabou.
-
-    Vinha de um explorador solto na seção do campo nulo, onde o assunto era PF
-    contra PJ. Aqui fecha a pergunta que `_setor` abre: o número depende de qual
-    universo se está contando.
-    """
+    """A maior parte do que se conta como *obra* já acabou."""
     st.markdown("### E a maior parte dessas obras já acabou")
     situacao = dados_app.consultar("situacao")
     total = int(situacao["obras"].sum())

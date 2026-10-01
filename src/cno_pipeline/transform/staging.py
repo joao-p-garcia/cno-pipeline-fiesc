@@ -3,7 +3,7 @@
 A etapa é idempotente e não destrutiva: a camada raw nunca é tocada, e rodar de
 novo sobre o mesmo snapshot reproduz exatamente o mesmo resultado.
 
-A transcodificação para UTF-8 só acontece nos arquivos que realmente precisam —
+A transcodificação para UTF-8 só acontece nos arquivos que realmente precisam,
 os que têm bytes na faixa 0x80-0x9F, onde cp1252 e latin-1 divergem. Os demais o
 DuckDB lê direto do original, sem intermediário. Na base atual isso significa
 transcodificar 1 arquivo em vez de 5.
@@ -102,11 +102,6 @@ def executar_staging(
             f"camada raw ausente para o snapshot {snapshot}: rode `cno extract` antes"
         )
 
-    # A trava cobre **tudo** o que escreve sob o snapshot, até a limpeza final:
-    # os CSVs transcodificados em `_utf8`, cada partição, e o manifesto de
-    # staging. Fechar o bloco antes da limpeza deixaria um `rmtree` fora da
-    # proteção, que é exatamente a operação perigosa. Ela não é do orquestrador
-    # — vale para dois terminais e para um `airflow tasks run` avulso.
     with travar_snapshot(settings.data_dir, snapshot, etapa="cno transform"):
         utf8_dir = settings.staging_dir / "_utf8" / f"snapshot_date={snapshot}"
         fontes = _preparar_fontes(manifest, csv_dir, utf8_dir, forcar=forcar)
@@ -159,15 +154,7 @@ def _resolver_manifest(settings: Settings, snapshot_id: str | None) -> Manifest:
 def _preparar_fontes(
     manifest: Manifest, csv_dir: Path, utf8_dir: Path, *, forcar: bool
 ) -> dict[str, FonteCsv]:
-    """Decide, por arquivo, se dá para ler direto ou se precisa transcodificar.
-
-    Transcodificar tudo seria desperdício: na prática só o `cno.csv` tem bytes
-    na faixa C1. Nos demais, latin-1 e cp1252 produzem exatamente o mesmo texto,
-    e o DuckDB lê o arquivo original sem intermediário nenhum.
-
-    A decisão é por conteúdo, não por lista fixa de nomes — se uma publicação
-    futura introduzir tipografia em outra tabela, o pipeline se ajusta sozinho.
-    """
+    """Decide, por arquivo, se dá para ler direto ou se precisa transcodificar."""
     fontes: dict[str, FonteCsv] = {}
     a_transcodificar: dict[str, str] = {}
 
@@ -255,8 +242,6 @@ def _tratar_tabela(
 
     linhas_origem = con.execute(f"SELECT count(*) FROM {leitura}").fetchone()[0]
 
-    # Remove só a partição deste snapshot: reprocessar um snapshot não pode
-    # apagar os outros já materializados.
     particao = destino / f"snapshot_date={snapshot_id}"
     shutil.rmtree(particao, ignore_errors=True)
     destino.mkdir(parents=True, exist_ok=True)

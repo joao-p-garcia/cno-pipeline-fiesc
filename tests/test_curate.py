@@ -1,16 +1,4 @@
-"""Testes da camada curada.
-
-Dois níveis. Os de unidade cobrem as duas decisões que não são SQL — a seção do
-CNAE e a geocodificação —, e os de integração rodam a etapa inteira sobre a
-camada sintética, conferindo o que o SQL promete: uma linha por obra, área
-agregável só quando a unidade é metro quadrado, e marts que somam o mesmo que a
-tabela analítica.
-
-A propriedade mais importante testada aqui é a de que `obras_analitico` tem
-exatamente uma linha por obra. Ela junta quatro tabelas, duas delas 1:N, e um
-erro de cardinalidade numa junção não dá erro nenhum — só infla silenciosamente
-toda contagem a jusante.
-"""
+# Testes camada curated.
 
 from __future__ import annotations
 
@@ -136,11 +124,7 @@ def _consultar(settings: Settings, tabela: str, sql: str):
 
 
 def test_uma_linha_por_obra(curado: Settings):
-    """A junção com áreas e CNAEs não pode multiplicar obra.
-
-    A camada sintética tem obras com três áreas e com duas, exatamente para que
-    um erro de cardinalidade apareça aqui em vez de na produção.
-    """
+    """A junção com áreas e CNAEs não pode multiplicar obra."""
     ((total,),) = _consultar(curado, "obras_analitico", "SELECT count(*) FROM {t}")
     ((distintos,),) = _consultar(curado, "obras_analitico", "SELECT count(DISTINCT cno) FROM {t}")
     assert total == distintos == 12
@@ -232,12 +216,7 @@ def test_codigo_curto_vira_coordenada_pela_ancora_do_municipio(curado: Settings)
 
 
 def test_plus_code_valido_no_lugar_errado_e_marcado(curado: Settings):
-    """Sintaticamente perfeito, geograficamente absurdo: geocodifica e sinaliza.
-
-    Marcar em vez de apagar preserva a auditoria — dá para investigar o código
-    cru — e ao mesmo tempo mantém o ponto fora de qualquer mapa ou contagem, que
-    é a política que `area_suspeita` já usa na staging.
-    """
+    """Plus Code válido no lugar errado é geocodificado e marcado, não apagado."""
     ((geocodificada, plausivel, distancia, codigo),) = _consultar(
         curado,
         "obras_analitico",

@@ -1,20 +1,4 @@
-"""Peças de interface que se repetem em todas as seções.
-
-A estrutura de cada seção é sempre a mesma, e é ela que faz a narrativa
-funcionar:
-
-1. um **título** e um parágrafo curto com o que foi visto;
-2. o **gráfico fixo** que faz o argumento — é este que vai para a apresentação,
-   e ele não muda com filtro nenhum;
-3. o **bloco da decisão**: o que quebraria se fosse ignorado, e o que mudou no
-   sistema por causa disso;
-4. um expander **"explorar"**, com os controles.
-
-O passo 4 vem depois de propósito. Storytelling e BI puxam em direções opostas:
-uma história precisa de uma ordem, um painel precisa de liberdade. Separar os
-dois em camadas é o que permite os dois no mesmo app — quem quiser a história lê
-de cima para baixo e nunca abre um expander; quem quiser explorar tem tudo ali.
-"""
+"""Peças de interface que se repetem em todas as seções."""
 
 from __future__ import annotations
 
@@ -25,13 +9,6 @@ from analise import estilo
 
 from . import dados_app
 
-# A ordem da narrativa, e a **única** fonte dela. A numeração do topo de cada
-# seção, os vizinhos do rodapé e as páginas do `st.navigation` saem daqui.
-#
-# Antes cada seção escrevia `"Seção 3 de 6"` e o nome do vizinho à mão. Com seis
-# seções já eram doze lugares para desencontrar; a primeira mudança de ordem
-# deixaria metade do app mentindo sobre onde o leitor está — e mentira de
-# navegação é do tipo que ninguém reporta, só desorienta.
 ORDEM = (
     "fonte",
     "tabelas",
@@ -47,24 +24,7 @@ ORDEM = (
 
 
 def diagrama(svg: str, altura: int) -> None:
-    """Desenha um SVG num iframe, com a superfície e a tipografia do app.
-
-    **Por que iframe.** Está documentado em `secoes/arquitetura.py`, com as três
-    tentativas que falharam antes: markdown quebra o SVG em parágrafos e o
-    `st.html` o sanitiza para fora da página.
-
-    **Por que a moldura mora aqui.** O iframe é um documento à parte: não herda
-    fundo, não herda fonte e, em especial, **não herda `@font-face`** — a fonte
-    que a página carregou não existe lá dentro. Cada diagrama precisa declarar
-    tudo de novo, e com dois diagramas na narrativa a declaração duplicada seria
-    o lugar exato onde o tema começaria a divergir de si mesmo: alguém troca a
-    cor num arquivo, e o outro diagrama continua com a antiga por mais um mês.
-
-    O caminho da fonte começa com barra porque o `srcdoc` resolve URL relativa
-    contra o endereço da página, e a página muda de seção para seção; a raiz é o
-    único ponto fixo. Quem serve o arquivo é o próprio Streamlit, por
-    `server.enableStaticServing` — ver `app/.streamlit/config.toml`.
-    """
+    """Desenha um SVG num iframe, com a superfície e a tipografia do app."""
     pagina = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
@@ -82,12 +42,7 @@ def diagrama(svg: str, altura: int) -> None:
 
 
 def _titulo_de(modulo: str) -> str:
-    """O `TITULO` de uma seção, importada sob demanda.
-
-    O import é adiado de propósito: `componentes` é importado por toda seção no
-    topo, e importar as seções aqui em cima fecharia o ciclo. Dentro da função
-    ele só roda quando a página está sendo desenhada, com tudo já carregado.
-    """
+    """O `TITULO` de uma seção, importada sob demanda."""
     from importlib import import_module
 
     return import_module(f".secoes.{modulo}", package=__package__).TITULO
@@ -121,12 +76,7 @@ def configurar_pagina() -> None:
 
 
 def cabecalho() -> None:
-    """Barra de proveniência, presente em todas as páginas.
-
-    A data do snapshot fica visível o tempo todo porque é ela que separa um
-    dashboard de um extrato: o número que está na tela veio de uma publicação
-    identificada da Receita, e a pipeline sabe qual.
-    """
+    """Barra de proveniência, presente em todas as páginas."""
     curada = dados_app.conexao()
     meta = dados_app.metadados_referencia()
 
@@ -134,8 +84,6 @@ def cabecalho() -> None:
     colunas[0].caption("snapshot da Receita Federal")
     colunas[0].markdown(f"**{curada.snapshot}**")
 
-    # As duas medidas saem de uma varredura só, e são as mesmas que a seção 1
-    # exibe: o cabeçalho não pode discordar do corpo da página.
     totais = dados_app.consultar("totais_do_cabecalho")
     colunas[1].caption("obras")
     colunas[1].markdown(f"**{estilo.numero(totais['obras'])}**")
@@ -160,11 +108,7 @@ def titulo(numero: str, texto: str, resumo: str) -> None:
 
 
 def decisao(achado: str, risco: str, decisao: str) -> None:
-    """O bloco que transforma um gráfico numa decisão de engenharia.
-
-    Os três rótulos são curtos de propósito: quem apresenta lê a tela enquanto
-    fala, e título comprido rouba a atenção do conteúdo.
-    """
+    """O bloco que transforma um gráfico numa decisão de engenharia."""
     with st.container(border=True):
         st.markdown(f"**Achado.** {achado}")
         st.markdown(f"**Risco.** {risco}")

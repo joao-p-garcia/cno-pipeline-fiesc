@@ -1,12 +1,11 @@
 """Acesso HTTP à fonte da Receita Federal.
 
-Comportamento observado do endpoint (verificado em 16/09/2026):
+Comportamento observado do endpoint:
 
 * `GET` responde 303 e redireciona para o `cno.zip` atual (~330 MB).
-* `HEAD` devolve `ETag`, `Last-Modified` e `Content-Length` sem baixar o corpo —
-  é o que usamos para decidir se vale a pena baixar de novo.
-* `If-None-Match` **não é respeitado**: devolve 200 e reenvia o arquivo inteiro.
-  Por isso a comparação de versão é feita por nós, contra o manifesto local.
+* `HEAD` devolve `ETag`, `Last-Modified` e `Content-Length` sem baixar o corpo.
+* `If-None-Match` **não é respeitado** (devolve 200 e reenvia o arquivo inteiro),
+  por isso a versão é comparada contra o manifesto local.
 * `Range` **é** suportado (`206 Partial Content`), então o download é resumível.
 """
 
@@ -115,11 +114,8 @@ class HttpSource:
 
     def _suporta_range(self) -> bool:
         """Testa retomada pedindo 1 byte.
-
-        O `HEAD` desta fonte **não** devolve `Accept-Ranges`, embora o servidor
-        responda `206` a um `GET` com `Range`. Confiar no cabeçalho faria o
-        pipeline desistir da retomada e rebaixar 315 MB do zero a cada falha de
-        rede, então vale a requisição extra de um byte para saber a verdade.
+        A Receita não devolve `Accept-Ranges` nem `Content-Range` no `HEAD`.
+        Então o código testa com um `GET` de 1 byte para retomar downloads.
         """
         try:
             resposta = self.sessao.get(
@@ -147,12 +143,7 @@ class HttpSource:
         info: RemoteInfo,
         on_progress: Callable[[int, int | None], None] | None = None,
     ) -> Path:
-        """Baixa o zip para `destino`, retomando de onde parou se possível.
-
-        A escrita é feita num `.part` e só é promovida ao nome final depois da
-        conferência de tamanho — nunca deixa um arquivo truncado parecendo
-        completo.
-        """
+        """Baixa o zip para `destino`, retomando de onde parou se possível."""
         destino.parent.mkdir(parents=True, exist_ok=True)
         parcial = destino.with_name(destino.name + ".part")
 
@@ -204,8 +195,6 @@ class HttpSource:
         cabecalhos: dict[str, str] = {}
         if ja_temos and info.aceita_range:
             cabecalhos["Range"] = f"bytes={ja_temos}-"
-            # Se a publicação mudou no meio do caminho, o servidor deve recusar
-            # a retomada em vez de costurar bytes de versões diferentes.
             if info.etag:
                 cabecalhos["If-Range"] = f'"{info.etag}"'
 
@@ -226,8 +215,6 @@ class HttpSource:
                 )
 
             if ja_temos and resposta.status_code == 200:
-                # Servidor ignorou o Range: o corpo vem do início, então o que
-                # já tínhamos não pode ser reaproveitado.
                 raise _RecomecarDoZero
             if (
                 ja_temos

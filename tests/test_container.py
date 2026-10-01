@@ -1,16 +1,4 @@
-"""Testes do contrato de caminhos entre a imagem, o compose e a DAG.
-
-A DAG não importa o pipeline: ela o invoca por caminho absoluto. Esse caminho é
-decidido no `Dockerfile`, tem um default embutido na DAG e um ponto de montagem
-correspondente no `docker-compose.yml` — três arquivos que nenhum import liga.
-Se um deles mudar sozinho, nada acusa até a primeira execução dentro do
-container, e o sintoma aparece num log de task, que é o lugar mais caro de
-descobrir.
-
-Estes testes leem os três como texto de propósito. Não sobem Docker, não
-precisam de YAML nem de Airflow instalado: rodam na suíte principal, offline, em
-milissegundos, e é isso que os torna baratos o bastante para valerem a pena.
-"""
+# Testes do contrato de caminhos entre a imagem, o compose e a DAG.
 
 from __future__ import annotations
 
@@ -52,21 +40,13 @@ def test_cno_bin_fica_dentro_do_venv_que_o_dockerfile_cria():
 
 
 def test_volume_de_dados_monta_onde_o_pipeline_escreve():
-    """O volume nomeado precisa cair exatamente em CNO_DATA_DIR.
-
-    Se cair ao lado, o pipeline escreve na camada gravável do container e os
-    dados somem no `docker compose down` — sem erro nenhum no caminho.
-    """
+    """O volume nomeado precisa cair exatamente em CNO_DATA_DIR."""
     data_dir = _env_do_dockerfile("CNO_DATA_DIR")
     assert f"cno-dados:{data_dir}" in COMPOSE
 
 
 def test_diretorio_de_dados_nasce_com_dono_airflow():
-    """Volume nomeado herda dono do diretório que a imagem traz na montagem.
-
-    Sem o `install -d -o airflow`, o Docker cria o ponto de montagem como root e
-    o pipeline não consegue escrever nele.
-    """
+    """Sem o `install -d -o airflow`, o ponto de montagem nasce como root."""
     data_dir = _env_do_dockerfile("CNO_DATA_DIR")
     achado = re.search(r"^RUN install -d -o airflow -g root .*$", DOCKERFILE, re.MULTILINE)
     assert achado, "o Dockerfile não cria os diretórios do pipeline com dono airflow"

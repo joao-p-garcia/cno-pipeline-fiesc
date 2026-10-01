@@ -1,4 +1,4 @@
-"""Seção 6 — a soma que mente por um fator de 312."""
+"""Seção 6, a soma que mente por um fator de 312."""
 
 from __future__ import annotations
 
@@ -42,10 +42,6 @@ def render() -> None:
         [
             ("soma crua", f"{estilo.numero(cru)} km²", "SUM(area_total), sem pensar"),
             ("soma publicável", f"{estilo.numero(certo)} km²", "só m², sem as áreas implausíveis"),
-            # O denominador pode ser zero: basta um recorte em que nenhuma obra tenha
-            # área em metro quadrado. É raro no Brasil inteiro e deixa de ser raro
-            # assim que alguém filtra por UF pequena — e uma divisão por zero derruba
-            # a página inteira, não só o número.
             (
                 "fator de erro",
                 f"{estilo.numero(cru / certo)}×" if certo else "—",

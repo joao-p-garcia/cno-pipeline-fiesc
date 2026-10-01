@@ -1,12 +1,4 @@
-"""Testes da tabela de referência do IBGE.
-
-Ela fica fora do pipeline e é atualizada uma vez por ano — exatamente o perfil de
-arquivo que apodrece sem ninguém notar. Estes testes não checam o IBGE: checam a
-**coerência interna** do que está versionado, que é o que dá para garantir sem
-rede e o que de fato quebra quando alguém edita as correções à mão.
-
-Não há chamada de rede aqui. A suíte continua rodando offline.
-"""
+# Testes na tabela da IBGE (atualizada sob demanda, fora da pipeline)
 
 from __future__ import annotations
 
@@ -67,11 +59,7 @@ def test_codigo_ibge_e_chave_unica(municipios):
 
 
 def test_a_coluna_de_populacao_carrega_a_safra(municipios, meta):
-    """`populacao_2026`, nunca `populacao`.
-
-    Quem escrever o nome genérico recebe erro de coluna inexistente em vez de
-    dividir obras de hoje por um denominador de outra época sem perceber.
-    """
+    """`populacao_2026`, nunca `populacao`."""
     coluna = f"populacao_{meta['safra_populacao']}"
     assert coluna in municipios[0]
     assert "populacao" not in municipios[0]
@@ -117,11 +105,7 @@ def test_toda_correcao_tem_motivo(correcoes):
 
 
 def test_correcao_so_existe_para_quem_nao_casa_por_nome(correcoes):
-    """Correção redundante é dívida: se o nome já casa, a linha não deveria estar aqui.
-
-    Sem esta checagem, a tabela cresce com entradas que ninguém ousa remover
-    porque ninguém sabe mais se ainda são necessárias.
-    """
+    """Se o nome já casa com o IBGE, a correção não deveria existir."""
     referencias = _carregar_modulo()
     con = duckdb.connect()
     referencias.registrar(con)

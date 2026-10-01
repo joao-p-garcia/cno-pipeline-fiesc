@@ -1,11 +1,7 @@
 """Execução das regras de validação e produção do relatório.
 
-Duas famílias de verificação, com naturezas diferentes:
-
 **Reconciliação** confronta o que carregamos com os totais que a *própria
-Receita* publica no `cno_totais.csv`. É a única checagem que olha para fora do
-pipeline — as demais comparam o dado com as regras que nós mesmos escrevemos, e
-por isso não detectariam uma extração que perdeu metade do arquivo.
+Receita* publica no `cno_totais.csv`.
 
 **Regras** verificam o contrato da camada tratada: chave, integridade
 referencial, domínios e coerência interna.
@@ -211,8 +207,6 @@ def _avaliar(
     try:
         violacoes = con.execute(f"SELECT count(*) FROM ({consulta})").fetchone()[0]
     except duckdb.Error as exc:
-        # Regra quebrada é problema nosso, não do dado: falha alto e claro em
-        # vez de passar como se a regra tivesse sido cumprida.
         raise ErroDeValidacao(f"regra {regra.nome!r} não pôde ser avaliada: {exc}") from exc
 
     exemplos: tuple[dict, ...] = ()
