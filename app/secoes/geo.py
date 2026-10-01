@@ -1,4 +1,4 @@
-"""Seção 7, o endereço vem em Plus Code, e alguns apontam para o Japão."""
+"""Seção 7, localização das obras."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def render() -> None:
             funil,
             categoria="etapa",
             valor="obras",
-            titulo="Cobertura da geocodificação — três números, e só o último é publicável",
+            titulo="Cobertura da geocodificação",
             subtitulo=f"sobre {estilo.numero(total)} obras",
             destaque="cai no município certo",
             rotulo_valor="obras",
@@ -60,7 +60,7 @@ def render() -> None:
             "**48.436 Plus Codes (3,7% dos decodificados) são válidos e apontam para o "
             "lugar errado.** São 39 mil a mais de 500 km do município declarado, "
             "alguns no Japão. O prefixo de área foi digitado trocado e o código "
-            "continua sintaticamente perfeito."
+            "continua sintaticamente válido."
         ),
         risco=(
             "Um mapa com obras catarinenses no Japão, e uma cobertura anunciada 43% "
@@ -97,7 +97,7 @@ def render() -> None:
             graficos.mapa(
                 pontos,
                 dados_app.contornos_uf(prefixo),
-                titulo=f"{uf} — cada bolha é um município",
+                titulo=f"Cada bolha é um município ({uf})",
                 subtitulo=(
                     "posição = mediana das coordenadas plausíveis das obras do município; "
                     "tamanho = número de obras. Malha municipal: IBGE."
@@ -107,7 +107,7 @@ def render() -> None:
         )
     else:
         st.info(
-            "A malha municipal não está gerada — o mapa fica de fora e a tabela abaixo "
+            "A malha municipal não está gerada, então o mapa fica de fora e a tabela abaixo "
             "continua valendo. Gere com `python analise/construir_municipios.py`."
         )
         st.dataframe(pontos, hide_index=True, width="stretch")
@@ -125,7 +125,7 @@ def render() -> None:
             ),
             width="stretch",
         )
-        st.markdown("**Os pontos mais distantes da base — todos decodificam perfeitamente**")
+        st.markdown("**Os pontos mais distantes da base, todos com código válido**")
         st.dataframe(
             dados_app.consultar("pontos_fora", limite=10),
             hide_index=True,

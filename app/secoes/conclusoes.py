@@ -67,7 +67,7 @@ def _situacao() -> None:
             situacao,
             categoria="situacao",
             valor="obras",
-            titulo="Situação cadastral — dois terços das obras estão encerradas",
+            titulo="Dois terços das obras estão encerradas",
             subtitulo="a base é o histórico do cadastro, não uma fotografia do canteiro hoje",
             destaque="Ativa",
             rotulo_valor="obras",
@@ -89,7 +89,7 @@ def _situacao() -> None:
                 dados_app.consultar("situacao", uf=uf),
                 categoria="situacao",
                 valor="obras",
-                titulo=f"Situação cadastral — {uf or 'Brasil'}",
+                titulo=f"Situação cadastral ({uf or 'Brasil'})",
                 subtitulo="a proporção de ativas varia entre estados",
                 destaque="Ativa",
                 rotulo_valor="obras",
@@ -119,7 +119,7 @@ def _denominador() -> None:
                 absoluto,
                 categoria="nome_ibge",
                 valor="obras",
-                titulo=f"{UF_FOCO} — obras em números absolutos",
+                titulo=f"Obras em números absolutos ({UF_FOCO})",
                 subtitulo="os grandes centros, como esperado",
                 rotulo_valor="obras",
                 cor=estilo.CINZA,
@@ -132,7 +132,7 @@ def _denominador() -> None:
                 relativo,
                 categoria="nome_ibge",
                 valor="obras_por_mil_hab",
-                titulo=f"{UF_FOCO} — obras por mil habitantes",
+                titulo=f"Obras por mil habitantes ({UF_FOCO})",
                 subtitulo=(
                     "série comparável, municípios com "
                     f"{POPULACAO_MINIMA // 1000} mil habitantes ou mais"
@@ -157,7 +157,7 @@ def _denominador() -> None:
             regioes,
             categoria="regiao",
             valor="obras_por_mil_hab",
-            titulo=f"{UF_FOCO} — obras por mil habitantes, por região intermediária",
+            titulo=f"Obras por mil habitantes, por região intermediária ({UF_FOCO})",
             subtitulo="Chapecó constrói mais que o dobro da região da capital, por habitante",
             destaque="Chapecó",
             rotulo_valor="obras por mil habitantes",
@@ -240,8 +240,8 @@ def _limites() -> None:
         ),
         (
             "Antes de 2019 a série não é comparável, e o último ano nunca está fechado.",
-            "O CNO não existia antes de nov/2018, então o passado é subcontado — e "
-            "**não é estável**: cresce a cada snapshot, conforme obras antigas são "
+            "O CNO não existia antes de nov/2018, então o passado é subcontado e "
+            "**não é estável**, porque cresce a cada snapshot conforme obras antigas são "
             "registradas com atraso. Do outro lado, corte de calendário.",
         ),
         (
@@ -251,8 +251,8 @@ def _limites() -> None:
         ),
         (
             "Área existe para 94% das obras e é autodeclarada.",
-            "323 registros impossíveis foram marcados, validei os 3,4 milhões "
-            "plausíveis contra nada externo.",
+            "323 registros implausíveis foram marcados, mas os 3,4 milhões "
+            "restantes não têm fonte externa para conferir.",
         ),
         (
             "População é de 2026 e as obras são de todos os anos.",

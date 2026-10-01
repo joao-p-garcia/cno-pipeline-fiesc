@@ -20,7 +20,7 @@ SECOES = tuple(import_module(f"app.secoes.{nome}") for nome in ui.ORDEM)
 
 
 def _sem_dados(erro: Exception) -> None:
-    """Tela honesta quando a camada curada não existe."""
+    """Tela exibida quando a camada curada não existe."""
     st.title("A camada curada ainda não existe")
     st.markdown(
         "Este dashboard lê o que o pipeline materializa em `data/curated`. Para gerar tudo do zero:"
@@ -28,7 +28,7 @@ def _sem_dados(erro: Exception) -> None:
     st.code("make pipeline    # extract -> transform -> validate -> curate", language="bash")
     st.markdown(
         "Ou, se a stack em container estiver de pé, espere a DAG `cno_pipeline` terminar "
-        "a primeira execução — o dashboard passa a responder sozinho, sem reiniciar."
+        "a primeira execução. O dashboard passa a responder sozinho, sem reiniciar."
     )
     st.caption(str(erro).replace("\n", " "))
 

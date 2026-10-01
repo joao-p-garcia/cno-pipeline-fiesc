@@ -59,7 +59,7 @@ def render() -> None:
                 dados_app.consultar("responsavel", uf=uf),
                 categoria="tipo",
                 valor="obras",
-                titulo=f"Quem responde pela obra — {uf or 'Brasil'}",
+                titulo=f"Quem responde pela obra ({uf or 'Brasil'})",
                 subtitulo="a proporção varia por estado, e a coluna existe para permitir a dúvida",
                 destaque="PF",
                 rotulo_valor="obras",
