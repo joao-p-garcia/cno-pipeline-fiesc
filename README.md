@@ -164,7 +164,7 @@ Também para não precisar de nenhuma conta de Azure. Caso queira ler melhor, te
 outro readme na branch cloud/azure. O deploy da apresentação em produção dessa outra
 branch está no seguinte link:
 
-|<hhttps://ca-cno-dashboard.agreeablecoast-cf9edb1a.brazilsouth.azurecontainerapps.io/>|
+| <https://ca-cno-dashboard.agreeablecoast-cf9edb1a.brazilsouth.azurecontainerapps.io/> |
 
 ---
 
