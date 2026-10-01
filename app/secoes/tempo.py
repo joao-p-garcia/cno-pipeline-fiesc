@@ -1,4 +1,4 @@
-"""Seção 8, a série triplica em dois anos, e não foi boom de construção."""
+"""Seção 8, recorte temporal."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def render() -> None:
             serie,
             x="ano",
             y="obras",
-            titulo="Obras por ano de início — o degrau de 2018-2019 é cadastral",
+            titulo="Obras por ano de início, com o degrau cadastral de 2018-2019",
             subtitulo=(
                 "o ano é o de início declarado da obra, não o de entrada no cadastro; "
                 f"o último ano está incompleto (snapshot de {dados_app.conexao().snapshot})"
@@ -91,7 +91,7 @@ def render() -> None:
                 dados_app.consultar("obras_por_ano", uf=uf, desde=desde),
                 x="ano",
                 y="obras",
-                titulo=f"Obras por ano — {uf or 'Brasil'}",
+                titulo=f"Obras por ano ({uf or 'Brasil'})",
                 subtitulo="mesma definição de ano da seção acima",
                 rotulo_valor="obras",
             ),

@@ -68,7 +68,7 @@ def vizinhos(modulo: str) -> tuple[str | None, str | None]:
 
 def configurar_pagina() -> None:
     st.set_page_config(
-        page_title="CNO — da fonte à conclusão",
+        page_title="CNO, da fonte à conclusão",
         page_icon="🏗️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -97,7 +97,7 @@ def cabecalho() -> None:
             f"**população {meta['safra_populacao']}** · válida até {meta['valido_ate']}"
         )
     else:
-        colunas[3].markdown("**ausente** — o app funciona sem ela, sem o denominador")
+        colunas[3].markdown("**ausente**. O app funciona sem ela, só perde o denominador")
     st.divider()
 
 

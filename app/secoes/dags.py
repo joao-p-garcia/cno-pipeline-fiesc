@@ -18,12 +18,12 @@ _DOURADO = estilo.DOURADO
 DIAGRAMA = f"""
 <svg viewBox="0 0 860 296" role="img" width="860" height="296"
      style="width:100%;max-width:860px;height:auto;display:block;"
-     aria-label="A DAG cno_pipeline encadeia quatro tarefas — extrair, tratar, validar e curar.
+     aria-label="A DAG cno_pipeline encadeia quatro tarefas (extrair, tratar, validar e curar).
      A extração tem três tentativas com backoff. A validação é um portão: se reprovar, a
      curadoria não roda. Uma segunda DAG, referencias_ibge, roda mensalmente, não acessa a rede
      e falha quando a safra do IBGE vence, sem afetar a pipeline principal.">
   <text x="20" y="22" font-size="12" fill="{estilo.TINTA}" font-weight="600">
-    cno_pipeline — diária às 04:00 (0 4 * * *) · sem catchup · uma execução por vez</text>
+    cno_pipeline · diária às 04:00 (0 4 * * *) · sem catchup · uma execução por vez</text>
   <g fill="none" stroke="{estilo.TINTA}" stroke-width="1.5">
     <rect x="45" y="48" width="170" height="56" rx="6"/>
     <rect x="245" y="48" width="170" height="56" rx="6"/>
@@ -64,7 +64,7 @@ DIAGRAMA = f"""
   <line x1="20" y1="188" x2="840" y2="188" stroke="{estilo.TINTA}" stroke-width="1"
         stroke-dasharray="4 4" opacity="0.3"/>
   <text x="20" y="216" font-size="12" fill="{estilo.TINTA}" font-weight="600">
-    referencias_ibge — mensal (@monthly) · não acessa a rede</text>
+    referencias_ibge · mensal (@monthly) · não acessa a rede</text>
   <rect x="45" y="232" width="330" height="48" rx="6" fill="none" stroke="{estilo.TINTA}"
         stroke-width="1.5"/>
   <text x="210" y="252" text-anchor="middle" font-size="13" fill="{estilo.TINTA}"
