@@ -25,7 +25,7 @@ CAMADAS = [
     {
         "Camada": "**curated**",
         "O que é": "uma linha por obra, mais três marts pré-agregados",
-        "Regra": "é aqui que ficam as decisões de análise, e só aqui",
+        "Regra": "onde ficam as decisões de análise",
     },
 ]
 

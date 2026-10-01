@@ -98,7 +98,7 @@ def render() -> None:
         ),
         risco=(
             "O latin-1 decodifica qualquer byte sem levantar exceção, a pipeline rodaria "
-            "verde e o texto corrompido apareceria num relatório três camadas depois."
+            "sem erro e o texto corrompido só apareceria no relatório."
         ),
         decisao=(
             'Fixei `ENCODING_ORIGEM = "cp1252"` como constante em `config.py`. O '
