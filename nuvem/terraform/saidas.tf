@@ -1,10 +1,10 @@
 output "registry" {
-  description = "Servidor do ACR, para o `az acr build`."
+  description = "Servidor do ACR."
   value       = azurerm_container_registry.cno.login_server
 }
 
 output "dashboard_url" {
-  description = "A URL pública do dashboard. É o que se abre na apresentação."
+  description = "URL pública do dashboard."
   value       = "https://${azurerm_container_app.dashboard.ingress[0].fqdn}"
 }
 
@@ -13,9 +13,7 @@ output "lake_curated" {
   value       = local.lake_curated
 }
 
-# Os três valores que o workflow do GitHub Actions precisa. Nenhum deles é
-# segredo: o que autentica é o token OIDC que o runner emite na hora, e a
-# credencial federada só aceita trocá-lo se vier da branch declarada.
+# Nenhum destes valores é segredo, quem autentica é o token OIDC do runner.
 output "github_variaveis" {
   description = "Valores para as Variables do repositório (não Secrets)."
   value = {

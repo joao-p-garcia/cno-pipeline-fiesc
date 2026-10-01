@@ -1,12 +1,5 @@
-# O data lake.
-#
-# is_hns_enabled = true é o que transforma um storage account comum em ADLS
-# Gen2: hierarquia de diretórios de verdade, em vez de nomes de blob com barra
-# dentro. Para o que sobe aqui — partições Hive `snapshot_date=.../uf=...` — a
-# diferença aparece na hora de listar e de renomear um diretório inteiro.
-#
-# O particionamento não precisou mudar nada para vir para cá, e isso não é
-# sorte: partição Hive sempre foi só prefixo de caminho.
+# O data lake. is_hns_enabled faz do storage account um ADLS Gen2, com
+# diretórios de verdade para as partições Hive.
 resource "azurerm_storage_account" "lake" {
   name                = "stcnolakefiesc"
   resource_group_name = azurerm_resource_group.cno.name
@@ -21,20 +14,14 @@ resource "azurerm_storage_account" "lake" {
   https_traffic_only_enabled      = true
   allow_nested_items_to_be_public = false
 
-  # Mesma postura do backend do state: sem chave de conta, a autenticação é
-  # sempre Entra ID. É o que permite que o job e o dashboard usem identidade
-  # gerenciada sem que exista um segredo em lugar nenhum para vazar.
+  # Sem chave de conta, a autenticação é sempre Entra ID.
   shared_access_key_enabled = false
 
   tags = local.etiquetas
 }
 
-# Sem isto o `apply` falha com 403 de forma intermitente.
-#
-# O Terraform acaba de criar a conta e já quer criar um filesystem dentro dela —
-# mas isso é *data plane*, e na Azure ser dono do recurso não dá acesso ao
-# conteúdo. Precisa de um papel de dado explícito, e uma atribuição de papel não
-# vale no instante em que é criada.
+# Criar o filesystem é data plane e exige papel de dado, que não vale no
+# instante em que é atribuído. Sem a espera o apply falha com 403 intermitente.
 resource "azurerm_role_assignment" "terraform_no_lake" {
   scope                = azurerm_storage_account.lake.id
   role_definition_name = "Storage Blob Data Owner"

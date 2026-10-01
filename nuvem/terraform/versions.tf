@@ -6,17 +6,14 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
-    # Só para esperar o RBAC propagar antes de usar o data plane do lake.
-    # Ver o comentário em lake.tf — não é preciosismo, é uma falha real e
-    # intermitente sem isso.
+    # Para esperar o RBAC do lake propagar.
     time = {
       source  = "hashicorp/time"
       version = "~> 0.12"
     }
   }
 
-  # Criado por nuvem/bootstrap.sh. use_azuread_auth porque a conta nasce com
-  # --allow-shared-key-access false: não existe chave para o Terraform usar.
+  # Criado por nuvem/bootstrap.sh. A conta não tem chave, daí o use_azuread_auth.
   backend "azurerm" {
     resource_group_name  = "rg-cno-tfstate"
     storage_account_name = "stcnotfstatefiesc"
@@ -31,9 +28,7 @@ provider "azurerm" {
 
   subscription_id = var.assinatura
 
-  # A partir da série 4.x o provider não adivinha mais a assinatura do contexto
-  # do az; ela é obrigatória. E sem isto aqui ele tentaria chave de conta ao
-  # falar com o storage, que não existe em nenhuma conta deste projeto.
+  # Sem chave de conta no storage, o provider precisa autenticar por Entra ID.
   storage_use_azuread = true
 }
 

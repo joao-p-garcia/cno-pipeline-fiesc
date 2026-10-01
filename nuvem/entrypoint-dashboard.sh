@@ -1,22 +1,11 @@
 #!/usr/bin/env sh
 #
-# O dashboard, no Container App.
-#
-# Ele baixa a camada curada do lake para o disco local e só então sobe o
-# Streamlit. A alternativa seria a extensão `azure` do DuckDB lendo abfss://
-# direto — funciona para leitura, mas põe latência de rede em cada consulta e
-# exigiria mexer na camada de dados do app. São 191 MB de mesma região: baixar
-# custa segundos no boot e mantém `app/` e `analise/` sem uma linha de mudança.
-#
-# O download NÃO é fatal se falhar. Quando não há camada curada, o próprio app
-# explica o que rodar — comportamento que já existe e que vale mais do que um
-# container em CrashLoopBackOff sem dizer por quê.
+# O dashboard no Container App. Baixa a camada curada do lake para o disco e
+# sobe o Streamlit, assim `app/` e `analise/` rodam sem mudança. Se o download
+# falhar o app sobe assim mesmo e explica o que falta.
 set -eu
 
 echo "=== baixando a camada curada do lake ==="
-# Via ambiente, e não `azcopy login`: dentro de um container o login tenta
-# gravar o token num keyring do sistema que não existe, e falha com
-# "operation not permitted". Ver o comentário mais longo em entrypoint-job.sh.
 export AZCOPY_AUTO_LOGIN_TYPE=MSI
 export AZCOPY_MSI_CLIENT_ID="$AZURE_CLIENT_ID"
 
@@ -25,10 +14,8 @@ azcopy sync "$CNO_LAKE_CURATED" "$CNO_DATA_DIR/curated" --recursive \
   || echo "AVISO: sync falhou; subindo assim mesmo, o app se explica"
 
 echo "=== subindo o streamlit ==="
-# enableCORS/enableXsrfProtection desligados porque o ingress do Container Apps
-# termina o TLS e repassa: com eles ligados o Streamlit rejeita o upgrade de
-# websocket e a página fica carregando para sempre. O app é público e somente
-# leitura, então não há o que proteger com XSRF aqui.
+# O ingress termina o TLS, e com CORS e XSRF ligados o Streamlit recusa o
+# websocket. O app é público e só de leitura.
 exec streamlit run /opt/cno/app/dashboard.py \
   --server.port=8501 \
   --server.address=0.0.0.0 \

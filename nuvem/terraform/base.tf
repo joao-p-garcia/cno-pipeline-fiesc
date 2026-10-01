@@ -4,9 +4,8 @@ resource "azurerm_resource_group" "cno" {
   tags     = local.etiquetas
 }
 
-# O ambiente do Container Apps exige um workspace. O volume de log deste
-# projeto é ínfimo (quatro etapas, uma vez por dia), mas o daily_quota_gb
-# existe para que um loop de falha em retry não vire fatura.
+# Exigido pelo ambiente do Container Apps. A cota diária evita que um loop de
+# falha vire fatura.
 resource "azurerm_log_analytics_workspace" "cno" {
   name                = "log-cno"
   location            = azurerm_resource_group.cno.location
@@ -17,13 +16,8 @@ resource "azurerm_log_analytics_workspace" "cno" {
   tags                = local.etiquetas
 }
 
-# Basic basta: um repositório, uma imagem, sem replicação geográfica e sem
-# necessidade de rede privada.
-#
-# admin_enabled = false de propósito. O usuário admin do ACR é um par
-# usuário/senha estático que acaba num secret do CI; aqui tanto o job quanto o
-# dashboard puxam a imagem por identidade gerenciada, e o GitHub Actions empurra
-# por OIDC. Não há credencial de registry em lugar nenhum.
+# Sem usuário admin. Job e dashboard puxam por identidade gerenciada e o CD
+# empurra por OIDC, então não existe credencial de registry.
 resource "azurerm_container_registry" "cno" {
   name                = "acrcnofiesc"
   location            = azurerm_resource_group.cno.location

@@ -11,7 +11,7 @@ somando as quatro tabelas.
 
 ## Rodar
 
-Nessa branch, a solução está em deploy na Nuvem. Entretanto, caso queira rodar:
+Nesta branch a solução está em deploy na nuvem. Para rodar localmente, siga abaixo.
 
 Caso seu sistema operacional não seja Linux, recomendo usar Docker Desktop.
 Pra rodar esse repositório basta apenas Docker, sem necessidade de instalar mais nada.
@@ -152,22 +152,16 @@ Python 3.11+, empacotado como CLI (`cno`). Sem Spark, sem data warehouse, os
 Python 3.11 e 3.12, e num job separado sobe o Airflow 3.3.2 para os testes das
 DAGs. Como nenhum teste toca a rede, a CI não depende de a Receita estar no ar.
 
-**CD** existe, e publica na nuvem. A cada push na branch `cloud/azure`, o
-GitHub Actions constrói a imagem, envia para um Azure Container Registry e
-reaponta os dois recursos que a consomem. A autenticação é OIDC com credencial
-federada: **nenhum segredo fica guardado no repositório** — o runner emite um
-token na hora e a Azure só aceita trocá-lo se ele vier daquela branch.
+**CD** existe nesta branch. A cada push em `cloud/azure`, o GitHub Actions
+constrói a imagem, envia para um Azure Container Registry e atualiza o job e o
+dashboard. A autenticação é OIDC, **sem segredo guardado no repositório**.
 
-Do outro lado do deploy, o mesmo pipeline roda gerenciado: um **Container Apps
-Job** com cron diário no lugar dos cinco contêineres do Airflow, **ADLS Gen2**
-no lugar do volume, e o dashboard num endereço público. A infraestrutura
-inteira é **Terraform** com estado remoto.
+Na nuvem o pipeline roda num **Container Apps Job** com cron diário no lugar do
+Airflow, grava as três camadas num **ADLS Gen2** e o dashboard fica num
+endereço público. A infraestrutura é **Terraform** com estado remoto.
 
-Isso é uma trilha paralela, não a entrega: o que o desafio pede roda com
-`docker compose up`, do começo ao fim, sem conta em nuvem nenhuma. O pipeline
-não mudou uma linha para ir para lá — ele já era um CLI configurado por
-variável de ambiente, sem estado fora de `CNO_DATA_DIR`, e foi isso que tornou
-a mudança barata. Detalhes e medições em [nuvem/PLANO.md](nuvem/PLANO.md).
+A entrega do desafio continua sendo o `docker compose up`, sem conta em nuvem.
+O pipeline não mudou para rodar lá. Detalhes em [nuvem/PLANO.md](nuvem/PLANO.md).
 
 ---
 
