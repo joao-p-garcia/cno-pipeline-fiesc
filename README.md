@@ -156,6 +156,16 @@ gerenciado, porque a imagem é autossuficiente
 (sem bind mount e sem dependência do host). A decisão é ser uma DAG 
 entregável e que funcione num computador localmente. 
 
+Existe uma branch chamada cloud/azure, em que existe o CD. Nela, 
+a arquitetura é diferente para rodar em nuvem com o mínimo de custos, mas 
+cumprindo todos os requisitos solicitados. O deploy existe e está rodando diariamente. 
+Optei por separar as branchs para que rodar localmente seja mais simples e verificável.
+Também para não precisar de nenhuma conta de Azure. Caso queira ler melhor, tem um
+outro readme na branch cloud/azure. O deploy da apresentação em produção dessa outra
+branch está no seguinte link:
+
+|<hhttps://ca-cno-dashboard.agreeablecoast-cf9edb1a.brazilsouth.azurecontainerapps.io/>|
+
 ---
 
 ## O que a solução faz
