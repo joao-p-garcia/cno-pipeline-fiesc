@@ -21,8 +21,7 @@ def render() -> None:
     ui.titulo(
         ui.posicao(__name__),
         TITULO,
-        "Com as decisões anteriores no lugar, os números abaixo são defensáveis. "
-        "**Sem elas, nenhum deles seria.**",
+        "Os números abaixo já usam os ajustes das seções anteriores.",
     )
 
     _setor()
@@ -35,7 +34,7 @@ def render() -> None:
 
 
 def _setor() -> None:
-    st.markdown("### Contar obras e medir área respondem coisas diferentes")
+    st.markdown("### Medir áreas pode ser mais informativo do que contar as obras")
     divisoes = dados_app.consultar("divisoes_cnae")
     st.altair_chart(
         graficos.barras_comparadas(
@@ -58,8 +57,8 @@ def _setor() -> None:
 
 
 def _situacao() -> None:
-    """A maior parte do que se conta como *obra* já acabou."""
-    st.markdown("### E a maior parte dessas obras já acabou")
+    """Situação cadastral das obras."""
+    st.markdown("### A maior parte das obras já acabou")
     situacao = dados_app.consultar("situacao")
     total = int(situacao["obras"].sum())
     ativas = int(situacao.loc[situacao["situacao"] == "Ativa", "obras"].sum())
@@ -70,7 +69,7 @@ def _situacao() -> None:
             categoria="situacao",
             valor="obras",
             titulo="Dois terços das obras estão encerradas",
-            subtitulo="a base é o histórico do cadastro, não uma fotografia do canteiro hoje",
+            subtitulo="a base inclui todo o histórico de cadastro, não apenas obras em andamento",
             destaque="Ativa",
             rotulo_valor="obras",
         ),
@@ -101,7 +100,7 @@ def _situacao() -> None:
 
 
 def _denominador() -> None:
-    st.markdown("### Considerar população reordena conclusões")
+    st.markdown("### Dados de população do IBGE enriquecem a análise")
     if not dados_app.metadados_referencia():
         st.info(
             "A tabela de referência do IBGE não está gerada, então não há denominador. "
@@ -146,11 +145,15 @@ def _denominador() -> None:
 
     repetidos = sorted(set(absoluto["nome_ibge"]) & set(relativo["nome_ibge"]))
     st.markdown(
-        f"**Das dez posições, {10 - len(repetidos)} trocam.** "
-        + (f"Só {', '.join(repetidos)} sobrevive à mudança de denominador. " if repetidos else "")
-        + "O ranking por habitante mostra outra Santa Catarina, com Itapoá, Passo de "
-        "Torres, Maravilha, Pinhalzinho, Balneário Piçarras: litoral norte e Oeste "
-        "catarinense."
+        f"Das dez primeiras posições, {10 - len(repetidos)} mudam. "
+        + (
+            f"Só {', '.join(repetidos)} "
+            f"{'aparece' if len(repetidos) == 1 else 'aparecem'} nos dois rankings. "
+            if repetidos
+            else ""
+        )
+        + "No ranking por habitante aparecem Itapoá, Passo de Torres, Maravilha, "
+        "Pinhalzinho e Balneário Piçarras, do litoral norte e do Oeste catarinense."
     )
 
     regioes = dados_app.consultar("regioes", uf=UF_FOCO)
@@ -244,7 +247,8 @@ def _limites() -> None:
             "Antes de 2019 a série não é comparável, e o último ano nunca está fechado.",
             "O CNO não existia antes de nov/2018, então o passado é subcontado e "
             "**não é estável**, porque cresce a cada snapshot conforme obras antigas são "
-            "registradas com atraso. Do outro lado, corte de calendário.",
+            "registradas com atraso. E o último ano está incompleto, porque ainda não "
+            "terminou na data do snapshot.",
         ),
         (
             "58,8% das obras não têm ponto no mapa, e a ausência não é aleatória.",
@@ -263,7 +267,7 @@ def _limites() -> None:
         ),
         (
             "Duas obras dizem estar no Brasil e num município chamado EXTERIOR.",
-            "A fonte se contradiz, e o pipeline preserva a contradição em vez de escolher um lado.",
+            "O pipeline mantém os dois campos como vieram da fonte.",
         ),
     ]
     for afirmacao, detalhe in limites:

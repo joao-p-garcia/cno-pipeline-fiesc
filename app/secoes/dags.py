@@ -72,9 +72,9 @@ DIAGRAMA = f"""
   <text x="210" y="269" text-anchor="middle" font-size="11" fill="{estilo.TINTA}"
         opacity="0.75">falha quando a safra do IBGE vence</text>
   <text x="405" y="252" font-size="11" fill="{estilo.TINTA}" opacity="0.75">
-    DAG separada de propósito: pode ficar vermelha o tempo que for</text>
+    DAG separada: se falhar, não afeta a pipeline acima</text>
   <text x="405" y="269" font-size="11" fill="{estilo.TINTA}" opacity="0.75">
-    sem afetar a pipeline acima, o aviso é sobre a análise, não sobre o dado</text>
+    o aviso é sobre a tabela do IBGE, não sobre o CNO</text>
 </svg>
 """
 
@@ -89,13 +89,12 @@ POLITICA = [
     {
         "Tarefa": "tratar",
         "Retry": "nenhum",
-        "Por quê": "determinística: se falhou, falha de novo. Retry só atrasaria o erro",
+        "Por quê": "determinística, se falhou vai falhar de novo",
     },
     {
         "Tarefa": "validar",
         "Retry": "nenhum",
-        "Por quê": "reprovação não é instabilidade, é diagnóstico. Tentar de novo dá o mesmo "
-        "resultado",
+        "Por quê": "tentar de novo dá o mesmo resultado",
     },
     {
         "Tarefa": "curar",

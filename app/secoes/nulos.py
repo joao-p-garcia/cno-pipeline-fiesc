@@ -60,7 +60,7 @@ def render() -> None:
                 categoria="tipo",
                 valor="obras",
                 titulo=f"Quem responde pela obra ({uf or 'Brasil'})",
-                subtitulo="a proporção varia por estado, e a coluna existe para permitir a dúvida",
+                subtitulo="a proporção varia por estado",
                 destaque="PF",
                 rotulo_valor="obras",
             ),

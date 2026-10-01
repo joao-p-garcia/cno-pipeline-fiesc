@@ -66,7 +66,7 @@ def render() -> None:
         ),
     )
 
-    st.markdown("### E a média de 834 m² não descreve obra nenhuma")
+    st.markdown("### A média das áreas não é um bom dado")
     quantis = dados_app.consultar("quantis_area")
     mediana = float(quantis["mediana"].iloc[0])
     media = float(quantis["media"].iloc[0])
@@ -86,7 +86,7 @@ def render() -> None:
     )
     st.caption(
         "Metade das obras tem até 135 m²; um quarto tem até 70. A média é puxada pelo 1% "
-        "acima de 12.049 m² e não descreve caso nenhum, por isso os data marts guardam "
+        "acima de 12.049 m², por isso os data marts guardam "
         "mediana, e as faixas de `faixa_area` foram cortadas na distribuição real."
     )
 

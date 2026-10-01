@@ -63,9 +63,8 @@ def render() -> None:
             "continua sintaticamente válido."
         ),
         risco=(
-            "Um mapa com obras catarinenses no Japão, e uma cobertura anunciada 43% "
-            "maior que a real. Nada disso levantaria exceção, porque o código "
-            "**decodifica normalmente**."
+            "Mostrar pontos no lugar errado no mapa e publicar uma cobertura 43% maior "
+            "que a real, sem nenhum erro aparecer."
         ),
         decisao=(
             "Coluna `geo_distancia_municipio_km`, com a distância até a mediana do "
