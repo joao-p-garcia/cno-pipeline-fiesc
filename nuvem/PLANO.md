@@ -441,7 +441,7 @@ tocam a rede e não têm nada a ver com nuvem.
 | Item | Estimativa |
 |---|---|
 | Container Apps Job | ~3,3 h/mês de compute → dentro da cota gratuita mensal (180k vCPU-s / 360k GiB-s) |
-| ADLS Gen2 | ~1,3 GB por snapshot novo acumulando (191 MB de curated + ~1,1 GB de staging, raw à parte); poucos GB/mês em hot → ainda centavos |
+| ADLS Gen2 | ~430 MB por snapshot novo acumulando (191 MB de curated e 237 MB de staging, medidos no lake; raw à parte). Poucos GB/mês em hot, centavos |
 | ACR Basic | ~US$ 5/mês |
 | Log Analytics | ~US$ 0 no volume deste projeto |
 | Dashboard com `min_replicas = 0` | ~US$ 0 parado; centavos por sessão |
