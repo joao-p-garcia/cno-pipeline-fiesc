@@ -43,15 +43,17 @@ def _setor() -> None:
             categoria="nome",
             series={"pct_obras": "% das obras", "pct_area": "% dos metros quadrados"},
             titulo="Infraestrutura é 8% das obras e 28% da área construída",
-            subtitulo="mesma escala nos dois: são duas participações, não duas grandezas",
+            subtitulo="mesma escala nos dois, porque são duas participações no total",
             rotulo_valor="% do total",
         ),
         width="stretch",
     )
     st.markdown(
-        "Um relatório que conta registros diz que o setor é **residencial pulverizado**; um "
-        "que soma área diz que há **um terço de obra pesada**.\n\n"
-        "Tentei fazer uma comparação por CNAE, mas toda a base possui o mesmo."
+        "Contando registros, infraestrutura é 8% das obras. Somando área, é 28%.\n\n"
+        "Todos os CNAEs da base são da mesma seção da CNAE (F, Construção), então "
+        "agrupar por seção daria uma linha só. A comparação acima usa a divisão, o "
+        "nível logo abaixo (41 Construção de edifícios, 42 Obras de infraestrutura e "
+        "43 Serviços especializados)."
     )
 
 
